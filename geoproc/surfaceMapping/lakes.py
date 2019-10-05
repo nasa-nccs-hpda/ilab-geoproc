@@ -52,20 +52,33 @@ def create_animation( files: List[str], savePath: str = None, overwrite = False 
 def get_nearest_nonzero_value( array: np.ndarray, index: int )-> np.ndarray:
     return array
 
-def get_most_common_value( array: np.ndarray )-> int:
-    t0 = time.time()
-    print(" Executing get_most_common_value ")
-    unique_elements, counts_elements = np.unique( array, axis=0, return_counts=True )
-    if len( unique_elements ) == 1: return unique_elements[0]
-    indices = np.argsort( counts_elements )
-    mcv = unique_elements[indices[-1]]
-    print(" Completed get_most_common_value in " + str(time.time() - t0) + " seconds")
-    return mcv if mcv > 0 else unique_elements[indices[-2]]
+def get_water_mask( da: xr.DataArray, threshold = 0.4 )-> xr.DataArray:
+    bin_counts = np.apply_along_axis( np.bincount, axis=0, arr=da.values, minlength=4 )
+    nonzero_counts = np.sum( bin_counts[1:], 0 )
+    bin_freq = np.divide( bin_counts, nonzero_counts, where= nonzero_counts != 0  )
+    prob_h20 = bin_freq[2] + bin_freq[3]
+    water_mask = prob_h20 >= threshold
+    result = xr.DataArray( water_mask, coords = { d:da.coords[d] for d in da.dims[1:] }, dims = da.dims[1:] )
+    return result
 
-def createDataset( files: List[str], band=0 ) ->  xr.DataArray:
+def get_water_masks(data_array: xr.DataArray, binSize ) -> xr.DataArray:
+    print(" Executing get_water_masks ")
+    t0 = time.time()
+    time_bins = list( range( 0, data_array.shape[0]+1, binSize ) )
+    grouped_data: DatasetGroupBy = data_array.groupby_bins( 'time', time_bins )
+    result = grouped_data.apply( get_water_mask, threshold = 0.5 )
+    print(" Completed get_water_masks in " + str(time.time() - t0) + " seconds")
+    return result
+
+def createDataset( files: List[str], band=0, subset = None ) ->  xr.DataArray:
     t0 = time.time()
     print(" Executing createDataset ")
-    data_arrays: List[xr.DataArray ] = [ xr.open_rasterio(file)[band] for file in files ]
+    if subset is not None:
+        offset = subset[0]
+        size = subset[1]
+        data_arrays: List[xr.DataArray ] = [ xr.open_rasterio(file)[band,offset:offset+size,offset:offset+size] for file in files ]
+    else:
+        data_arrays: List[xr.DataArray] = [xr.open_rasterio(file)[band] for file in files]
     merged_data_array: xr.DataArray = xr.concat( data_arrays, xr.DataArray( range(len(files)), name='time', dims="time" ) )
     print(" Completed createDataset in " + str(time.time() - t0) + " seconds")
     return merged_data_array
@@ -88,9 +101,7 @@ if __name__ == '__main__':
     data_array: xr.DataArray = createDataset( files )
     print(f" Data Array {data_array.name}: shape = {data_array.shape}, dims = {data_array.dims}")
 
-    time_bins = list( range( 0, len(files)+1, 6 ) )
-    grouped_data: DatasetGroupBy = data_array.groupby_bins( 'time', time_bins )
-    result = grouped_data.apply( get_most_common_value )
+    result = get_water_masks( data_array, 8 )
     print( result.shape )
 
     print(" ** done **")
