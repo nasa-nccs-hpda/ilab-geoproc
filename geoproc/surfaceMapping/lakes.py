@@ -4,11 +4,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.animation as animation
 from matplotlib.figure import Figure
-import cartopy.crs as ccrs
 import urllib.request
 from typing import Dict, List
 from urllib.error import HTTPError
-import os, time, array, sys
+import os, time, sys
 
 def download_MWP_files( data_dir: str, year: int = 2019, start_day: int = 1, end_day: int = 365, location: str = "120W050N", product: str = "1D1OS", download = False ):
     t0 = time.time()
@@ -31,7 +30,7 @@ def download_MWP_files( data_dir: str, year: int = 2019, start_day: int = 1, end
     print( " Completed download_MWP_files in " + str( time.time() - t0 ) + " seconds")
     return files
 
-def create_animation( files: List[str], savePath: str = None, overwrite = False ) -> animation.TimedAnimation:
+def create_file_animation( files: List[str], savePath: str = None, overwrite = False ) -> animation.TimedAnimation:
     images = []
     t0 = time.time()
     print(" Executing create_animation ")
@@ -49,10 +48,28 @@ def create_animation( files: List[str], savePath: str = None, overwrite = False 
     plt.show()
     return anim
 
+def create_array_animation( data_array: xr.DataArray, savePath: str = None, overwrite = False ) -> animation.TimedAnimation:
+    images = []
+    t0 = time.time()
+    print(" Executing create_array_animation ")
+    figure: Figure = plt.figure()
+
+    for iT in range(data_array.shape[0]):
+        da: xr.DataArray = data_array[iT]
+        im = plt.imshow(da.values, animated=True)
+        images.append([im])
+    anim = animation.ArtistAnimation( figure, images, interval=50, blit=True, repeat_delay=1000)
+    if savePath is not None and ( overwrite or not os.path.exists( savePath )):
+        anim.save( savePath )
+        print( f"Animation saved to {savePath}" )
+    print(" Completed create_array_animation in " + str(time.time() - t0) + " seconds")
+    plt.show()
+    return anim
+
 def get_nearest_nonzero_value( array: np.ndarray, index: int )-> np.ndarray:
     return array
 
-def get_water_mask( da: xr.DataArray, threshold = 0.4 )-> xr.DataArray:
+def __get_water_mask( da: xr.DataArray, threshold = 0.4 )-> xr.DataArray:
     bin_counts = np.apply_along_axis( np.bincount, axis=0, arr=da.values, minlength=4 )
     nonzero_counts = np.sum( bin_counts[1:], 0 )
     bin_freq = np.divide( bin_counts, nonzero_counts, where= nonzero_counts != 0  )
@@ -66,8 +83,8 @@ def get_water_masks(data_array: xr.DataArray, binSize ) -> xr.DataArray:
     t0 = time.time()
     time_bins = list( range( 0, data_array.shape[0]+1, binSize ) )
     grouped_data: DatasetGroupBy = data_array.groupby_bins( 'time', time_bins )
-    result = grouped_data.apply( get_water_mask, threshold = 0.5 )
-    print(" Completed get_water_masks in " + str(time.time() - t0) + " seconds")
+    result = grouped_data.apply( __get_water_mask, threshold = 0.5 )
+    print(" Completed get_water_masks in " + str( (time.time() - t0)/60 ) + " minutes" )
     return result
 
 def createDataset( files: List[str], band=0, subset = None ) ->  xr.DataArray:
@@ -96,12 +113,15 @@ if __name__ == '__main__':
 
     if viewRawData:
         animationFile =  os.path.join( DATA_DIR, f'MWP_{year}_{location}_{product}.gif' )
-        create_animation( files, animationFile )
+        create_file_animation( files, animationFile )
 
     data_array: xr.DataArray = createDataset( files )
     print(f" Data Array {data_array.name}: shape = {data_array.shape}, dims = {data_array.dims}")
 
-    result = get_water_masks( data_array, 8 )
-    print( result.shape )
+    waterMask = get_water_masks( data_array, 8 )
+    print( waterMask.shape )
+
+    waterMaskAnimationFile = os.path.join(DATA_DIR, f'MWP_{year}_{location}_{product}_waterMask.gif')
+    create_array_animation( waterMask, waterMaskAnimationFile )
 
     print(" ** done **")
