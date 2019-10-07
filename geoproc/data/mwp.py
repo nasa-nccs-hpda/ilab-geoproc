@@ -12,6 +12,10 @@ class MWPDataManager(ConfigurableObject):
         self.data_dir = data_dir
         self.data_source_url = data_source_url
 
+    def get_location_dir( self, location: str ) -> str:
+        loc_dir = os.path.join( self.data_dir, location )
+        if not os.path.exists(loc_dir): os.makedirs(loc_dir)
+        return loc_dir
 
     def download_tile( self, location: str = "120W050N", **kwargs  ) -> List[str]:
         t0 = time.time()
@@ -21,10 +25,11 @@ class MWPDataManager(ConfigurableObject):
         end_day =   self.getParameter( "end_day",   **kwargs )
         year =      self.getParameter( "year",      **kwargs )
         product =   self.getParameter( "product",   **kwargs )
+        location_dir = self.get_location_dir( location )
         files = []
         for iFile in range(start_day,end_day+1):
             target_file = f"MWP_{year}{iFile}_{location}_{product}.tif"
-            target_file_path = os.path.join( self.data_dir, target_file )
+            target_file_path = os.path.join( location_dir, target_file )
             if not os.path.exists( target_file_path ):
                 if download:
                     target_url = self.data_source_url + f"/{location}/{year}/{target_file}"
