@@ -16,6 +16,11 @@ class MWPDataManager(ConfigurableObject):
         if not os.path.exists(loc_dir): os.makedirs(loc_dir)
         return loc_dir
 
+    def delete_if_empty( self, location: str  ):
+        ldir = self.get_location_dir( location )
+        try: os.rmdir( ldir )
+        except OSError: pass
+
     def download_tile( self, location: str = "120W050N", **kwargs  ) -> List[str]:
         t0 = time.time()
         download =  self.getParameter( "download",  **kwargs )
@@ -57,6 +62,11 @@ class MWPDataManager(ConfigurableObject):
                 global_locs.append(f"000E{iy:03d}{yhemi}")
         return global_locs
 
+    def remove_empty_directories(self, nProcesses: int = 8):
+        locations = dataMgr.get_global_locations()
+        with Pool(nProcesses) as p:
+            p.map(dataMgr.delete_if_empty, locations, nProcesses)
+
     def _segment(self, strList: List[str], nSegments ):
         seg_length = int( round( len( strList )/nSegments ) )
         return [strList[x:x + seg_length] for x in range(0, len(strList), seg_length)]
@@ -72,5 +82,6 @@ if __name__ == '__main__':
     else:
         dataMgr = MWPDataManager( sys.argv[1], "https://floodmap.modaps.eosdis.nasa.gov/Products" )
         dataMgr.setDefaults( product = "3D3OT", download = True, year = 2019, start_day = 1, end_day = 365 )
-        dataMgr.download_tiles( 10 )
+#        dataMgr.download_tiles( 10 )
+        dataMgr.remove_empty_directories(10)
 
