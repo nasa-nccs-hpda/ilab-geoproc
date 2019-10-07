@@ -1,4 +1,5 @@
 xarray
 matplotlib
 numpy
+wget
 

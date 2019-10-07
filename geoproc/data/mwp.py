@@ -1,6 +1,5 @@
-import time, os, urllib, sys
+import time, os, wget, sys
 from typing import Dict, List
-from urllib.error import HTTPError
 from multiprocessing import Pool
 from geoproc.util.configuration import ConfigurableObject
 
@@ -34,10 +33,10 @@ class MWPDataManager(ConfigurableObject):
                 if download:
                     target_url = self.data_source_url + f"/{location}/{year}/{target_file}"
                     try:
-                        urllib.request.urlretrieve( target_url, target_file_path )
+                        wget.download( target_url, target_file_path )
                         print(f"Downloading url {target_url} to file {target_file_path}")
                         files.append( target_file_path )
-                    except HTTPError:
+                    except Exception:
                         print( f"     ---> Can't access {target_url}")
             else:
                 files.append( target_file_path )

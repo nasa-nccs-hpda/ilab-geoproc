@@ -4,10 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.animation as animation
 from matplotlib.figure import Figure
-import urllib.request
 from typing import Dict, List
-from urllib.error import HTTPError
-import os, time, sys
+import os, time, sys, wget
 
 def download_MWP_files( data_dir: str, year: int = 2019, start_day: int = 1, end_day: int = 365, location: str = "120W050N", product: str = "1D1OS", download = False ):
     t0 = time.time()
@@ -20,10 +18,10 @@ def download_MWP_files( data_dir: str, year: int = 2019, start_day: int = 1, end
             if download:
                 target_url = f"https://floodmap.modaps.eosdis.nasa.gov/Products/{location}/{year}/{target_file}"
                 try:
-                    urllib.request.urlretrieve( target_url, target_file_path )
+                    wget.download( target_url, target_file_path )
                     print(f"Downloading url {target_url} to file {target_file_path}")
                     files.append( target_file_path )
-                except HTTPError:
+                except Exception:
                     print( f"     ---> Can't access {target_url}")
         else:
             files.append( target_file_path )
