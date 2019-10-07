@@ -1,5 +1,4 @@
 xarray
 matplotlib
 numpy
-urllib
 

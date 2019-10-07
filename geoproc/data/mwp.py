@@ -8,7 +8,7 @@ from geoproc.util.configuration import ConfigurableObject
 class MWPDataManager(ConfigurableObject):
 
     def __init__(self, data_dir: str, data_source_url: str, **kwargs ):
-        ConfigurableObject.__init__( **kwargs )
+        ConfigurableObject.__init__( self, **kwargs )
         self.data_dir = data_dir
         self.data_source_url = data_source_url
 
