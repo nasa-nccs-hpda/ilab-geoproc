@@ -18,7 +18,6 @@ class MWPDataManager(ConfigurableObject):
 
     def download_tile( self, location: str = "120W050N", **kwargs  ) -> List[str]:
         t0 = time.time()
-        print("\n Executing download_MWP_files " )
         download =  self.getParameter( "download",  **kwargs )
         start_day = self.getParameter( "start_day", **kwargs )
         end_day =   self.getParameter( "end_day",   **kwargs )
@@ -40,7 +39,7 @@ class MWPDataManager(ConfigurableObject):
                         print( f"     ---> Can't access {target_url}")
             else:
                 files.append( target_file_path )
-        print( f" Completed download_MWP_files  in {time.time()-t0:.3f} seconds" )
+                print(f"     ---> Skipping (already downloaded): {target_file_path}")
         return files
 
     def get_global_locations( self ) -> List:
@@ -62,14 +61,10 @@ class MWPDataManager(ConfigurableObject):
         seg_length = int( round( len( strList )/nSegments ) )
         return [strList[x:x + seg_length] for x in range(0, len(strList), seg_length)]
 
-    def download_tile_list(self, locations: List[str] ):
-        for location in locations:
-            self.download_tile( location )
-
     def download_tiles(self, nProcesses: int = 8 ):
         locations = dataMgr.get_global_locations()
         with Pool(nProcesses) as p:
-            p.map(dataMgr.download_tile_list, locations, nProcesses)
+            p.map(dataMgr.download_tile, locations, nProcesses)
 
 if __name__ == '__main__':
     if len(sys.argv) == 1:
