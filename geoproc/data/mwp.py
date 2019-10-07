@@ -73,5 +73,5 @@ if __name__ == '__main__':
     else:
         dataMgr = MWPDataManager( sys.argv[1], "https://floodmap.modaps.eosdis.nasa.gov/Products" )
         dataMgr.setDefaults( product = "3D3OT", download = True, year = 2019, start_day = 1, end_day = 365 )
-        dataMgr.download_tiles( 8 )
+        dataMgr.download_tiles( 10 )
 
