@@ -22,7 +22,7 @@ def download_MWP_files( data_dir: str, year: int = 2019, start_day: int = 1, end
                 try:
                     urllib.request.urlretrieve( target_url, target_file_path )
                     print(f"Downloading url {target_url} to file {target_file_path}")
-                    files.append(target_file)
+                    files.append( target_file_path )
                 except HTTPError:
                     print( f"     ---> Can't access {target_url}")
         else:
@@ -104,19 +104,21 @@ def createDataset( files: List[str], band=0, subset = None ) ->  xr.DataArray:
 
 if __name__ == '__main__':
     t0 = time.time()
+    locations = [ "120W050N", "100W040N" ]
+    products = [ "1D1OS", "3D3OT" ]
     DATA_DIR = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt"
-    location: str = "120W050N"
-    product: str = "1D1OS"
+    location: str = locations[1]
+    product: str = products[1]
     year = 2019
     viewRawData = True
 
-    files = download_MWP_files( DATA_DIR, year, 1, 365, location, product )
+    file_paths = download_MWP_files( DATA_DIR, year, 1, 365, location, product )
 
     if viewRawData:
         animationFile =  os.path.join( DATA_DIR, f'MWP_{year}_{location}_{product}.gif' )
-        create_file_animation( files, animationFile )
+        create_file_animation( file_paths, animationFile )
 
-    data_array: xr.DataArray = createDataset( files ) # , subset = [500,5] )
+    data_array: xr.DataArray = createDataset( file_paths ) # , subset = [500,5] )
     print(f" Data Array {data_array.name}: shape = {data_array.shape}, dims = {data_array.dims}")
 
     waterMask = get_water_masks( data_array, 8 )
