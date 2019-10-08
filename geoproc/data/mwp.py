@@ -81,7 +81,7 @@ if __name__ == '__main__':
         print( "Usage: >> geoproc.data.mwp <dataDirectory>\n       Downloads all MWP tiles to the data directory")
     else:
         dataMgr = MWPDataManager( sys.argv[1], "https://floodmap.modaps.eosdis.nasa.gov/Products" )
-        dataMgr.setDefaults( product = "3D3OT", download = True, year = 2019, start_day = 1, end_day = 365 )
+        dataMgr.setDefaults( product = "1D1OS", download = True, year = 2019, start_day = 1, end_day = 365 )
         dataMgr.download_tiles( 10 )
         dataMgr.remove_empty_directories(10)
 
