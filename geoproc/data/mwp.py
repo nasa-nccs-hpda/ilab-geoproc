@@ -1,7 +1,8 @@
 import time, os, wget, sys
 from typing import Dict, List
 from multiprocessing import Pool
-from geoproc.util.configuration import ConfigurableObject
+import xarray as xr
+from geoproc.util.configuration import ConfigurableObject, Region
 
 
 class MWPDataManager(ConfigurableObject):
@@ -46,6 +47,18 @@ class MWPDataManager(ConfigurableObject):
                 files.append( target_file_path )
                 print(f"     ---> Skipping (already downloaded): {target_file_path}")
         return files
+
+    def get_array_data(self, files: List[str] ) ->  List[xr.DataArray]:
+        bbox: Region = self.getParameter("bbox")
+        if bbox is None:
+            data_arrays: List[xr.DataArray] = [xr.open_rasterio(file)[0] for file in files]
+        else:
+            data_arrays: List[xr.DataArray] = [xr.open_rasterio(file)[0, bbox.origin[0]:bbox.bounds[0], bbox.origin[1]:bbox.bounds[1]] for file in files]
+        return data_arrays
+
+    def download_tile_data(self, location: str = "120W050N", **kwargs  ) -> List[xr.DataArray]:
+        files = self.download_tile( location, **kwargs )
+        return self.get_array_data( files )
 
     def get_global_locations( self ) -> List:
         global_locs = []

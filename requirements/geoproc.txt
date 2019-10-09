@@ -2,4 +2,7 @@ xarray
 matplotlib
 numpy
 wget
+geopandas
+descartes
+shapely
 
