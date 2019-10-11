@@ -64,8 +64,15 @@ class ShapefileManager(ConfigurableObject):
     def getRegion(self, region_name: str, index: int, shape: Polygon) -> Region_cls:
         return regionmask.Region_cls( index, region_name, region_name, shape)
 
-    def getRegions( self, region_name: str, name_col: str, shape: gpd.GeoDataFrame ) -> Regions_cls:
+    def reproject(self, shape: gpd.GeoDataFrame, crs: str ) -> gpd.GeoDataFrame:
+        current_crs = shape.crs.get("init")
+        if crs is None or current_crs == crs: return shape
+        return shape.to_crs( crs )
+
+
+    def getRegions( self, region_name: str, name_col: str, shape: gpd.GeoDataFrame, **kwargs ) -> Regions_cls:
         poly_index = 6
+        shape = self.reproject( shape, kwargs.get('crs') )
         names = [ shape[name_col].tolist()[poly_index] ]
         poly: Polygon = self.remove_third_dimension( shape.geometry.values[poly_index] )
         print( f" Creating region for polygon with bounds = {poly.envelope.bounds}" )
