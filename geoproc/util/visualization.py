@@ -5,7 +5,7 @@ from matplotlib.colors import LinearSegmentedColormap, Normalize
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from PIL import Image
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 import os, time, sys
 import xarray as xr
 
@@ -20,20 +20,24 @@ class TilePlotter(ConfigurableObject):
         self.norm = Normalize( 0,len(colors) )
         self.cm = LinearSegmentedColormap.from_list( "geoProc-TilePlotter", colors, N=len(colors) )
 
-    def plot(self, axes, data_arrays: List[xr.DataArray], timeIndex = -1 ):
+    def plot(self, axes, data_arrays: Union[xr.DataArray,List[xr.DataArray]], timeIndex = -1 ):
         print("Plotting tile")
+        if not isinstance(data_arrays, list): data_arrays = [data_arrays]
         if timeIndex >= 0:
-            axes.imshow( data_arrays[timeIndex].value, cmap=self.cm, norm=self.norm )
+            axes.imshow( data_arrays[timeIndex].values, cmap=self.cm, norm=self.norm )
         else:
-            da: xr.DataArray = self.time_merge( data_arrays )
-            result = da[0].copy()
-            result = result.where( result == 0, 0 )
-            land = ( da == 1 ).sum( axis=0 )
-            perm_water = ( da == 2 ).sum( axis=0 )
-            print( "Computed masks" )
-            result = result.where( land == 0, 1 )
-            result = result.where( perm_water == 0, 2 )
-            axes.imshow( result.values, cmap=self.cm, norm=self.norm )
+            if len( data_arrays ) == 1:
+                axes.imshow( data_arrays[0].values, cmap=self.cm, norm=self.norm )
+            else:
+                da: xr.DataArray = self.time_merge( data_arrays )
+                result = da[0].copy()
+                result = result.where( result == 0, 0 )
+                land = ( da == 1 ).sum( axis=0 )
+                perm_water = ( da == 2 ).sum( axis=0 )
+                print( "Computed masks" )
+                result = result.where( land == 0, 1 )
+                result = result.where( perm_water == 0, 2 )
+                axes.imshow( result.values, cmap=self.cm, norm=self.norm )
 
 class ArrayAnimation(ConfigurableObject):
 
