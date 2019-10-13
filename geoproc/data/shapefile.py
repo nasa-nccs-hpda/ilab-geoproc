@@ -6,15 +6,13 @@ from pandas import DataFrame
 from shapely.geometry.polygon import LinearRing
 from shapely.geometry import *
 import xarray as xa
-import regionmask
+import regionmask, math
 from regionmask import Regions_cls, Region_cls
 
 class ShapefileManager(ConfigurableObject):
 
     def __init__(self, **kwargs ):
         ConfigurableObject.__init__( self, **kwargs )
-
-
 
     def remove_third_dimension( self, geom ):
         if geom.is_empty:
@@ -64,15 +62,23 @@ class ShapefileManager(ConfigurableObject):
     def getRegion(self, region_name: str, index: int, shape: Polygon) -> Region_cls:
         return regionmask.Region_cls( index, region_name, region_name, shape)
 
-    def reproject(self, shape: gpd.GeoDataFrame, crs: str ) -> gpd.GeoDataFrame:
-        current_crs = shape.crs.get("init")
-        if crs is None or current_crs == crs: return shape
+    def reproject(self, shape: gpd.GeoDataFrame, espg: int ) -> gpd.GeoDataFrame:
+        current_crs: str = shape.crs.get("init","espg:0")
+        current_espg = int( current_crs.split(":")[1] )
+        assert current_crs > 0, f"Unrecognized crs for GeoDataFrame: {shape.crs}"
+        if current_espg == espg: return shape
+        return shape.to_crs( None, espg )
+
+    def toUTM(self, shape: gpd.GeoDataFrame, long: float, north: bool = True ) -> gpd.GeoDataFrame:
+        if long > 180: long = long - 360
+        zone = math.floor((long + 180)/6) + 1
+        crs =  f"+proj=utm +zone={zone} +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+        if not north: crs = crs + " +south"
+        print( f"Converting GeoDataFrame to UTM(zone {zone}): long={long}, north={north}, crs = '{crs}'")
         return shape.to_crs( crs )
 
-
-    def getRegions( self, region_name: str, name_col: str, shape: gpd.GeoDataFrame, **kwargs ) -> Regions_cls:
+    def getRegions( self, region_name: str, name_col: str, shape: gpd.GeoDataFrame ) -> Regions_cls:
         poly_index = 6
-        shape = self.reproject( shape, kwargs.get('crs') )
         names = [ shape[name_col].tolist()[poly_index] ]
         poly: Polygon = self.remove_third_dimension( shape.geometry.values[poly_index] )
         print( f" Creating region for polygon with bounds = {poly.envelope.bounds}" )
@@ -126,6 +132,9 @@ if __name__ == '__main__':
     gdFrameTile: gpd.GeoDataFrame = shpManager.extractTile( gdFrame, location, 10 )
     gdFrameTile.plot( ax=axes[1] )
 
+
+    locPoint: Point = shpManager.parseLocation(location)
+    gdFrameTile = shpManager.toUTM( gdFrameTile, locPoint.x )
     regions = shpManager.getRegions( "test", "Lake_Name", gdFrameTile )
     croppedTileImage = shpManager.crop( data_arrays[0], regions )
 
