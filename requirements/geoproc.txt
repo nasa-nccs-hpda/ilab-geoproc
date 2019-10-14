@@ -1,4 +1,5 @@
 xarray
+dask
 matplotlib
 numpy
 wget
@@ -6,5 +7,6 @@ geopandas
 descartes
 shapely
 regionmask
+iris
 
 

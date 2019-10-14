@@ -13,7 +13,7 @@ class ConfigurableObject:
     def setDefaults( self, **kwargs ):
         self.parms.update( kwargs )
 
-    def parseLocation(self, location: str ) -> Point:
+    def parseLocation( self, location: str ) -> Point:
         lonVal, latStr, latVal = None, None, None
         try:
             if "E" in location:
@@ -34,7 +34,7 @@ class ConfigurableObject:
 
         return Point( lonVal, latVal )
 
-    def time_merge(self, data_arrays: List[xr.DataArray] ) -> xr.DataArray:
+    def time_merge( self, data_arrays: List[xr.DataArray] ) -> xr.DataArray:
         return xr.concat( data_arrays, xr.DataArray(range(len(data_arrays)), name='time', dims="time") )
 
 class Region:

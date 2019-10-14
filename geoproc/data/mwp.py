@@ -1,4 +1,5 @@
-import time, os, wget, sys
+import time, os, wget, sys, rasterio
+import gdal, osr
 from typing import Dict, List
 from multiprocessing import Pool
 import xarray as xr
@@ -22,7 +23,7 @@ class MWPDataManager(ConfigurableObject):
         try: os.rmdir( ldir )
         except OSError: pass
 
-    def download_tile( self, location: str = "120W050N", **kwargs  ) -> List[str]:
+    def get_tile(self, location: str = "120W050N", **kwargs) -> List[str]:
         t0 = time.time()
         download =  self.getParameter( "download",  **kwargs )
         start_day = self.getParameter( "start_day", **kwargs )
@@ -56,9 +57,41 @@ class MWPDataManager(ConfigurableObject):
             data_arrays: List[xr.DataArray] = [xr.open_rasterio(file)[0, bbox.origin[0]:bbox.bounds[0], bbox.origin[1]:bbox.bounds[1]] for file in files]
         return data_arrays
 
-    def download_tile_data(self, location: str = "120W050N", **kwargs  ) -> List[xr.DataArray]:
-        files = self.download_tile( location, **kwargs )
+    # def get_transformed_array_data(self, files: List[str], dst_crs ) ->  List[xr.DataArray]:
+    #     from rasterio.warp import calculate_default_transform, reproject, Resampling
+    #
+    #     for file in files:
+    #         with rasterio.open( file ) as src:
+    #             transform, width, height = calculate_default_transform( src.crs, dst_crs, src.width, src.height, *src.bounds )
+    #             kwargs = src.meta.copy()
+    #             kwargs.update( { 'crs': dst_crs,  'transform': transform,  'width': width, 'height': height } )
+    #     return data_arrays
+
+    def get_tile_data(self, location: str = "120W050N", **kwargs) -> List[xr.DataArray]:
+        files = self.get_tile(location, **kwargs)
         return self.get_array_data( files )
+
+    def reproject_dataset(self, dataset, pixel_spacing: float, epsg_from: int, epsg_to: int ):
+        osng = osr.SpatialReference()
+        osng.ImportFromEPSG(epsg_to)
+        wgs84 = osr.SpatialReference()
+        wgs84.ImportFromEPSG(epsg_from)
+        tx = osr.CoordinateTransformation(wgs84, osng)
+
+        g = gdal.Open(dataset)
+        geo_t = g.GetGeoTransform()
+        x_size = g.RasterXSize
+        y_size = g.RasterYSize
+        (ulx, uly, ulz) = tx.TransformPoint(geo_t[0], geo_t[3])               # Work out the boundaries of the new dataset in the target projection
+        (lrx, lry, lrz) = tx.TransformPoint(geo_t[0] + geo_t[1] * x_size,  geo_t[3] + geo_t[5] * y_size)
+
+        mem_drv = gdal.GetDriverByName('MEM')
+        dest = mem_drv.Create( '', int((lrx - ulx) / pixel_spacing),  int((uly - lry) / pixel_spacing), 1, gdal.GDT_Float32 )
+        new_geo = (ulx, pixel_spacing, geo_t[2], uly, geo_t[4], -pixel_spacing)
+        dest.SetGeoTransform(new_geo)
+        dest.SetProjection(osng.ExportToWkt())
+        res = gdal.ReprojectImage( g, dest,  wgs84.ExportToWkt(), osng.ExportToWkt(),  gdal.GRA_Bilinear )
+        return dest
 
     def get_global_locations( self ) -> List:
         global_locs = []
@@ -87,7 +120,7 @@ class MWPDataManager(ConfigurableObject):
     def download_tiles(self, nProcesses: int = 8 ):
         locations = dataMgr.get_global_locations()
         with Pool(nProcesses) as p:
-            p.map(dataMgr.download_tile, locations, nProcesses)
+            p.map(dataMgr.get_tile, locations, nProcesses)
 
 if __name__ == '__main__':
     if len(sys.argv) == 1:

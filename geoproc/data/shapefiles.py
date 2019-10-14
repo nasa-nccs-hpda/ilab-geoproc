@@ -113,8 +113,11 @@ if __name__ == '__main__':
     year = 2019
     download = False
     figure, axes = plt.subplots(1, 2)
+    shpManager = ShapefileManager()
+    locPoint: Point = shpManager.parseLocation(location)
 
-    tData = xr.open_rasterio("/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/120W050N/MWP_2019280_120W050N_1D1OS.tif")
+    tData: xr.DataArray = xr.open_rasterio("/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/120W050N/MWP_2019280_120W050N_1D1OS.tif")
+#    tData.
     coords = tData.coords
     x = coords['x'].values
     y = coords['y'].values
@@ -124,16 +127,13 @@ if __name__ == '__main__':
 
     dataMgr = MWPDataManager(DATA_DIR, "https://floodmap.modaps.eosdis.nasa.gov/Products")
     dataMgr.setDefaults(product=product, download=download, year=2019, start_day=1, end_day=365)
-    data_arrays = dataMgr.download_tile_data( location )
+    data_arrays = dataMgr.get_tile_data(location)
     print( "Downloaded tile data")
 
-    shpManager = ShapefileManager()
     gdFrame: gpd.GeoDataFrame = shpManager.read( SHAPEFILE )
     gdFrameTile: gpd.GeoDataFrame = shpManager.extractTile( gdFrame, location, 10 )
     gdFrameTile.plot( ax=axes[1] )
 
-
-    locPoint: Point = shpManager.parseLocation(location)
     gdFrameTile = shpManager.toUTM( gdFrameTile, locPoint.x )
     regions = shpManager.getRegions( "test", "Lake_Name", gdFrameTile )
     croppedTileImage = shpManager.crop( data_arrays[0], regions )

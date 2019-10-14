@@ -56,11 +56,11 @@ if __name__ == '__main__':
     location: str = locations[1]
     product: str = products[0]
     year = 2019
-    download = True
+    download = False
 
     dataMgr = MWPDataManager(DATA_DIR, "https://floodmap.modaps.eosdis.nasa.gov/Products")
     dataMgr.setDefaults(product=product, download=download, year=2019, start_day=1, end_day=365)
-    file_paths = dataMgr.download_tile( location )
+    file_paths = dataMgr.get_tile(location)
 
     waterMapGenerator = WaterMapGenerator()
     data_array: xr.DataArray = waterMapGenerator.createDataset( file_paths ) # , subset = [500,5] )
