@@ -30,8 +30,7 @@ class WaterMapGenerator(ConfigurableObject):
         grouped_data: DatasetGroupBy = data_array.groupby_bins( 'time', time_bins )
         result: xr.DataArray = grouped_data.apply( self.get_water_mask, threshold = threshold, min_fld = min_fld )
         print( f" Completed get_water_masks in {time.time()-t0:.3f} seconds" )
-        for key,value in data_array.attrs.items():
-            if key not in result.attrs: result.attrs[key] = value
+        self.transferMetadata( data_array, result )
         return result
 
     def createDataset(self,  files: List[str], band=0, subset = None ) ->  xr.DataArray:
@@ -49,7 +48,9 @@ class WaterMapGenerator(ConfigurableObject):
 
 if __name__ == '__main__':
     from geoproc.data.mwp import MWPDataManager
-    from geoproc.util.visualization import ArrayAnimation
+    from geoproc.util.visualization import ArrayAnimation, TilePlotter
+    import matplotlib.pyplot as plt
+    from rasterio.warp import calculate_default_transform, transform_bounds
     from geoproc.util.crs import CRS
 
     t0 = time.time()
@@ -60,24 +61,40 @@ if __name__ == '__main__':
     product: str = products[0]
     year = 2019
     download = False
+    binSize = 4
 
     dataMgr = MWPDataManager(DATA_DIR, "https://floodmap.modaps.eosdis.nasa.gov/Products")
-    dataMgr.setDefaults(product=product, download=download, year=2019, start_day=1, end_day=365)
+    dataMgr.setDefaults(product=product, download=download, year=2019, start_day=171, end_day=174)
     file_paths = dataMgr.get_tile(location)
 
     waterMapGenerator = WaterMapGenerator()
-    data_array: xr.DataArray = waterMapGenerator.createDataset( file_paths ) # , subset = [500,5] )
+    data_array: xr.DataArray = waterMapGenerator.createDataset( file_paths, subset = [500,100] )
     print(f" Data Array {data_array.name}: shape = {data_array.shape}, dims = {data_array.dims}")
 
-    waterMask = waterMapGenerator.get_water_masks( data_array, 8, 0.5, 2 )
+    waterMask = waterMapGenerator.get_water_masks( data_array, binSize, 0.5, 2 )
     print( waterMask.shape )
 
-    output_tiff =  "/tmp/test_watermask_geotiff.tif"
-    input_array =  waterMask[0].astype(np.float)
-    for key, value in waterMask.attrs.items():
-        if key not in input_array.attrs: input_array.attrs[key] = value
-    CRS.to_geotiff( input_array, output_tiff )
-    print( f"Writing watermask output to {output_tiff}" )
+    xcoord = data_array.coords[data_array.dims[-1]]
+    ycoord = data_array.coords[data_array.dims[-2]]
+    longitude_location = ( xcoord.values[0] + xcoord.values[-1] )/2.0
+    dst_crs =  CRS.get_utm_crs( longitude_location, True )
+    input_crs = data_array.crs.split("=")[1]
+    input_array =  dataMgr.getTimeslice( waterMask, 0 )
+#    data_dir, initial_geotiff = CRS.to_geotiff( input_array )
+#    print( f"Writing watermask output to {data_dir + '/' + initial_geotiff}" )
+#    result_file = f"{data_dir}/reprojected-{initial_geotiff}"
+
+    left, bottom, right, top = transform_bounds( input_crs, dst_crs, xcoord.values[0], ycoord.values[0], xcoord.values[-1], ycoord.values[-1]  )
+    transform, width, height = calculate_default_transform( input_array.crs, dst_crs, input_array.shape[1], input_array.shape[0], left=left, bottom=bottom, right=right, top=top, resolution=250.0 )
+
+#    CRS.reproject( f"{data_dir}/{initial_geotiff}", result_file, dst_crs, resolution=250.0 )
+
+    figure, axes = plt.subplots(1, 2)
+#    reprojected_array = dataMgr.get_array_data( [result_file] )
+    tile_plotter = TilePlotter()
+    tile_plotter.plot(axes[0], input_array)
+#    tile_plotter.plot(axes[1],reprojected_array)
+    plt.show()
 
     animator = ArrayAnimation()
     waterMaskAnimationFile = os.path.join(DATA_DIR, f'MWP_{year}_{location}_{product}_waterMask.gif')

@@ -1,7 +1,7 @@
 from geoproc.util.configuration import ConfigurableObject, Region
 from geoproc.data.mwp import MWPDataManager
 import iris, xarray as xa
-from typing import Dict, List, Union
+
 
 
 class IrisDataManager(ConfigurableObject):

@@ -7,7 +7,6 @@ from multiprocessing import Pool
 import xarray as xr
 from geoproc.util.configuration import ConfigurableObject, Region
 
-
 class MWPDataManager(ConfigurableObject):
 
     def __init__(self, data_dir: str, data_source_url: str, **kwargs ):
@@ -24,6 +23,11 @@ class MWPDataManager(ConfigurableObject):
         ldir = self.get_location_dir( location )
         try: os.rmdir( ldir )
         except OSError: pass
+
+    def getTimeslice(self, array: xr.DataArray, index: int, dtype: np.dtype = np.float ) -> xr.DataArray:
+        input_array =  array[index].astype(dtype)
+        self.transferMetadata( array, input_array )
+        return input_array
 
     def get_tile(self, location: str = "120W050N", **kwargs) -> List[str]:
         t0 = time.time()
@@ -61,6 +65,7 @@ class MWPDataManager(ConfigurableObject):
 
     def toUTM(self, data_arrays: xr.DataArray, longitude: float, north: bool = True ) -> xr.DataArray:
         crs =  CRS.get_utm_crs( longitude, north )
+        infile = CRS.to_geotiff( )
 
     # def get_transformed_array_data(self, files: List[str], dst_crs ) ->  List[xr.DataArray]:
     #     from rasterio.warp import calculate_default_transform, reproject, Resampling

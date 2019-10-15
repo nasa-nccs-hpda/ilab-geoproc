@@ -1,6 +1,7 @@
 from typing import Dict, List, Tuple
 from shapely.geometry import Point
 import xarray as xr
+import string, random
 
 class ConfigurableObject:
 
@@ -13,7 +14,18 @@ class ConfigurableObject:
     def setDefaults( self, **kwargs ):
         self.parms.update( kwargs )
 
-    def parseLocation( self, location: str ) -> Point:
+    @classmethod
+    def randomId( cls, length: int ) -> str:
+        sample = string.ascii_lowercase+string.digits+string.ascii_uppercase
+        return ''.join(random.choice(sample) for i in range(length))
+
+    @classmethod
+    def transferMetadata( cls, ref_array: xr.DataArray, new_array: xr.DataArray ):
+        for key, value in ref_array.attrs.items():
+            if key not in new_array.attrs: new_array.attrs[key] = value
+
+    @classmethod
+    def parseLocation( cls, location: str ) -> Point:
         lonVal, latStr, latVal = None, None, None
         try:
             if "E" in location:
