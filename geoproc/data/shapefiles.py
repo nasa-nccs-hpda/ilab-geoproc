@@ -2,6 +2,7 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 from typing import Dict, List, Union, Tuple
 from geoproc.util.configuration import ConfigurableObject, Region
+from geoproc.util.crs import CRS
 from pandas import DataFrame
 from shapely.geometry.polygon import LinearRing
 from shapely.geometry import *
@@ -69,12 +70,9 @@ class ShapefileManager(ConfigurableObject):
         if current_espg == espg: return shape
         return shape.to_crs( None, espg )
 
-    def toUTM(self, shape: gpd.GeoDataFrame, long: float, north: bool = True ) -> gpd.GeoDataFrame:
-        if long > 180: long = long - 360
-        zone = math.floor((long + 180)/6) + 1
-        crs =  f"+proj=utm +zone={zone} +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
-        if not north: crs = crs + " +south"
-        print( f"Converting GeoDataFrame to UTM(zone {zone}): long={long}, north={north}, crs = '{crs}'")
+    def toUTM(self, shape: gpd.GeoDataFrame, longitude: float, north: bool = True ) -> gpd.GeoDataFrame:
+        crs =  CRS.get_utm_crs( longitude, north )
+        print( f"Converting GeoDataFrame to UTM: long={longitude}, north={north}, crs = '{crs}'")
         return shape.to_crs( crs )
 
     def getRegions( self, region_name: str, name_col: str, shape: gpd.GeoDataFrame ) -> Regions_cls:

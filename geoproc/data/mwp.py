@@ -1,6 +1,8 @@
 import time, os, wget, sys, rasterio
 import gdal, osr
 from typing import Dict, List
+from geoproc.util.crs import CRS
+import numpy as np
 from multiprocessing import Pool
 import xarray as xr
 from geoproc.util.configuration import ConfigurableObject, Region
@@ -57,6 +59,9 @@ class MWPDataManager(ConfigurableObject):
             data_arrays: List[xr.DataArray] = [xr.open_rasterio(file)[0, bbox.origin[0]:bbox.bounds[0], bbox.origin[1]:bbox.bounds[1]] for file in files]
         return data_arrays
 
+    def toUTM(self, data_arrays: xr.DataArray, longitude: float, north: bool = True ) -> xr.DataArray:
+        crs =  CRS.get_utm_crs( longitude, north )
+
     # def get_transformed_array_data(self, files: List[str], dst_crs ) ->  List[xr.DataArray]:
     #     from rasterio.warp import calculate_default_transform, reproject, Resampling
     #
@@ -72,6 +77,7 @@ class MWPDataManager(ConfigurableObject):
         return self.get_array_data( files )
 
     def reproject_dataset(self, dataset, pixel_spacing: float, epsg_from: int, epsg_to: int ):
+        riods: rasterio.DatasetReader = rasterio.open(dataset)
         osng = osr.SpatialReference()
         osng.ImportFromEPSG(epsg_to)
         wgs84 = osr.SpatialReference()
@@ -86,12 +92,13 @@ class MWPDataManager(ConfigurableObject):
         (lrx, lry, lrz) = tx.TransformPoint(geo_t[0] + geo_t[1] * x_size,  geo_t[3] + geo_t[5] * y_size)
 
         mem_drv = gdal.GetDriverByName('MEM')
-        dest = mem_drv.Create( '', int((lrx - ulx) / pixel_spacing),  int((uly - lry) / pixel_spacing), 1, gdal.GDT_Float32 )
+        dest: gdal.Dataset = mem_drv.Create( '', int((lrx - ulx) / pixel_spacing),  int((uly - lry) / pixel_spacing), 1, gdal.GDT_Float32 )
         new_geo = (ulx, pixel_spacing, geo_t[2], uly, geo_t[4], -pixel_spacing)
         dest.SetGeoTransform(new_geo)
         dest.SetProjection(osng.ExportToWkt())
         res = gdal.ReprojectImage( g, dest,  wgs84.ExportToWkt(), osng.ExportToWkt(),  gdal.GRA_Bilinear )
-        return dest
+        reprojected_dataset: np.ndarray = dest.ReadAsArray()
+        return reprojected_dataset
 
     def get_global_locations( self ) -> List:
         global_locs = []
@@ -130,4 +137,6 @@ if __name__ == '__main__':
         dataMgr.setDefaults( product = "1D1OS", download = True, year = 2019, start_day = 1, end_day = 365 )
         dataMgr.download_tiles( 10 )
         dataMgr.remove_empty_directories(10)
+
+
 

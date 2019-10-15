@@ -28,8 +28,10 @@ class WaterMapGenerator(ConfigurableObject):
         t0 = time.time()
         time_bins = list( range( 0, data_array.shape[0]+1, binSize ) )
         grouped_data: DatasetGroupBy = data_array.groupby_bins( 'time', time_bins )
-        result = grouped_data.apply( self.get_water_mask, threshold = threshold, min_fld = min_fld )
+        result: xr.DataArray = grouped_data.apply( self.get_water_mask, threshold = threshold, min_fld = min_fld )
         print( f" Completed get_water_masks in {time.time()-t0:.3f} seconds" )
+        for key,value in data_array.attrs.items():
+            if key not in result.attrs: result.attrs[key] = value
         return result
 
     def createDataset(self,  files: List[str], band=0, subset = None ) ->  xr.DataArray:
@@ -48,6 +50,7 @@ class WaterMapGenerator(ConfigurableObject):
 if __name__ == '__main__':
     from geoproc.data.mwp import MWPDataManager
     from geoproc.util.visualization import ArrayAnimation
+    from geoproc.util.crs import CRS
 
     t0 = time.time()
     locations = [ "120W050N", "100W040N" ]
@@ -68,6 +71,13 @@ if __name__ == '__main__':
 
     waterMask = waterMapGenerator.get_water_masks( data_array, 8, 0.5, 2 )
     print( waterMask.shape )
+
+    output_tiff =  "/tmp/test_watermask_geotiff.tif"
+    input_array =  waterMask[0].astype(np.float)
+    for key, value in waterMask.attrs.items():
+        if key not in input_array.attrs: input_array.attrs[key] = value
+    CRS.to_geotiff( input_array, output_tiff )
+    print( f"Writing watermask output to {output_tiff}" )
 
     animator = ArrayAnimation()
     waterMaskAnimationFile = os.path.join(DATA_DIR, f'MWP_{year}_{location}_{product}_waterMask.gif')
