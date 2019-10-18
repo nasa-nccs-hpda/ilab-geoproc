@@ -4,7 +4,9 @@ from osgeo import ogr
 from osgeo import osr
 from osgeo import gdal
 import xarray as xr
+import numpy as np
 import os
+from geoproc.xext.grid import (geotransform_from_yx, resample_grid, utm_proj_from_latlon, ArrayGrid)
 
 
 class OsgeoManager(ConfigurableObject):
@@ -46,35 +48,47 @@ class OsgeoManager(ConfigurableObject):
         ds: gdal.Dataset = gdal.Open( os.path.join( out_dir, out_file ) )
         return ds
 
-    def reprojectXarray(self, array: xr.DataArray, target_crs: str  ) -> xr.DataArray:
-        out_dir, out_file = CRS.to_geotiff(array)
-        input_raster = os.path.join( out_dir, out_file )
-        output_raster = os.path.join( out_dir, f"out-{self.randomId(4)}.tif" )
-        print( f"Reprojecting xarray to crs {target_crs}")
-        gdal.Warp( output_raster, input_raster, format = 'GTiff', srcSRS=self.getSpatialReference(array.crs), dstSRS=self.getSpatialReference(target_crs), xRes=250, yRes=250  )
-        da: xr.DataArray = xr.open_rasterio(output_raster)
-        return da
+    # def reprojectXarray(self, array: xr.DataArray, target_crs: str  ) -> xr.DataArray:
+    #     out_dir, out_file = CRS.to_geotiff(array)
+    #     input_raster = os.path.join( out_dir, out_file )
+    #     output_raster = os.path.join( out_dir, f"out-{self.randomId(4)}.tif" )
+    #     print( f"Reprojecting xarray to crs {target_crs}")
+    #     gdal.Warp( output_raster, input_raster, format = 'GTiff', srcSRS=self.getSpatialReference(array.crs), dstSRS=self.getSpatialReference(target_crs), xRes=250, yRes=250  )
+    #     da: xr.DataArray = xr.open_rasterio(output_raster)
+    #     return da
 
-    def getProjectedBounds(self, array: xr.DataArray, target_crs: str, resolution: float  ):
-        xcoord = array.coords[ array.dims[-1] ]
-        ycoord = array.coords[ array.dims[-2] ]
+    def reprojectXarray(self, array: xr.DataArray, resolution: float  ):
+        xcoord = array.coords[array.dims[-1]]
+        ycoord = array.coords[array.dims[-2]]
+        longitude_location: float = (xcoord.values[0] + xcoord.values[-1]) / 2.0
+        dest_crs = CRS.get_utm_crs( longitude_location )
+
         xbounds = [ xcoord.values[0], xcoord.values[-1] ]
         ybounds = [ ycoord.values[0], ycoord.values[-1] ]
         srcSRS = self.getSpatialReference(array.crs)
-        dstSRS = self.getSpatialReference(target_crs)
-        transform = osr.CoordinateTransformation(srcSRS, dstSRS)
+        dstSRS = self.getSpatialReference(dest_crs)
+        transformation = osr.CoordinateTransformation(srcSRS, dstSRS)
 
-        (ulx, uly, ulz ) =  transform.TransformPoint( xbounds[0], ybounds[0] )
-        (lrx, lry, lrz ) =  transform.TransformPoint( xbounds[1], ybounds[1] )
+        (ulx, uly, ulz ) =  transformation.TransformPoint( xbounds[0], ybounds[0] )
+        (lrx, lry, lrz ) =  transformation.TransformPoint( xbounds[1], ybounds[1] )
+
+        out_dir, out_file = CRS.to_geotiff(array)
+        g: gdal.Dataset = gdal.Open( os.path.join(out_dir,out_file) )
 
         mem_drv = gdal.GetDriverByName('MEM')
-        dest = mem_drv.Create('', int((lrx - ulx) / resolution),  int((uly - lry) / resolution), 1, gdal.GDT_Float32)
-        new_geo = (ulx, resolution, geo_t[2],  uly, geo_t[4], -resolution )
+        nx = int((lrx - ulx) / resolution)
+        ny = int((uly - lry) / resolution)
+        dest: gdal.Dataset = mem_drv.Create('', nx, ny, 1, gdal.GDT_Float32)
+        new_geo = (ulx, resolution, 0.0,  uly, 0.0, -resolution )
 
         dest.SetGeoTransform( new_geo )
         dest.SetProjection ( dstSRS.ExportToWkt() )
 
         res = gdal.ReprojectImage( g, dest, srcSRS.ExportToWkt(), dstSRS.ExportToWkt(), gdal.GRA_Bilinear )
+
+        gArray = dest.ReadAsArray()
+
+        return gArray
 
 if __name__ == '__main__':
     from geoproc.data.mwp import MWPDataManager
@@ -102,13 +116,7 @@ if __name__ == '__main__':
     data_array = arrays[0]
 
     osgeoManager = OsgeoManager( DATA_DIR )
-
-    xcoord = data_array.coords[data_array.dims[-1]]
-    ycoord = data_array.coords[data_array.dims[-2]]
-    longitude_location: float = ( xcoord.values[0] + xcoord.values[-1] )/2.0
-    dst_crs =  CRS.get_utm_crs( longitude_location, south )
-
-    result = osgeoManager.reprojectXarray( arrays[0], dst_crs )
+    result:  np.ndarray = osgeoManager.reprojectXarray( arrays[0],  250 )
 
     print( result.shape )
 
@@ -121,8 +129,8 @@ if __name__ == '__main__':
     ax1 = fig.add_subplot( 1, 2, 1 ) # , projection=ccrs.PlateCarree() )
     ax1.imshow(data_array.values, cmap=cm, norm=norm )
 
-    utm_proj = ccrs.UTM(zone=CRS.get_utm_zone(longitude_location), southern_hemisphere=south )
+#    utm_proj = ccrs.UTM(zone=CRS.get_utm_zone(longitude_location), southern_hemisphere=south )
     ax2 = fig.add_subplot(1, 2, 2 ) # , projection= utm_proj )
-    ax2.imshow(result.values[0], cmap=cm, norm=norm ) # , transform=ccrs.PlateCarree() )
+    ax2.imshow(result, cmap=cm, norm=norm ) # , transform=ccrs.PlateCarree() )
 
     plt.show()

@@ -136,7 +136,7 @@ class MWPDataManager(ConfigurableObject):
 
 if __name__ == '__main__':
     if len(sys.argv) == 1:
-        print( "Usage: >> geoproc.data.mwp <dataDirectory>\n       Downloads all MWP tiles to the data directory")
+        print( "Usage: >> python -m geoproc.data.mwp <dataDirectory>\n       Downloads all MWP tiles to the data directory")
     else:
         dataMgr = MWPDataManager( sys.argv[1], "https://floodmap.modaps.eosdis.nasa.gov/Products" )
         dataMgr.setDefaults( product = "1D1OS", download = True, year = 2019, start_day = 1, end_day = 365 )
