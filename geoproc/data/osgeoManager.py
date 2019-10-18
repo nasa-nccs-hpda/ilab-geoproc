@@ -4,6 +4,7 @@ from osgeo import ogr
 from osgeo import osr
 from osgeo import gdal
 import xarray as xr
+import os
 
 
 class OsgeoManager(ConfigurableObject):
@@ -12,38 +13,75 @@ class OsgeoManager(ConfigurableObject):
         ConfigurableObject.__init__( self, **kwargs )
         self.data_dir = data_dir
 
-    def reproject(self, array: xr.DataArray, dest_crs: str ) -> xr.DataArray:
-        source = osr.SpatialReference()
-        espg = int(array.crs.split(":")[1])
-        source.ImportFromEPSG( espg )
+    def getSpatialReference( self, crs: str ) -> osr.SpatialReference:
+        sref = osr.SpatialReference()
+        if "epsg" in crs.lower():
+            espg = int(crs.split(":")[-1])
+            sref.ImportFromEPSG(espg)
+        elif "+proj" in crs.lower():
+            sref.ImportFromProj4(crs)
+        else:
+            raise Exception(f"Unrecognized crs: {crs}")
+        return sref
 
-        target = osr.SpatialReference()
-        target.ImportFromProj4( dest_crs )
+    def array2raster( self, newRasterfn, rasterOrigin, pixelWidth, pixelHeight, array ):
 
-        transform = osr.CoordinateTransformation(source, target)
+        cols = array.shape[1]
+        rows = array.shape[0]
+        originX = rasterOrigin[0]
+        originY = rasterOrigin[1]
 
-        print(".")
+        driver = gdal.GetDriverByName('GTiff')
+        outRaster = driver.Create(newRasterfn, cols, rows, 1, gdal.GDT_Byte)
+        outRaster.SetGeoTransform((originX, pixelWidth, 0, originY, 0, pixelHeight))
+        outband = outRaster.GetRasterBand(1)
+        outband.WriteArray(array)
+        outRasterSRS = osr.SpatialReference()
+        outRasterSRS.ImportFromEPSG(4326)
+        outRaster.SetProjection(outRasterSRS.ExportToWkt())
+        outband.FlushCache()
 
-def array2raster( newRasterfn, rasterOrigin, pixelWidth, pixelHeight, array ):
+    def xarray2raster(self, array: xr.DataArray ) -> gdal.Dataset:
+        out_dir, out_file = CRS.to_geotiff( array )
+        ds: gdal.Dataset = gdal.Open( os.path.join( out_dir, out_file ) )
+        return ds
 
-    cols = array.shape[1]
-    rows = array.shape[0]
-    originX = rasterOrigin[0]
-    originY = rasterOrigin[1]
+    def reprojectXarray(self, array: xr.DataArray, target_crs: str  ) -> xr.DataArray:
+        out_dir, out_file = CRS.to_geotiff(array)
+        input_raster = os.path.join( out_dir, out_file )
+        output_raster = os.path.join( out_dir, f"out-{self.randomId(4)}.tif" )
+        print( f"Reprojecting xarray to crs {target_crs}")
+        gdal.Warp( output_raster, input_raster, format = 'GTiff', srcSRS=self.getSpatialReference(array.crs), dstSRS=self.getSpatialReference(target_crs), xRes=250, yRes=250  )
+        da: xr.DataArray = xr.open_rasterio(output_raster)
+        return da
 
-    driver = gdal.GetDriverByName('GTiff')
-    outRaster = driver.Create(newRasterfn, cols, rows, 1, gdal.GDT_Byte)
-    outRaster.SetGeoTransform((originX, pixelWidth, 0, originY, 0, pixelHeight))
-    outband = outRaster.GetRasterBand(1)
-    outband.WriteArray(array)
-    outRasterSRS = osr.SpatialReference()
-    outRasterSRS.ImportFromEPSG(4326)
-    outRaster.SetProjection(outRasterSRS.ExportToWkt())
-    outband.FlushCache()
+    def getProjectedBounds(self, array: xr.DataArray, target_crs: str, resolution: float  ):
+        xcoord = array.coords[ array.dims[-1] ]
+        ycoord = array.coords[ array.dims[-2] ]
+        xbounds = [ xcoord.values[0], xcoord.values[-1] ]
+        ybounds = [ ycoord.values[0], ycoord.values[-1] ]
+        srcSRS = self.getSpatialReference(array.crs)
+        dstSRS = self.getSpatialReference(target_crs)
+        transform = osr.CoordinateTransformation(srcSRS, dstSRS)
+
+        (ulx, uly, ulz ) =  transform.TransformPoint( xbounds[0], ybounds[0] )
+        (lrx, lry, lrz ) =  transform.TransformPoint( xbounds[1], ybounds[1] )
+
+        mem_drv = gdal.GetDriverByName('MEM')
+        dest = mem_drv.Create('', int((lrx - ulx) / resolution),  int((uly - lry) / resolution), 1, gdal.GDT_Float32)
+        new_geo = (ulx, resolution, geo_t[2],  uly, geo_t[4], -resolution )
+
+        dest.SetGeoTransform( new_geo )
+        dest.SetProjection ( dstSRS.ExportToWkt() )
+
+        res = gdal.ReprojectImage( g, dest, srcSRS.ExportToWkt(), dstSRS.ExportToWkt(), gdal.GRA_Bilinear )
 
 if __name__ == '__main__':
     from geoproc.data.mwp import MWPDataManager
     from geoproc.util.crs import CRS
+    import cartopy.crs as ccrs
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import LinearSegmentedColormap, Normalize
 
     locations = [ "120W050N", "100W040N" ]
     products = [ "1D1OS", "3D3OT" ]
@@ -55,6 +93,7 @@ if __name__ == '__main__':
     start_day = 171
     num_days = 4
     download = False
+    south = location[-1] == "S"
 
     dataMgr = MWPDataManager( DATA_DIR, data_source_url )
     dataMgr.setDefaults(product=product, download=download, year=year, start_day=start_day, end_day=start_day+num_days-1 )
@@ -66,9 +105,24 @@ if __name__ == '__main__':
 
     xcoord = data_array.coords[data_array.dims[-1]]
     ycoord = data_array.coords[data_array.dims[-2]]
-    longitude_location = ( xcoord.values[0] + xcoord.values[-1] )/2.0
-    dst_crs =  CRS.get_utm_crs( longitude_location, True )
+    longitude_location: float = ( xcoord.values[0] + xcoord.values[-1] )/2.0
+    dst_crs =  CRS.get_utm_crs( longitude_location, south )
 
-    osgeoManager.reproject( arrays[0], dst_crs )
+    result = osgeoManager.reprojectXarray( arrays[0], dst_crs )
 
+    print( result.shape )
 
+    colors =  [(0, 0, 0), (0.5, 1, 0.25), (0, 0, 1), (1, 1, 0)]
+    norm = Normalize( 0,len(colors) )
+    cm = LinearSegmentedColormap.from_list( "geoProc-waterMap", colors, N=len(colors) )
+
+    fig = plt.figure(figsize=[10, 5])
+
+    ax1 = fig.add_subplot( 1, 2, 1 ) # , projection=ccrs.PlateCarree() )
+    ax1.imshow(data_array.values, cmap=cm, norm=norm )
+
+    utm_proj = ccrs.UTM(zone=CRS.get_utm_zone(longitude_location), southern_hemisphere=south )
+    ax2 = fig.add_subplot(1, 2, 2 ) # , projection= utm_proj )
+    ax2.imshow(result.values[0], cmap=cm, norm=norm ) # , transform=ccrs.PlateCarree() )
+
+    plt.show()

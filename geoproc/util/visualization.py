@@ -62,7 +62,7 @@ class ArrayAnimation(ConfigurableObject):
         colors = [(0, 0, 0), (0.15, 0.3, 0.5), (0, 0, 1), (1, 1, 0)]
         norm = Normalize(0,4)
         cm = LinearSegmentedColormap.from_list( "lake-map", colors, N=4 )
-        fps = self.getParameter( "fps", 2 )
+        fps = self.getParameter( "fps", 1 )
         roi: Region = self.getParameter("roi")
         print("\n Executing create_array_animation ")
         figure, axes = plt.subplots() if roi is None else plt.subplots(1,2)
@@ -99,19 +99,20 @@ class ArrayAnimation(ConfigurableObject):
             results.append( da[ roi.origin[0]:roi.bounds[0], roi.origin[1]:roi.bounds[1] ] )
         return results
 
-    def create_watermap_diag_animation( self, data_arrays: List[xr.DataArray], savePath: str = None, overwrite = False ) -> animation.TimedAnimation:
+    def create_watermap_diag_animation( self, title: str, data_arrays: List[xr.DataArray], savePath: str = None, overwrite = False ) -> animation.TimedAnimation:
         from geoproc.surfaceMapping.lakes import WaterMapGenerator
         images = []
         t0 = time.time()
         colors = [(0, 0, 0), (0, 1, 0), (0, 0, 1), (0, 1, 1)]
         norm = Normalize(0,4)
         cm = LinearSegmentedColormap.from_list( "lake-map", colors, N=4 )
-        fps = self.getParameter( "fps", 1 )
+        fps = self.getParameter( "fps", 0.5 )
         roi: Region = self.getParameter("roi")
         print("\n Executing create_array_animation ")
-        figure, axes = plt.subplots(1,3)
+        figure, axes = plt.subplots(2,2)
         waterMapGenerator = WaterMapGenerator()
-        water_maps = {}
+        water_maps = [ {}, {}, {} ]
+        figure.suptitle(title, fontsize=16)
 
         anim_running = True
         def onClick(event):
@@ -125,21 +126,24 @@ class ArrayAnimation(ConfigurableObject):
 
         for frameIndex in range( len(data_arrays) ):
             waterMaskIndex = frameIndex // 8
-            da = data_arrays[frameIndex]
-            waterMask = water_maps.setdefault( waterMaskIndex, waterMapGenerator.get_water_mask( self.getDataSubset(data_arrays, frameIndex, 8, roi ) ) )
-            im0: Image = axes[0].imshow(da.values, animated=True, cmap=cm, norm=norm  )
-            im1: Image = axes[1].imshow( da[ roi.origin[0]:roi.bounds[0], roi.origin[1]:roi.bounds[1] ], animated=True, cmap=cm, norm=norm )
-            im2: Image = axes[2].imshow( waterMask, animated=True, cmap=cm, norm=norm )
-            images.append( [im0,im1,im2] )
+            da0 = data_arrays[frameIndex]
+            waterMask11 = water_maps[0].setdefault( waterMaskIndex, waterMapGenerator.get_water_mask( self.getDataSubset(data_arrays, frameIndex, 8, roi ), 0.5, 1 ) )
+            waterMask12 = water_maps[1].setdefault( waterMaskIndex, waterMapGenerator.get_water_mask( self.getDataSubset(data_arrays, frameIndex, 8, roi ), 0.5, 2 ) )
+            waterMask13 = water_maps[2].setdefault( waterMaskIndex, waterMapGenerator.get_water_mask( self.getDataSubset(data_arrays, frameIndex, 8, roi ), 0.5, 3 ) )
+#            im0: Image = axes[0].imshow(da.values, animated=True, cmap=cm, norm=norm  )
+            axes[0,0].title.set_text('raw data');           axes[0, 0].set_yticklabels([]); axes[0, 0].set_xticklabels([])
+            im0: Image = axes[0,0].imshow( da0[ roi.origin[0]:roi.bounds[0], roi.origin[1]:roi.bounds[1] ], animated=True, cmap=cm, norm=norm )
+            axes[0, 1].title.set_text('minw: 1');  axes[0, 1].set_yticklabels([]); axes[0, 1].set_xticklabels([])
+            im1: Image = axes[0,1].imshow( waterMask11, animated=True, cmap=cm, norm=norm )
+            axes[1, 0].title.set_text('minw: 2');  axes[1, 0].set_yticklabels([]); axes[1, 0].set_xticklabels([])
+            im2: Image = axes[1,0].imshow( waterMask12, animated=True, cmap=cm, norm=norm)
+            axes[1, 1].title.set_text('minw: 3');  axes[1, 1].set_yticklabels([]); axes[1, 1].set_xticklabels([])
+            im3: Image = axes[1,1].imshow( waterMask13, animated=True,  cmap=cm, norm=norm)
+            images.append( [im0,im1,im2,im3] )
 
-        rect = patches.Rectangle( roi.origin, roi.size, roi.size, linewidth=1, edgecolor='r', facecolor='none')
-        axes[0].add_patch(rect)
+#        rect = patches.Rectangle( roi.origin, roi.size, roi.size, linewidth=1, edgecolor='r', facecolor='none')
+#        axes[0].add_patch(rect)
         figure.canvas.mpl_connect('button_press_event', onClick)
-        for iax in range(3):
-            axes[iax].set_yticklabels([])
-            axes[iax].set_xticklabels([])
-            axes[iax].title.set_text( 'Water Mask' if iax == 2 else "Zoomed Data" if iax == 1 else "Data" )
-
         anim = animation.ArtistAnimation( figure, images, interval=1000.0/fps, repeat_delay=1000)
 
         if savePath is not None:
@@ -152,6 +156,14 @@ class ArrayAnimation(ConfigurableObject):
         plt.show()
         return anim
 
+    def animateGifs(self, gifList: List[str] ):
+        images = [ Image.open(gifFile).convert('RGB') for gifFile in gifList ]
+        nImages = len( images )
+        nRows = nImages // 3
+        nCols = nImages // nRows
+        figure, axes = plt.subplots( nRows, nCols )
+
+
 
 
 if __name__ == '__main__':
@@ -159,20 +171,20 @@ if __name__ == '__main__':
 
     t0 = time.time()
     locations = [ "120W050N", "100W040N" ]
-    products = [ "1D1OS", "3D3OT" ]
+    products = [ "1D1OS", "2D2OT" , "3D3OT" ]
     DATA_DIR = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt"
     location: str = locations[0]
-    product: str = products[0]
+    product = products[0]
     year = 2019
     download = False
     roi = Region( [250,250], 20 )
     bbox = Region([1750, 1750], 500 )
     savePath = DATA_DIR + "/watermap_diagnostic_animation.gif"
-    fps = 1.0
+    fps = 0.5
 
     dataMgr = MWPDataManager(DATA_DIR, "https://floodmap.modaps.eosdis.nasa.gov/Products")
     dataMgr.setDefaults( product=product, download=download, year=2019, start_day=1, end_day=365, bbox=bbox )
     data_arrays = dataMgr.get_tile_data(location)
 
     animator = ArrayAnimation( roi=roi, fps=fps )
-    anim = animator.create_watermap_diag_animation( data_arrays, savePath, True )
+    anim = animator.create_watermap_diag_animation( f"{product} @ {location}", data_arrays, savePath, True )

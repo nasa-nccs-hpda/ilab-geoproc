@@ -1,21 +1,25 @@
 import math, rasterio, subprocess, os
 import xarray as xa
+from typing import Dict, List, Tuple
 import numpy as np
 from .configuration import ConfigurableObject
 
 class CRS(ConfigurableObject):
 
     @classmethod
-    def get_utm_crs( cls, longitude: float, north: bool = True ) -> str:
-        if longitude > 180: long = longitude - 360
-        zone = math.floor((longitude + 180)/6) + 1
+    def get_utm_crs( cls, longitude: float, south: bool = False ) -> str:
+        if longitude > 180: longitude = longitude - 360
+        zone = cls.get_utm_zone( longitude )
         result =  f"+proj=utm +zone={zone} +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
-        if not north: result = result + " +south"
+        if south: result = result + " +south"
         return result
 
+    @classmethod
+    def get_utm_zone( cls, longitude: float ):
+        return math.floor((longitude + 180) / 6) + 1
 
     @classmethod
-    def to_geotiff(cls, array: xa.DataArray, output_dir: str = None):
+    def to_geotiff(cls, array: xa.DataArray, output_dir: str = None) -> Tuple[str,str]:
         array = array.load()
 
         if len(array.shape) == 2:
