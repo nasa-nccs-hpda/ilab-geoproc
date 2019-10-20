@@ -310,7 +310,10 @@ class GDALGrid(object):
 
     def xarray( self, name: str, band: int = 1, masked: bool = True ) -> xr.DataArray:
         xy_data = self.np_array( band, masked )
-        return xr.DataArray( xy_data, name=name, coords = dict( x=self.x_coords, y=self.y_coords ), dims = [ "y", "x" ], attrs=dict( crs=self.projection.ExportToProj4() ) )
+        transform = self.geotransform
+        attrs = dict( crs=self.projection.ExportToProj4(), transform=transform )
+        if transform[2] == 0 and transform[4] == 0: attrs["res"] = [ transform[1], transform[5] ]
+        return xr.DataArray( xy_data, name=name, coords = dict( x=self.x_coords, y=self.y_coords ), dims = [ "y", "x" ], attrs=attrs )
 
     def get_val(self, x_pixel, y_pixel, band=1):
         """Returns value of raster
