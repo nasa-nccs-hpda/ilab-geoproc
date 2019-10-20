@@ -1,8 +1,6 @@
 # Adaped from https://github.com/snowman2/gazar.git
 from csv import writer as csv_writer
 import os
-
-# external modules
 from affine import Affine
 import numpy as np
 from osgeo import gdal, gdalconst, ogr, osr
@@ -10,60 +8,6 @@ from pyproj import Proj, transform
 import utm
 
 gdal.UseExceptions()
-
-
-def utm_proj_from_latlon(latitude, longitude, as_wkt=False, as_osr=False):
-    """
-    Returns UTM projection information from a latitude,
-    longitude corrdinate pair.
-
-    Parameters
-    ----------
-    latitude : float
-        The center latitude.
-    longitude:  float
-        The center longitude.
-    as_wkt:  bool, optional
-        If True, will return the WKT projection string.
-    as_osr: bool, optional
-        If True, will return the :func:`osr.SpatialReference` object.
-
-    Returns
-    -------
-    :obj:`str` or :func:`osr.SpatialReference`
-        Defaults to the proj.4 string.
-    """
-    # get utm coordinates
-    utm_centroid_info = utm.from_latlon(latitude, longitude)
-    zone_number, zone_letter = utm_centroid_info[2:]
-
-    # METHOD USING SetUTM. Not sure if better/worse
-    sp_ref = osr.SpatialReference()
-
-    south_string = ''
-    if zone_letter < 'N':
-        south_string = ', +south'
-    proj4_utm_string = ('+proj=utm +zone={zone_number}{zone_letter}'
-                        '{south_string} +ellps=WGS84 +datum=WGS84 '
-                        '+units=m +no_defs')\
-        .format(zone_number=abs(zone_number),
-                zone_letter=zone_letter,
-                south_string=south_string)
-    ret_val = sp_ref.ImportFromProj4(proj4_utm_string)
-    if ret_val == 0:
-        north_zone = True
-        if zone_letter < 'N':
-            north_zone = False
-        sp_ref.SetUTM(abs(zone_number), north_zone)
-
-    sp_ref.AutoIdentifyEPSG()
-
-    if as_osr:  # pylint: disable=no-else-return
-        return sp_ref
-    elif as_wkt:
-        return sp_ref.ExportToWkt()
-    return sp_ref.ExportToProj4()
-
 
 def project_to_geographic(x_coord, y_coord, osr_projetion):
     """Project point to EPSG:4326
@@ -188,21 +132,12 @@ class GDALGrid(object):
 
         """
         new_proj = None
-        x_min, y_min = self.affine * (0, self.dataset.RasterYSize)
-        x_max, y_max = self.affine * (self.dataset.RasterXSize, 0)
 
         if as_geographic:
             new_proj = osr.SpatialReference()
             new_proj.ImportFromEPSG(4326)
         elif as_utm:
-            lon_min, lat_max = project_to_geographic(x_min, y_max,
-                                                     self.projection)
-            lon_max, lat_min = project_to_geographic(x_max, y_min,
-                                                     self.projection)
-            # convert to UTM
-            new_proj = utm_proj_from_latlon((lat_min + lat_max) / 2.0,
-                                            (lon_min + lon_max) / 2.0,
-                                            as_osr=True)
+            new_proj = self.get_utm_proj()
         elif as_projection:
             new_proj = as_projection
 
@@ -210,7 +145,45 @@ class GDALGrid(object):
             ggrid = self.to_projection(new_proj)
             return ggrid.bounds()
 
+        x_min, y_min = self.affine * (0, self.dataset.RasterYSize)
+        x_max, y_max = self.affine * (self.dataset.RasterXSize, 0)
         return x_min, x_max, y_min, y_max
+
+    def get_utm_proj(self) -> osr.SpatialReference:
+        x_min, y_min = self.affine * (0, self.dataset.RasterYSize)
+        x_max, y_max = self.affine * (self.dataset.RasterXSize, 0)
+
+        lon_min, lat_max = project_to_geographic(x_min, y_max, self.projection)
+        lon_max, lat_min = project_to_geographic(x_max, y_min, self.projection)
+
+        latitude = (lat_min + lat_max) / 2.0
+        longitude = (lon_min + lon_max) / 2.0
+
+        utm_centroid_info = utm.from_latlon(latitude, longitude)
+        zone_number, zone_letter = utm_centroid_info[2:]
+
+        # METHOD USING SetUTM. Not sure if better/worse
+        sp_ref = osr.SpatialReference()
+
+        south_string = ''
+        if zone_letter < 'N':
+            south_string = ', +south'
+        proj4_utm_string = ('+proj=utm +zone={zone_number}{zone_letter}'
+                            '{south_string} +ellps=WGS84 +datum=WGS84 '
+                            '+units=m +no_defs') \
+            .format(zone_number=abs(zone_number),
+                    zone_letter=zone_letter,
+                    south_string=south_string)
+        ret_val = sp_ref.ImportFromProj4(proj4_utm_string)
+        if ret_val == 0:
+            north_zone = True
+            if zone_letter < 'N':
+                north_zone = False
+            sp_ref.SetUTM(abs(zone_number), north_zone)
+
+        sp_ref.AutoIdentifyEPSG()
+        return sp_ref
+
 
     def pixel2coord(self, col, row):
         """Returns global coordinates to pixel center using base-0 raster index.
@@ -349,31 +322,17 @@ class GDALGrid(object):
                                          y_2d_coords)
         return proj_lats, proj_lons
 
-    def np_array(self, band=1, masked=True):
-        """Returns the raster band as a numpy array.
-
-        Parameters
-        ----------
-        band: obj:`int`, optional
-            Band number (1-based). Default is 1. If 'all',
-            it will return all of the data as a 3D array.
-        masked: bool, optional
-            If True, will return the array masked with the NoData
-            value. Default is True.
-
-        Returns
-        -------
-        :func:`numpy.array` or :func:`numpy.ma.array`
+    def np_array(self, band: int = 1, masked: bool =True) -> np.array:
+        """Returns the raster band as a numpy array.  If band < 0,  it will return all of the data as a 3D array.
         """
-        if band == 'all':
+        if band < 0:
             grid_data = self.dataset.ReadAsArray()
         else:
             raster_band = self.dataset.GetRasterBand(band)
             grid_data = raster_band.ReadAsArray()
             nodata_value = raster_band.GetNoDataValue()
             if nodata_value is not None and masked:
-                return np.ma.array(data=grid_data,
-                                   mask=(grid_data == nodata_value))
+                return np.ma.array(data=grid_data, mask=(grid_data == nodata_value))
         return np.array(grid_data)
 
     def get_val(self, x_pixel, y_pixel, band=1):
@@ -511,33 +470,12 @@ class GDALGrid(object):
                         [],
                         callback=None)
 
-    def to_projection(self, dst_proj,
-                      resampling=gdalconst.GRA_NearestNeighbour):
-        """Reproject dataset to new projection.
+    def to_projection(self, dst_proj: osr.SpatialReference,  resampling=gdalconst.GRA_NearestNeighbour) -> "GDALGrid":
+        """ Reproject dataset to new projection.  """
+        return gdal_reproject(self.dataset, src_srs=self.projection,  dst_srs=dst_proj,  resampling=resampling,  as_gdal_grid=True)
 
-        Parameters
-        ----------
-        dst_proj:  :func:`osr.SpatialReference`
-            Output projection.
-
-        Returns
-        -------
-        :func:`~GDALGrid`
-        """
-        return gdal_reproject(self.dataset,
-                              src_srs=self.projection,
-                              dst_srs=dst_proj,
-                              resampling=resampling,
-                              as_gdal_grid=True)
-
-    def to_tif(self, file_path):
-        """Write out as geotiff.
-
-        Parameters
-        ----------
-        file_path:  :obj:`str`
-            Output path for file.
-        """
+    def to_tif( self, file_path: str ):
+        """Write out as geotiff."""
         drv = gdal.GetDriverByName('GTiff')
         drv.CreateCopy(file_path, self.dataset)
 
@@ -554,21 +492,8 @@ class GDALGrid(object):
                                      delimiter=" ")
             grid_writer.writerows(self.np_array(band, masked=False))
 
-    def to_grass_ascii(self, file_path, band=1, print_nodata=True):
-        """Writes data to GRASS ASCII file format.
-
-        Parameters
-        ----------
-            file_path: :obj:`str`
-                Path to output ascii file.
-            band: obj:`int`, optional
-                Band number (1-based). Default is 1.
-            print_nodata: bool, optional
-                If True, it will write out the NoData value
-                for the raster band. Default is False.
-        """
-        # PART 1: HEADER
-        # get data extremes
+    def to_grass_ascii(self, file_path: str, band: int =1, print_nodata: bool =True):
+        """ Writes data to GRASS ASCII file format. """
         west_bound, east_bound, south_bound, north_bound = self.bounds()
         header_string = u"north: {0:.9f}\n".format(north_bound)
         header_string += "south: {0:.9f}\n".format(south_bound)
@@ -576,25 +501,10 @@ class GDALGrid(object):
         header_string += "west: {0:.9f}\n".format(west_bound)
         header_string += "rows: {0}\n".format(self.y_size)
         header_string += "cols: {0}\n".format(self.x_size)
-
-        # PART 2: WRITE DATA
         self._to_ascii(header_string, file_path, band, print_nodata)
 
-    def to_arc_ascii(self, file_path, band=1, print_nodata=True):
-        """Writes data to Arc ASCII file format.
-
-        Parameters
-        ----------
-            file_path: :obj:`str`
-                Path to output ascii file.
-            band: obj:`int`, optional
-                Band number (1-based). Default is 1.
-            print_nodata: bool, optional
-                If True, it will write out the NoData value
-                for the raster band. Default is False.
-        """
-        # PART 1: HEADER
-        # get data extremes
+    def to_arc_ascii(self, file_path: str, band: int =1, print_nodata: bool =True):
+        """Writes data to Arc ASCII file format. """
         bounds = self.bounds()
         west_bound = bounds[0]
         south_bound = bounds[2]
@@ -604,102 +514,7 @@ class GDALGrid(object):
         header_string += "xllcorner {0}\n".format(west_bound)
         header_string += "yllcorner {0}\n".format(south_bound)
         header_string += "cellsize {0}\n".format(cellsize)
-
-        # PART 2: WRITE DATA
         self._to_ascii(header_string, file_path, band, print_nodata)
-
-
-class ArrayGrid(GDALGrid):
-    """
-    Loads :func:`numpy.array` into a :func:`~GDALGrid`.
-
-    Parameters
-    ----------
-    in_array : :func:`numpy.array`
-        2D or 3D array of data.
-    wkt_projection : :obj:`str`
-        WKT projection string.
-    geotransform: :obj:`tuple`
-        Geotransform for array.
-    gdal_dtype: :func:`gdalconst`, optional
-        The data type of the `in_array` for GDAL.
-        Default is `gdalconst.GDT_Float32`.
-    nodata_value: int or float, optional
-        The value used in the grid for NoData. Default is None.
-
-    """
-    def __init__(self,
-                 in_array,
-                 wkt_projection,
-                 geotransform,
-                 gdal_dtype=gdalconst.GDT_Float32,
-                 nodata_value=None):
-
-        num_bands = 1
-        if in_array.ndim == 3:
-            num_bands, y_size, x_size = in_array.shape
-        else:
-            y_size, x_size = in_array.shape
-
-        dataset = gdal.GetDriverByName('MEM').Create("tmp_ras",
-                                                     x_size,
-                                                     y_size,
-                                                     num_bands,
-                                                     gdal_dtype)
-
-        dataset.SetGeoTransform(geotransform)
-        dataset.SetProjection(wkt_projection)
-
-        if in_array.ndim == 3:
-            for band in range(1, num_bands + 1):
-                rband = dataset.GetRasterBand(band)
-                rband.WriteArray(in_array[band - 1])
-                if nodata_value is not None:
-                    rband.SetNoDataValue(nodata_value)
-        else:
-            rband = dataset.GetRasterBand(1)
-            rband.WriteArray(in_array)
-            if nodata_value is not None:
-                rband.SetNoDataValue(nodata_value)
-
-        super(ArrayGrid, self).__init__(dataset)
-
-
-def geotransform_from_yx(y_arr, x_arr, y_cell_size=None, x_cell_size=None):
-    """
-    Calculates geotransform from arrays of y and x coords.
-    Assumes Y max and X min are at [0,0].
-
-    Parameters
-    ----------
-        y_arr: :func:`numpy.array`
-            Array of latitudes or y coordinates.
-        x_arr: :func:`numpy.array`
-            Array of longitudes or x coordinates.
-        y_cell_size: :obj:`float`, optional
-            Y cell size in projected coordinates.
-        x_cell_size: :obj:`float`, optional
-            X cell size from projected coordinates.
-
-    Returns
-    -------
-    :obj:`tuple`
-        geotransform: (x_min, x_cell_size, x_skew, y_max, y_skew, -y_cell_size)
-    """
-    if y_arr.ndim < 2:
-        x_2d, y_2d = np.meshgrid(x_arr, y_arr)
-    else:
-        x_2d = x_arr
-        y_2d = y_arr
-    # get cell size
-    if x_cell_size is None:
-        x_cell_size = np.nanmean(np.absolute(np.diff(x_2d, axis=1)))
-    if y_cell_size is None:
-        y_cell_size = np.nanmean(np.absolute(np.diff(y_2d, axis=0)))
-    # get top left corner
-    min_x_tl = x_2d[0, 0] - x_cell_size / 2.0
-    max_y_tl = y_2d[0, 0] + y_cell_size / 2.0
-    return min_x_tl, x_cell_size, 0, max_y_tl, 0, -y_cell_size
 
 
 def load_raster(grid):
@@ -890,7 +705,6 @@ def gdal_reproject(src,
     return reprojected_ds
 
 if __name__ == '__main__':
-    from geoproc.xext.xgdal import GeoProc
     import xarray as xr
 
     CreateIPServer = "https://dataserver.nccs.nasa.gov/thredds/dodsC/bypass/CREATE-IP/"

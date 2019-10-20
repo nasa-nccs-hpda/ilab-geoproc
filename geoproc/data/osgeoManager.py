@@ -129,8 +129,11 @@ if __name__ == '__main__':
     ax1 = fig.add_subplot( 1, 2, 1 ) # , projection=ccrs.PlateCarree() )
     ax1.imshow(data_array.values, cmap=cm, norm=norm )
 
-#    utm_proj = ccrs.UTM(zone=CRS.get_utm_zone(longitude_location), southern_hemisphere=south )
-    ax2 = fig.add_subplot(1, 2, 2 ) # , projection= utm_proj )
+    xcoord = data_array.coords[data_array.dims[-1]]
+    longitude_location: float = (xcoord.values[0] + xcoord.values[-1]) / 2.0
+
+    utm_proj = ccrs.UTM(zone=CRS.get_utm_zone(longitude_location), southern_hemisphere=south )
+    ax2 = fig.add_subplot(1, 2, 2, projection= utm_proj )
     ax2.imshow(result, cmap=cm, norm=norm ) # , transform=ccrs.PlateCarree() )
 
     plt.show()
