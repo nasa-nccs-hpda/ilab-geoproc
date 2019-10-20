@@ -119,7 +119,7 @@ if __name__ == '__main__':
 
     new_proj: osr.SpatialReference = dset.get_utm_proj()
     reprojected_dset: GDALGrid  = dset.to_projection( new_proj )
-    grid_data = reprojected_dset.np_array()
+    grid_data = reprojected_dset.xarray( "UTM_Result")
 
     fig = plt.figure(figsize=[10, 5])
     colors = [(0, 0, 0), (0.15, 0.3, 0.5), (0, 0, 1), (1, 1, 0)]

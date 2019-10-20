@@ -2,9 +2,11 @@
 from csv import writer as csv_writer
 import os
 from affine import Affine
+from typing import Dict, List, Tuple, Union
 import numpy as np
 from osgeo import gdal, gdalconst, ogr, osr
 from pyproj import Proj, transform
+import xarray as xr
 import utm
 
 gdal.UseExceptions()
@@ -276,55 +278,26 @@ class GDALGrid(object):
         return self.coord2pixel(x_coord, y_coord)
 
     @property
-    def x_coords(self):
-        """Returns x coordinate array representing the grid.
-        Use method from: https://github.com/pydata/xarray/pull/1712
-
-        Returns
-        -------
-        x_coords: :func:`numpy.array`
-            The X coordinate array.
-        """
-        x_coords, _ = (np.arange(self.x_size) + 0.5,
-                       np.zeros(self.x_size) + 0.5) * self.affine
+    def x_coords(self) -> np.array:
+        """ Returns x coordinate array representing the grid. """
+        x_coords, _ = (np.arange(self.x_size) + 0.5, np.zeros(self.x_size) + 0.5) * self.affine
         return x_coords
 
     @property
-    def y_coords(self):
-        """Returns y coordinate array representing the grid.
-        Use method from: https://github.com/pydata/xarray/pull/1712
-
-        Returns
-        -------
-        y_coords: :func:`numpy.array`
-            The Y coordinate array.
-        """
-        _, y_coords = (np.zeros(self.y_size) + 0.5,
-                       np.arange(self.y_size) + 0.5) * self.affine
+    def y_coords(self) -> np.array:
+        """ Returns y coordinate array representing the grid. """
+        _, y_coords = (np.zeros(self.y_size) + 0.5, np.arange(self.y_size) + 0.5) * self.affine
         return y_coords
 
     @property
-    def latlon(self):
-        """Returns latitude and longitude arrays representing the grid.
-
-        Returns
-        -------
-        proj_lats: :func:`numpy.array`
-            The latitude array.
-        proj_lons: :func:`numpy.array`
-            The longitude array.
-        """
+    def latlon(self) -> Tuple[np.array,np.array]:
+        """Returns ( latitude, longitude ) array tuple representing the grid. """
         x_2d_coords, y_2d_coords = np.meshgrid(self.x_coords, self.y_coords)
-
-        proj_lons, proj_lats = transform(self.proj,
-                                         Proj(init='epsg:4326'),
-                                         x_2d_coords,
-                                         y_2d_coords)
+        proj_lons, proj_lats = transform(self.proj, Proj(init='epsg:4326'), x_2d_coords, y_2d_coords)
         return proj_lats, proj_lons
 
     def np_array(self, band: int = 1, masked: bool =True) -> np.array:
-        """Returns the raster band as a numpy array.  If band < 0,  it will return all of the data as a 3D array.
-        """
+        """Returns the raster band as a numpy array.  If band < 0,  it will return all of the data as a 3D array. """
         if band < 0:
             grid_data = self.dataset.ReadAsArray()
         else:
@@ -334,6 +307,10 @@ class GDALGrid(object):
             if nodata_value is not None and masked:
                 return np.ma.array(data=grid_data, mask=(grid_data == nodata_value))
         return np.array(grid_data)
+
+    def xarray( self, name: str, band: int = 1, masked: bool = True ) -> xr.DataArray:
+        xy_data = self.np_array( band, masked )
+        return xr.DataArray( xy_data, name=name, coords = dict( x=self.x_coords, y=self.y_coords ), dims = [ "y", "x" ], attrs=dict( crs=self.projection.ExportToProj4() ) )
 
     def get_val(self, x_pixel, y_pixel, band=1):
         """Returns value of raster
