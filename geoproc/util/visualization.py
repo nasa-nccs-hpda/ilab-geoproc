@@ -45,11 +45,9 @@ class ArrayAnimation(ConfigurableObject):
         ConfigurableObject.__init__( self, **kwargs )
 
     def create_file_animation(self,  files: List[str], savePath: str = None, overwrite = False ) -> animation.TimedAnimation:
+        from geoproc.xext.xgeo import XGeo
         bbox: Region = self.getParameter("bbox")
-        if bbox is None:
-            data_arrays: List[xr.DataArray] = [ xr.open_rasterio(file)[0] for file in files ]
-        else:
-            data_arrays: List[xr.DataArray] = [ xr.open_rasterio(file)[ 0, bbox.origin[0]:bbox.bounds[0], bbox.origin[1]:bbox.bounds[1] ] for file in files ]
+        data_arrays: List[xr.DataArray] = XGeo.loadRasterFiles(files, region=bbox)
         return self.create_animation( data_arrays, savePath, overwrite )
 
     def create_array_animation(self,  data_array: xr.DataArray, savePath: str = None, overwrite = False ) -> animation.TimedAnimation:
@@ -59,8 +57,8 @@ class ArrayAnimation(ConfigurableObject):
     def create_animation( self, data_arrays: List[xr.DataArray], savePath: str = None, overwrite = False ) -> animation.TimedAnimation:
         images = []
         t0 = time.time()
-        colors = [(0, 0, 0), (0.15, 0.3, 0.5), (0, 0, 1), (1, 1, 0)]
-        norm = Normalize(0,4)
+        colors = [(0, 0, 0), (0.05, 0.4, 0.2), (1, 1, 0), (0, 1, 1)]   # (0.15, 0.3, 0.5)
+        norm = Normalize(0,len(colors))
         cm = LinearSegmentedColormap.from_list( "lake-map", colors, N=4 )
         fps = self.getParameter( "fps", 1 )
         roi: Region = self.getParameter("roi")
@@ -153,6 +151,7 @@ class ArrayAnimation(ConfigurableObject):
             else:
                 print( f" Animation file already exists at '{savePath}'', set 'overwrite = True'' if you wish to overwrite it." )
         print(f" Completed create_array_animation in {time.time()-t0:.3f} seconds" )
+        plt.tight_layout()
         plt.show()
         return anim
 
@@ -180,7 +179,7 @@ if __name__ == '__main__':
     roi = Region( [250,250], 20 )
     bbox = Region([1750, 1750], 500 )
     savePath = DATA_DIR + "/watermap_diagnostic_animation.gif"
-    fps = 0.5
+    fps = 1.0
 
     dataMgr = MWPDataManager(DATA_DIR, "https://floodmap.modaps.eosdis.nasa.gov/Products")
     dataMgr.setDefaults( product=product, download=download, year=2019, start_day=1, end_day=365, bbox=bbox )

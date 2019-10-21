@@ -1,10 +1,12 @@
 from affine import Affine
-import numpy as np
+import numpy as np, os
+from geoproc.util.configuration import ConfigurableObject, Region
+from typing import Dict, List, Tuple
 from osgeo import osr, gdalconst, gdal
+from geoproc.xext.xgeo import XGeo
 from pyproj import Proj, transform
-from geoproc.xext.grid import GDALGrid
+from geoproc.data.grid import GDALGrid
 import xarray as xr
-
 
 @xr.register_dataarray_accessor('xgeo')
 class XGeo(object):
@@ -27,6 +29,21 @@ class XGeo(object):
         self.lon_to_180 = False
         # coordinates are projected already
         self.coords_projected = False
+
+    @classmethod
+    def loadRasterFile( cls, filePath: str, name: str = None, band = -1 ) -> xr.DataArray:
+        grid = GDALGrid( filePath )
+        if name is None: name = os.path.basename(filePath)
+        return grid.xarray( name, band )
+
+    @classmethod
+    def loadRasterFiles( cls, filePaths: List[str], **args ) -> List[xr.DataArray]:
+        bbox: Region = args.get("bbox")
+        if bbox is None:
+            data_arrays: List[xr.DataArray] = [ cls.loadRasterFile( file, **args ) for file in filePaths]
+        else:
+            data_arrays: List[xr.DataArray] = [ cls.loadRasterFile( file, **args )[0, bbox.origin[0]:bbox.bounds[0], bbox.origin[1]:bbox.bounds[1]] for file in filePaths]
+        return data_arrays
 
     def getCoordName( self, axis: str ) -> str:
         for cname, coord in self._obj.coords.items():
@@ -100,6 +117,10 @@ class XGeo(object):
 
     def to_gdalGrid(self) -> GDALGrid:
         return GDALGrid( self.to_gdal())
+
+    def to_tif(self, file_path: str ):
+        gdalGrid = self.to_gdalGrid()
+        gdalGrid.to_tif( file_path )
 
 if __name__ == '__main__':
     from geoproc.data.mwp import MWPDataManager

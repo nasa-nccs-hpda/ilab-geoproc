@@ -2,39 +2,13 @@
 from csv import writer as csv_writer
 import os
 from affine import Affine
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple, Union, Optional
 import numpy as np
 from osgeo import gdal, gdalconst, ogr, osr
 from pyproj import Proj, transform
 import xarray as xr
 import utm
-
 gdal.UseExceptions()
-
-def project_to_geographic(x_coord, y_coord, osr_projetion):
-    """Project point to EPSG:4326
-
-    Parameters
-    ----------
-    x_coord : float
-        The point x-coordinate.
-    y_coord:  float
-        The point y-coordinate.
-    osr_projetion:  :func:`osr.SpatialReference`
-        The projection for the point.
-
-    Returns
-    -------
-    :obj:`tuple`
-        The projected point coordinates.
-        (x_coord, y_coord)
-    """
-    # Make sure projected into global projection
-    sp_ref = osr.SpatialReference()
-    sp_ref.ImportFromEPSG(4326)
-    trans = osr.CoordinateTransformation(osr_projetion, sp_ref)
-    return trans.TransformPoint(x_coord, y_coord)[:2]
-
 
 class GDALGrid(object):
     """
@@ -49,13 +23,12 @@ class GDALGrid(object):
         Path to projection file.
 
     """
-    def __init__(self, grid_file, prj_file=None):
+    def __init__(self, grid_file: str, prj_file: str = None):
         if isinstance(grid_file, gdal.Dataset):
             self.dataset = grid_file
         else:
             self.dataset = gdal.Open(grid_file, gdalconst.GA_ReadOnly)
 
-        # set projection object
         if prj_file is not None:
             self.projection = osr.SpatialReference()
             with open(prj_file) as pro_file:
@@ -64,7 +37,6 @@ class GDALGrid(object):
             self.projection = osr.SpatialReference()
             self.projection.ImportFromWkt(self.dataset.GetProjection())
 
-        # set affine from geotransform
         self.affine = Affine.from_gdal(*self.dataset.GetGeoTransform())
 
     @property
@@ -88,23 +60,19 @@ class GDALGrid(object):
         return self.dataset.RasterCount
 
     @property
-    def wkt(self):
-        """:obj:`str`:WKT projection string"""
+    def wkt(self) -> str:
         return self.projection.ExportToWkt()
 
     @property
-    def proj4(self):
-        """:obj:`str`:proj4 string"""
+    def proj4(self) -> str:
         return self.projection.ExportToProj4()
 
     @property
-    def proj(self):
-        """func:`pyproj.Proj`: Proj4 object"""
+    def proj(self) -> Proj:
         return Proj(self.proj4)
 
     @property
-    def epsg(self):
-        """:obj:`str`: EPSG code"""
+    def epsg(self) -> str:
         try:
             # identify EPSG code where applicable
             self.projection.AutoIdentifyEPSG()
@@ -155,8 +123,8 @@ class GDALGrid(object):
         x_min, y_min = self.affine * (0, self.dataset.RasterYSize)
         x_max, y_max = self.affine * (self.dataset.RasterXSize, 0)
 
-        lon_min, lat_max = project_to_geographic(x_min, y_max, self.projection)
-        lon_max, lat_min = project_to_geographic(x_max, y_min, self.projection)
+        lon_min, lat_max = self.project_to_geographic(x_min, y_max, self.projection)
+        lon_max, lat_min = self.project_to_geographic(x_max, y_min, self.projection)
 
         latitude = (lat_min + lat_max) / 2.0
         longitude = (lon_min + lon_max) / 2.0
@@ -235,42 +203,14 @@ class GDALGrid(object):
 
         return int(col), int(row)
 
-    def pixel2lonlat(self, col, row):
-        """Returns latitude and longitude to pixel center using base-0 raster index
-
-        Parameters
-        ----------
-        col: int
-            The 0-based column index.
-        row:  int
-            The 0-based row index.
-
-        Returns
-        -------
-        :obj:`tuple`
-            (longitude, latitude) - The lat, lon of the pixel
-            center in the dataset's projection.
-        """
+    def pixel2lonlat(self, col: int, row: int) -> Tuple[float,float]:
+        """ Returns latitude and longitude of pixel center using base-0 raster index  """
         x_coord, y_coord = self.pixel2coord(col, row)
-        longitude, latitude = project_to_geographic(x_coord, y_coord,
-                                                    self.projection)
+        longitude, latitude = self.project_to_geographic(x_coord, y_coord, self.projection)
         return longitude, latitude
 
-    def lonlat2pixel(self, longitude, latitude):
-        """Returns base-0 raster index using longitude and latitude of pixel center
-
-        Parameters
-        ----------
-        longitude: float
-            The longitude of the cell center.
-        latitude:  float
-            The latitude of the cell center.
-
-        Returns
-        -------
-        :obj:`tuple`
-            (col, row) - The 0-based column and row index of the pixel.
-        """
+    def lonlat2pixel(self, longitude: float, latitude: float ) -> Tuple[int,int]:
+        """ Returns base-0 raster index using longitude and latitude of pixel center """
         sp_ref = osr.SpatialReference()
         sp_ref.ImportFromEPSG(4326)  # geographic
         transx = osr.CoordinateTransformation(sp_ref, self.projection)
@@ -315,41 +255,12 @@ class GDALGrid(object):
         if transform[2] == 0 and transform[4] == 0: attrs["res"] = [ transform[1], transform[5] ]
         return xr.DataArray( xy_data, name=name, coords = dict( x=self.x_coords, y=self.y_coords ), dims = [ "y", "x" ], attrs=attrs )
 
-    def get_val(self, x_pixel, y_pixel, band=1):
-        """Returns value of raster
+    def get_val(self, x_pixel: int, y_pixel: int, band=1):
+        """Returns value of raster, pixel locations (0-based), Band number (1-based). Default is 1. """
+        return self.dataset.GetRasterBand(band).ReadAsArray(x_pixel, y_pixel, 1, 1)[0][0]
 
-        Parameters
-        ----------
-        x_pixel: int
-            X pixel location (0-based).
-        y_pixel: int
-            Y pixel location (0-based).
-        band: int, optional
-            Band number (1-based). Default is 1.
-
-        Returns
-        -------
-        object dtype
-        """
-        return self.dataset.GetRasterBand(band)\
-                   .ReadAsArray(x_pixel, y_pixel, 1, 1)[0][0]
-
-    def get_val_latlon(self, longitude, latitude, band=1):
-        """Returns value of raster from a latitude and longitude point.
-
-        Parameters
-        ----------
-        longitude: float
-            The longitude of the cell center.
-        latitude:  float
-            The latitude of the cell center.
-        band: int, optional
-            Band number (1-based). Default is 1.
-
-        Returns
-        -------
-        object dtype
-        """
+    def get_val_latlon(self, longitude: float, latitude: float, band=1):
+        """Returns value of raster from a latitude and longitude point, Band number (1-based). Default is 1. """
         x_pixel, y_pixel = self.lonlat2pixel(longitude, latitude)
         return self.get_val(x_pixel, y_pixel, band)
 
@@ -452,7 +363,7 @@ class GDALGrid(object):
 
     def to_projection(self, dst_proj: osr.SpatialReference,  resampling=gdalconst.GRA_NearestNeighbour) -> "GDALGrid":
         """ Reproject dataset to new projection.  """
-        return gdal_reproject(self.dataset, src_srs=self.projection,  dst_srs=dst_proj,  resampling=resampling,  as_gdal_grid=True)
+        return self.gdal_reproject(self.dataset, src_srs=self.projection,  dst_srs=dst_proj,  resampling=resampling,  as_gdal_grid=True)
 
     def to_tif( self, file_path: str ):
         """Write out as geotiff."""
@@ -497,192 +408,93 @@ class GDALGrid(object):
         self._to_ascii(header_string, file_path, band, print_nodata)
 
 
-def load_raster(grid):
-    """
-    Load in a raster as a :func:`~GDALGrid`.
+    @classmethod
+    def project_to_geographic(cls, x_coord: float, y_coord: float, osr_projetion: osr.SpatialReference) -> Tuple[float,float]:
+        """ Project point to EPSG:4326 """
+        sp_ref = osr.SpatialReference()
+        sp_ref.ImportFromEPSG(4326)
+        trans = osr.CoordinateTransformation(osr_projetion, sp_ref)
+        return trans.TransformPoint(x_coord, y_coord)[:2]
 
-    Parameters
-    ----------
-        grid: :obj:`str` or :func:`gdal.Dataset` or :func:`~GDALGrid`
-            The raster to be loaded in.
-    Returns
-    -------
-    :func:`~GDALGrid`
-    """
-    if isinstance(grid, gdal.Dataset):
-        src = grid
-        src_proj = src.GetProjection()
-    elif isinstance(grid, GDALGrid):
-        src = grid.dataset
-        src_proj = grid.wkt
-    else:
-        src = gdal.Open(grid, gdalconst.GA_ReadOnly)
-        src_proj = src.GetProjection()
+    @classmethod
+    def load_raster(cls, grid: Union[str,gdal.Dataset]) -> Tuple[ "GDALGrid", str ]:
+        """ Load in a raster as a :func:`~GDALGrid`. """
+        if isinstance(grid, gdal.Dataset):
+            src = grid
+            src_proj = src.GetProjection()
+        elif isinstance(grid, GDALGrid):
+            src = grid.dataset
+            src_proj = grid.wkt
+        else:
+            src = gdal.Open(grid, gdalconst.GA_ReadOnly)
+            src_proj = src.GetProjection()
 
-    return src, src_proj
+        return src, src_proj
 
+    @classmethod
+    def resample_grid(cls,    original_grid: Union[str,gdal.Dataset],
+                              target_grid: Union[str,gdal.Dataset],
+                              to_file: bool= False,                     # False returns an in memory grid, True writes to file.
+                              output_datatype: gdalconst= None,         # e.g. gdalconst.GDT_Float32
+                              resample_method: gdalconst= gdalconst.GRA_Average ) -> Optional["GDALGrid"]:
+        """ This function resamples a grid """
 
-def resample_grid(original_grid,
-                  match_grid,
-                  to_file=False,
-                  output_datatype=None,
-                  resample_method=gdalconst.GRA_Average,
-                  as_gdal_grid=False):
-    """
-    This function resamples a grid and outputs the result to a file.
+        src, src_proj = cls.load_raster(original_grid)
+        if output_datatype is None: output_datatype = src.dataset.GetRasterBand(1).DataType
 
-    Based on: http://stackoverflow.com/questions/10454316/how-to-project-and-
-        resample-a-grid-to-match-another-grid-with-gdal-python
+        match_ds, match_proj = cls.load_raster(target_grid)
+        match_geotrans = match_ds.dataset.GetGeoTransform()
 
-    Parameters
-    ----------
-        original_grid: :obj:`str` or :func:`gdal.Dataset` or :func:`~GDALGrid`
-            The original grid dataset.
-        match_grid: :obj:`str` or :func:`gdal.Dataset` or :func:`~GDALGrid`
-            The grid to match.
-        to_file: :obj:`str` or bool, optional
-            Default is False, which returns an in memory grid.
-            If :obj:`str`, it writes to file.
-        output_datatype: :func:`osgeo.gdalconst`, optional
-            A valid datatype from gdalconst (Ex. gdalconst.GDT_Float32).
-        resample_method: :func:`osgeo.gdalconst`, optional
-            A valid resample method from gdalconst.
-            Default is gdalconst.GRA_Average.
-        as_gdal_grid: bool, optional
-            Return as :func:`~GDALGrid`. Default is False.
+        if not to_file:
+            dst_driver = gdal.GetDriverByName('MEM')
+            dst_path = ""
+        else:
+            dst_driver = gdal.GetDriverByName('GTiff')
+            dst_path = to_file
 
-    Returns
-    -------
-    None or :func:`gdal.Dataset` or :func:`~GDALGrid`
-        If `to_file` is a :obj:`str`, then it returns None.
-        Otherwise, if `to_file` is False then it returns a
-        :func:`gdal.Dataset` unless `as_gdal_grid` is True.
-        Then, it returns :func:`~GDALGrid`.
+        dst = dst_driver.Create(dst_path, match_ds.dataset.RasterXSize, match_ds.dataset.RasterYSize, src.dataset.RasterCount, output_datatype)
+        dst.SetGeoTransform(match_geotrans)
+        dst.SetProjection(match_proj)
 
-    """
-    # Source of the data
-    src, src_proj = load_raster(original_grid)
+        for band_i in range(1, dst.RasterCount + 1):
+            nodata_value = src.dataset.GetRasterBand(band_i).GetNoDataValue()
+            if not nodata_value: nodata_value = -9999
+            dst.GetRasterBand(band_i).SetNoDataValue(nodata_value)
 
-    # ensure output datatype is set
-    if output_datatype is None:
-        output_datatype = src.GetRasterBand(1).DataType
+        gdal.ReprojectImage(src, dst, src_proj, match_proj, resample_method)
 
-    # Grid to use to extract subset and match
-    match_ds, match_proj = load_raster(match_grid)
-    match_geotrans = match_ds.GetGeoTransform()
+        if not to_file: return GDALGrid(dst)
+        del dst
+        return None
 
-    if not to_file:
-        # in memory raster
-        dst_driver = gdal.GetDriverByName('MEM')
-        dst_path = ""
-    else:
-        # geotiff
-        dst_driver = gdal.GetDriverByName('GTiff')
-        dst_path = to_file
+    @classmethod
+    def gdal_reproject(cls,    src: Union[str,gdal.Dataset],
+                               output_file: str= None,                       # The filepath of the output image to write to.
+                               src_srs: osr.SpatialReference=None,
+                               dst_srs: osr.SpatialReference=None,          # Defaults to epsg if None
+                               epsg: int=None,
+                               error_threshold: float =0.125,
+                               resampling: gdalconst =gdalconst.GRA_NearestNeighbour ) -> Optional["GDALGrid"]:
+        """ Reproject a raster image. """
+        src_ds = cls.load_raster(src)[0]
 
-    dst = dst_driver.Create(dst_path,
-                            match_ds.RasterXSize,
-                            match_ds.RasterYSize,
-                            src.RasterCount,
-                            output_datatype)
+        if dst_srs is None:
+            dst_srs = osr.SpatialReference()
+            dst_srs.ImportFromEPSG(int(epsg))
 
-    dst.SetGeoTransform(match_geotrans)
-    dst.SetProjection(match_proj)
+        dst_wkt = dst_srs.ExportToWkt()
 
-    for band_i in range(1, dst.RasterCount + 1):
-        nodata_value = src.GetRasterBand(band_i).GetNoDataValue()
-        if not nodata_value:
-            nodata_value = -9999
-        dst.GetRasterBand(band_i).SetNoDataValue(nodata_value)
+        if not isinstance(resampling, int):
+            resampling = getattr(gdal, resampling)
 
-    # extract subset and resample grid
-    gdal.ReprojectImage(src, dst,
-                        src_proj,
-                        match_proj,
-                        resample_method)
+        src_wkt = None
+        if src_srs is not None:
+            src_wkt = src_srs.ExportToWkt()
 
-    if not to_file:
-        if as_gdal_grid:
-            return GDALGrid(dst)
-        return dst
-    del dst
-    return None
-
-
-def gdal_reproject(src,
-                   dst=None,
-                   src_srs=None,
-                   dst_srs=None,
-                   epsg=None,
-                   error_threshold=0.125,
-                   resampling=gdalconst.GRA_NearestNeighbour,
-                   as_gdal_grid=False):
-    """
-    Reproject a raster image.
-
-    Based on: https://github.com/OpenDataAnalytics/
-            gaia/blob/master/gaia/geo/gdal_functions.py
-
-    Parameters
-    ----------
-        src: :obj:`str` or :func:`gdal.Dataset` or :func:`~GDALGrid`
-            The source image.
-        dst: :obj:`str`, optional
-            The filepath of the output image to write to.
-        src_srs: :func:`osr.SpatialReference`, optional
-            The source image projection.
-        dst_srs: :func:`osr.SpatialReference`, optional
-            The destination projection. If not provided,
-            the code will use `epsg`.
-        epsg: int, optional
-            The EPSG code to reproject to. If not provided,
-            the code will use `dst_srs`.
-        error_threshold: float, optional
-            Default is 0.125 (same as gdalwarp commandline).
-        resampling: :func:`osgeo.gdalconst`
-            Method to use for resampling. Default method is
-            `gdalconst.GRA_NearestNeighbour`.
-        as_gdal_grid: bool, optional
-            Return as :func:`~GDALGrid`. Default is False.
-
-    Returns
-    -------
-    :func:`gdal.Dataset` or :func:`~GDALGrid`
-        By default, it returns `gdal.Dataset`.
-        It will return :func:`~GDALGrid` if `as_gdal_grid` is True.
-    """
-    # Open source dataset
-    src_ds = load_raster(src)[0]
-
-    # Define target SRS
-    if dst_srs is None:
-        dst_srs = osr.SpatialReference()
-        dst_srs.ImportFromEPSG(int(epsg))
-
-    dst_wkt = dst_srs.ExportToWkt()
-
-    # Resampling might be passed as a string
-    if not isinstance(resampling, int):
-        resampling = getattr(gdal, resampling)
-
-    src_wkt = None
-    if src_srs is not None:
-        src_wkt = src_srs.ExportToWkt()
-
-    # Call AutoCreateWarpedVRT() to fetch default values
-    # for target raster dimensions and geotransform
-    reprojected_ds = gdal.AutoCreateWarpedVRT(src_ds,
-                                              src_wkt,
-                                              dst_wkt,
-                                              resampling,
-                                              error_threshold)
-
-    # Create the final warped raster
-    if dst:
-        gdal.GetDriverByName('GTiff').CreateCopy(dst, reprojected_ds)
-    if as_gdal_grid:
+        reprojected_ds = gdal.AutoCreateWarpedVRT(src_ds, src_wkt, dst_wkt, resampling, error_threshold)
+        if output_file:  gdal.GetDriverByName('GTiff').CreateCopy(output_file, reprojected_ds)
         return GDALGrid(reprojected_ds)
-    return reprojected_ds
+
 
 if __name__ == '__main__':
     import xarray as xr

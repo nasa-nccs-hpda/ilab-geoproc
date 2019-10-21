@@ -1,12 +1,10 @@
 from geoproc.util.configuration import ConfigurableObject
-from typing import Dict, List, Union
-from osgeo import ogr
+from typing import List
 from osgeo import osr
 from osgeo import gdal
 import xarray as xr
 import numpy as np
 import os
-from geoproc.xext.grid import (geotransform_from_yx, resample_grid, utm_proj_from_latlon, ArrayGrid)
 
 
 class OsgeoManager(ConfigurableObject):
@@ -92,7 +90,7 @@ class OsgeoManager(ConfigurableObject):
 
 if __name__ == '__main__':
     from geoproc.data.mwp import MWPDataManager
-    from geoproc.util.crs import CRS
+    from geoproc.xext.scrap.crs import CRS
     import cartopy.crs as ccrs
     import matplotlib.pyplot as plt
     from matplotlib.colors import LinearSegmentedColormap, Normalize

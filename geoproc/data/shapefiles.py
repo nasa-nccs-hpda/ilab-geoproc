@@ -1,13 +1,10 @@
 import geopandas as gpd
 import matplotlib.pyplot as plt
-from typing import Dict, List, Union, Tuple
-from geoproc.util.configuration import ConfigurableObject, Region
-from geoproc.util.crs import CRS
-from pandas import DataFrame
-from shapely.geometry.polygon import LinearRing
+from geoproc.util.configuration import ConfigurableObject
+from geoproc.xext.scrap.crs import CRS
 from shapely.geometry import *
 import xarray as xa
-import regionmask, math
+import regionmask
 from regionmask import Regions_cls, Region_cls
 
 class ShapefileManager(ConfigurableObject):
@@ -101,6 +98,7 @@ class ShapefileManager(ConfigurableObject):
 if __name__ == '__main__':
     from geoproc.data.mwp import MWPDataManager
     from geoproc.util.visualization import TilePlotter
+    from geoproc.xext.xgeo import XGeo
     import xarray as xr
     SHAPEFILE = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/shp/MEASURESLAKESSHAPES.shp"
     locations = [ "120W050N", "100W040N" ]
@@ -114,8 +112,7 @@ if __name__ == '__main__':
     shpManager = ShapefileManager()
     locPoint: Point = shpManager.parseLocation(location)
 
-    tData: xr.DataArray = xr.open_rasterio("/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/120W050N/MWP_2019280_120W050N_1D1OS.tif")
-#    tData.
+    tData: xr.DataArray = XGeo.loadRasterFile("/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/120W050N/MWP_2019280_120W050N_1D1OS.tif")
     coords = tData.coords
     x = coords['x'].values
     y = coords['y'].values

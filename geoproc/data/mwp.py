@@ -1,9 +1,8 @@
-import time, os, wget, sys, rasterio
-import gdal, osr
-from typing import Dict, List
-from geoproc.util.crs import CRS
+import time, os, wget, sys
+from typing import List
 import numpy as np
 from multiprocessing import Pool
+from geoproc.xext.xgeo import XGeo
 import xarray as xr
 from geoproc.util.configuration import ConfigurableObject, Region
 
@@ -56,54 +55,11 @@ class MWPDataManager(ConfigurableObject):
         return files
 
     def get_array_data(self, files: List[str] ) ->  List[xr.DataArray]:
-        bbox: Region = self.getParameter("bbox")
-        if bbox is None:
-            data_arrays: List[xr.DataArray] = [xr.open_rasterio(file)[0] for file in files]
-        else:
-            data_arrays: List[xr.DataArray] = [xr.open_rasterio(file)[0, bbox.origin[0]:bbox.bounds[0], bbox.origin[1]:bbox.bounds[1]] for file in files]
-        return data_arrays
-
-    def toUTM(self, data_arrays: xr.DataArray, longitude: float, north: bool = True ) -> xr.DataArray:
-        crs =  CRS.get_utm_crs( longitude, north )
-        infile = CRS.to_geotiff( )
-
-    # def get_transformed_array_data(self, files: List[str], dst_crs ) ->  List[xr.DataArray]:
-    #     from rasterio.warp import calculate_default_transform, reproject, Resampling
-    #
-    #     for file in files:
-    #         with rasterio.open( file ) as src:
-    #             transform, width, height = calculate_default_transform( src.crs, dst_crs, src.width, src.height, *src.bounds )
-    #             kwargs = src.meta.copy()
-    #             kwargs.update( { 'crs': dst_crs,  'transform': transform,  'width': width, 'height': height } )
-    #     return data_arrays
+        return XGeo.loadRasterFiles( files, region = self.getParameter("bbox") )
 
     def get_tile_data(self, location: str = "120W050N", **kwargs) -> List[xr.DataArray]:
         files = self.get_tile(location, **kwargs)
         return self.get_array_data( files )
-
-    def reproject_dataset(self, dataset, pixel_spacing: float, epsg_from: int, epsg_to: int ):
-        riods: rasterio.DatasetReader = rasterio.open(dataset)
-        osng = osr.SpatialReference()
-        osng.ImportFromEPSG(epsg_to)
-        wgs84 = osr.SpatialReference()
-        wgs84.ImportFromEPSG(epsg_from)
-        tx = osr.CoordinateTransformation(wgs84, osng)
-
-        g = gdal.Open(dataset)
-        geo_t = g.GetGeoTransform()
-        x_size = g.RasterXSize
-        y_size = g.RasterYSize
-        (ulx, uly, ulz) = tx.TransformPoint(geo_t[0], geo_t[3])               # Work out the boundaries of the new dataset in the target projection
-        (lrx, lry, lrz) = tx.TransformPoint(geo_t[0] + geo_t[1] * x_size,  geo_t[3] + geo_t[5] * y_size)
-
-        mem_drv = gdal.GetDriverByName('MEM')
-        dest: gdal.Dataset = mem_drv.Create( '', int((lrx - ulx) / pixel_spacing),  int((uly - lry) / pixel_spacing), 1, gdal.GDT_Float32 )
-        new_geo = (ulx, pixel_spacing, geo_t[2], uly, geo_t[4], -pixel_spacing)
-        dest.SetGeoTransform(new_geo)
-        dest.SetProjection(osng.ExportToWkt())
-        res = gdal.ReprojectImage( g, dest,  wgs84.ExportToWkt(), osng.ExportToWkt(),  gdal.GRA_Bilinear )
-        reprojected_dataset: np.ndarray = dest.ReadAsArray()
-        return reprojected_dataset
 
     def get_global_locations( self ) -> List:
         global_locs = []

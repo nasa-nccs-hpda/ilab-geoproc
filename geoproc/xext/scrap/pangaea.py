@@ -4,7 +4,7 @@ import numpy as np
 from osgeo import osr, gdalconst, gdal
 import pandas as pd
 from pyproj import Proj, transform
-from geoproc.xext.grid import (geotransform_from_yx, resample_grid, utm_proj_from_latlon, ArrayGrid)
+from geoproc.data.grid import (geotransform_from_yx, resample_grid, utm_proj_from_latlon, ArrayGrid)
 import xarray as xr
 
 
