@@ -3,7 +3,6 @@ import numpy as np, os
 from geoproc.util.configuration import ConfigurableObject, Region
 from typing import Dict, List, Tuple
 from osgeo import osr, gdalconst, gdal
-from geoproc.xext.xgeo import XGeo
 from pyproj import Proj, transform
 from geoproc.data.grid import GDALGrid
 import xarray as xr
@@ -31,14 +30,16 @@ class XGeo(object):
         self.coords_projected = False
 
     @classmethod
-    def loadRasterFile( cls, filePath: str, name: str = None, band = -1 ) -> xr.DataArray:
+    def loadRasterFile( cls, filePath: str, **args ) -> xr.DataArray:
+        name: str = args.get("name")
+        band: int = args.get("band",-1)
         grid = GDALGrid( filePath )
         if name is None: name = os.path.basename(filePath)
         return grid.xarray( name, band )
 
     @classmethod
     def loadRasterFiles( cls, filePaths: List[str], **args ) -> List[xr.DataArray]:
-        bbox: Region = args.get("bbox")
+        bbox: Region = args.get("region")
         if bbox is None:
             data_arrays: List[xr.DataArray] = [ cls.loadRasterFile( file, **args ) for file in filePaths]
         else:
@@ -67,24 +68,27 @@ class XGeo(object):
                 raise Exception(f"Unrecognized crs: {crs}")
         return sref
 
-
     def getTransform(self):
-        y_arr = self._obj.coords[ self.y_coord ]
-        x_arr = self._obj.coords[ self.x_coord ]
-        res = self._obj.attrs.get('res')
+        transform = self._obj.attrs.get("transform")
+        if transform is None:
+            y_arr = self._obj.coords[ self.y_coord ]
+            x_arr = self._obj.coords[ self.x_coord ]
+            res = self._obj.attrs.get('res')
 
-        if y_arr.ndim < 2:
-            x_2d, y_2d = np.meshgrid(x_arr, y_arr)
-        else:
-            x_2d = x_arr
-            y_2d = y_arr
+            if y_arr.ndim < 2:
+                x_2d, y_2d = np.meshgrid(x_arr, y_arr)
+            else:
+                x_2d = x_arr
+                y_2d = y_arr
 
-        x_cell_size = np.nanmean(np.absolute(np.diff(x_2d, axis=1))) if res is None else res[1]
-        y_cell_size = np.nanmean(np.absolute(np.diff(y_2d, axis=0))) if res is None else res[0]
+            x_cell_size = np.nanmean(np.absolute(np.diff(x_2d, axis=1))) if res is None else res[1]
+            y_cell_size = np.nanmean(np.absolute(np.diff(y_2d, axis=0))) if res is None else res[0]
 
-        min_x_tl = x_2d[0, 0] - x_cell_size / 2.0
-        max_y_tl = y_2d[0, 0] + y_cell_size / 2.0
-        return min_x_tl, x_cell_size, 0, max_y_tl, 0, -y_cell_size
+            min_x_tl = x_2d[0, 0] - x_cell_size / 2.0
+            max_y_tl = y_2d[0, 0] + y_cell_size / 2.0
+            transform = min_x_tl, x_cell_size, 0, max_y_tl, 0, -y_cell_size
+            self._obj.attrs['transform'] = transform
+        return transform
 
     def to_gdal(self):
         num_bands = 1
@@ -126,7 +130,6 @@ if __name__ == '__main__':
     from geoproc.data.mwp import MWPDataManager
     import matplotlib.pyplot as plt
     from matplotlib.colors import LinearSegmentedColormap, Normalize
-    import cartopy.crs as ccrs
     DATA_DIR = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt"
     location = "120W050N"
     dataMgr = MWPDataManager( DATA_DIR, "https://floodmap.modaps.eosdis.nasa.gov/Products" )
@@ -139,7 +142,7 @@ if __name__ == '__main__':
     dset: GDALGrid = data_array.xgeo.to_gdalGrid()
 
     new_proj: osr.SpatialReference = dset.get_utm_proj()
-    reprojected_dset: GDALGrid  = dset.to_projection( new_proj )
+    reprojected_dset: GDALGrid  = dset.reproject( new_proj, (250,250) )
     grid_data = reprojected_dset.xarray( "UTM_Result")
 
     fig = plt.figure(figsize=[10, 5])

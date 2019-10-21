@@ -23,7 +23,7 @@ class GDALGrid(object):
         Path to projection file.
 
     """
-    def __init__(self, grid_file: str, prj_file: str = None):
+    def __init__(self, grid_file: Union[str,gdal.Dataset], prj_file: str = None):
         if isinstance(grid_file, gdal.Dataset):
             self.dataset = grid_file
         else:
@@ -80,29 +80,9 @@ class GDALGrid(object):
             pass
         return self.projection.GetAuthorityCode(None)
 
-    def bounds(self, as_geographic=False, as_utm=False, as_projection=None):
-        """Returns bounding coordinates for the dataset.
-
-        Parameters
-        ----------
-        as_geographic : bool, optional
-            If True, this will return the bounds in EPSG:4326.
-            Default is False.
-        as_utm:  bool, optional
-            If True, it will attempt to find the UTM zone and
-            will return bounds in that UTM zone.
-        as_projection:  :func:`osr.SpatialReference`, optional
-            Output projection for bounds.
-
-        Returns
-        -------
-        :obj:`tuple`
-            (x_min, x_max, y_min, y_max)
-            Bounds for the grid in the format
-
-        """
+    def bounds(self, as_geographic: bool=False, as_utm: bool=False, as_projection: osr.SpatialReference =None ) -> Tuple[float,float,float,float]:
+        """Returns (projected) bounding coordinates for the dataset: (x_min, x_max, y_min, y_max)  """
         new_proj = None
-
         if as_geographic:
             new_proj = osr.SpatialReference()
             new_proj.ImportFromEPSG(4326)
@@ -363,7 +343,7 @@ class GDALGrid(object):
 
     def to_projection(self, dst_proj: osr.SpatialReference,  resampling=gdalconst.GRA_NearestNeighbour) -> "GDALGrid":
         """ Reproject dataset to new projection.  """
-        return self.gdal_reproject(self.dataset, src_srs=self.projection,  dst_srs=dst_proj,  resampling=resampling,  as_gdal_grid=True)
+        return self.gdal_reproject(self.dataset, src_srs=self.projection,  dst_srs=dst_proj,  resampling=resampling )
 
     def to_tif( self, file_path: str ):
         """Write out as geotiff."""
@@ -382,6 +362,20 @@ class GDALGrid(object):
             grid_writer = csv_writer(out_ascii_grid,
                                      delimiter=" ")
             grid_writer.writerows(self.np_array(band, masked=False))
+
+    def reproject( self, dstSRS: osr.SpatialReference, resolution: Tuple[float,float],  resampling=gdalconst.GRA_NearestNeighbour ):
+        newbounds = self.bounds( as_projection=dstSRS )
+        mem_drv = gdal.GetDriverByName('MEM')
+        nx = int((newbounds[1] - newbounds[0]) / resolution[0])
+        ny = int((newbounds[3] - newbounds[2]) / resolution[1])
+        dest: gdal.Dataset = mem_drv.Create('', nx, ny, 1, gdal.GDT_Float32)
+        new_geo = (newbounds[0], resolution[0], 0.0,  newbounds[3], 0.0, -resolution[1] )
+        srcWkt = self.wkt
+        destWkt = dstSRS.ExportToWkt()
+        dest.SetGeoTransform( new_geo )
+        dest.SetProjection ( destWkt )
+        res = gdal.ReprojectImage( self.dataset, dest, srcWkt, destWkt, resampling )
+        return GDALGrid( dest )
 
     def to_grass_ascii(self, file_path: str, band: int =1, print_nodata: bool =True):
         """ Writes data to GRASS ASCII file format. """
