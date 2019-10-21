@@ -65,7 +65,7 @@ class XGeo(object):
 
     def crop(self, minx: float, miny: float, maxx: float, maxy: float ) -> xr.DataArray:
         args = { self.x_coord:slice(minx,maxx), self.y_coord:slice(miny,maxy) }
-        return self._obj.sel( *args )
+        return self._obj.sel( args )
 
     def getSpatialReference( self ) -> osr.SpatialReference:
         sref = osr.SpatialReference()

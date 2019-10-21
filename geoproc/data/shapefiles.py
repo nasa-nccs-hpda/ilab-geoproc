@@ -65,11 +65,11 @@ class ShapefileManager(ConfigurableObject):
         print( f" Creating region for polygon with bounds = {poly.envelope.bounds}" )
         return regionmask.Regions_cls( region_name, list(range(len(names))), names, names, [poly] )
 
-    def getRegion( self, shape: gpd.GeoDataFrame, name_col: str, poly_index ) -> Tuple[Polygon,Region_cls]:
+    def getRegion( self, shape: gpd.GeoDataFrame, name_col: str, poly_index ) -> Tuple[Polygon,Regions_cls]:
         poly_name: str = [ shape[name_col].tolist()[poly_index] ]
         poly: Polygon = self.remove_third_dimension( shape.geometry.values[poly_index] )
         print( f" Creating region for polygon with bounds = {poly.envelope.bounds}" )
-        return poly, regionmask.Region_cls( poly_index, poly_name, poly_name, poly )
+        return poly, regionmask.Regions_cls( poly_name, [0], [poly_name], [poly_name], [poly] )
 
     def crop(self, image: xa.DataArray, regions: Regions_cls ):
         # bounds = { k:(c.values[0],c.values[-1]) for (k,c) in image.coords.items() if k in image.dims }
@@ -125,9 +125,9 @@ if __name__ == '__main__':
 
     utmFrameTile = gdFrameTile.to_crs( crs=utm_sref.ExportToProj4() )
 
-    poly, region = shpManager.getRegion( gdFrameTile, "Lake_Name", 6 )
+    poly, regions = shpManager.getRegion( gdFrameTile, "Lake_Name", 6 )
     cropped_data_array = data_arrays[0].xgeo.crop_to_poly( poly )
-    croppedTileImage = shpManager.crop( cropped_data_array, region )
+    croppedTileImage = shpManager.crop( cropped_data_array, regions )
 
     tilePlotter = TilePlotter()
     tilePlotter.plot( axes[0], croppedTileImage )
