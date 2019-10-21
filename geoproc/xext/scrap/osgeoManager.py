@@ -46,15 +46,6 @@ class OsgeoManager(ConfigurableObject):
         ds: gdal.Dataset = gdal.Open( os.path.join( out_dir, out_file ) )
         return ds
 
-    # def reprojectXarray(self, array: xr.DataArray, target_crs: str  ) -> xr.DataArray:
-    #     out_dir, out_file = CRS.to_geotiff(array)
-    #     input_raster = os.path.join( out_dir, out_file )
-    #     output_raster = os.path.join( out_dir, f"out-{self.randomId(4)}.tif" )
-    #     print( f"Reprojecting xarray to crs {target_crs}")
-    #     gdal.Warp( output_raster, input_raster, format = 'GTiff', srcSRS=self.getSpatialReference(array.crs), dstSRS=self.getSpatialReference(target_crs), xRes=250, yRes=250  )
-    #     da: xr.DataArray = xr.open_rasterio(output_raster)
-    #     return da
-
     def reprojectXarray(self, array: xr.DataArray, resolution: float  ):
         xcoord = array.coords[array.dims[-1]]
         ycoord = array.coords[array.dims[-2]]

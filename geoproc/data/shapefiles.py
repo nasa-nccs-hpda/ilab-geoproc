@@ -1,10 +1,11 @@
 import geopandas as gpd
 import matplotlib.pyplot as plt
 from geoproc.util.configuration import ConfigurableObject
-from geoproc.xext.scrap.crs import CRS
+from typing import Dict, List, Tuple, Union
 from shapely.geometry import *
 import xarray as xa
 import regionmask
+from geoproc.util.crs import CRS
 from regionmask import Regions_cls, Region_cls
 
 class ShapefileManager(ConfigurableObject):
@@ -57,21 +58,6 @@ class ShapefileManager(ConfigurableObject):
         origin: Point = self.parseLocation(location)
         return self.getLatLonBoundingBox(origin, Point(size, size))
 
-    def getRegion(self, region_name: str, index: int, shape: Polygon) -> Region_cls:
-        return regionmask.Region_cls( index, region_name, region_name, shape)
-
-    def reproject(self, shape: gpd.GeoDataFrame, espg: int ) -> gpd.GeoDataFrame:
-        current_crs: str = shape.crs.get("init","espg:0")
-        current_espg = int( current_crs.split(":")[1] )
-        assert current_crs > 0, f"Unrecognized crs for GeoDataFrame: {shape.crs}"
-        if current_espg == espg: return shape
-        return shape.to_crs( None, espg )
-
-    def toUTM(self, shape: gpd.GeoDataFrame, longitude: float, north: bool = True ) -> gpd.GeoDataFrame:
-        crs =  CRS.get_utm_crs( longitude, north )
-        print( f"Converting GeoDataFrame to UTM: long={longitude}, north={north}, crs = '{crs}'")
-        return shape.to_crs( crs )
-
     def getRegions( self, region_name: str, name_col: str, shape: gpd.GeoDataFrame ) -> Regions_cls:
         poly_index = 6
         names = [ shape[name_col].tolist()[poly_index] ]
@@ -79,9 +65,15 @@ class ShapefileManager(ConfigurableObject):
         print( f" Creating region for polygon with bounds = {poly.envelope.bounds}" )
         return regionmask.Regions_cls( region_name, list(range(len(names))), names, names, [poly] )
 
-    def crop(self, image: xa.DataArray, regions: Regions_cls, regionIndex = 1 ):
-        bounds = { k:(c.values[0],c.values[-1]) for (k,c) in image.coords.items() if k in image.dims }
-        print(f" Cropping region for image with bounds = {bounds}")
+    def getRegion( self, shape: gpd.GeoDataFrame, name_col: str, poly_index ) -> Tuple[Polygon,Region_cls]:
+        poly_name: str = [ shape[name_col].tolist()[poly_index] ]
+        poly: Polygon = self.remove_third_dimension( shape.geometry.values[poly_index] )
+        print( f" Creating region for polygon with bounds = {poly.envelope.bounds}" )
+        return poly, regionmask.Region_cls( poly_index, poly_name, poly_name, poly )
+
+    def crop(self, image: xa.DataArray, regions: Regions_cls ):
+        # bounds = { k:(c.values[0],c.values[-1]) for (k,c) in image.coords.items() if k in image.dims }
+        # print(f" Cropping region for image with bounds = {bounds}")
         region_mask = regions.mask( image, lat_name=image.dims[-2], lon_name=image.dims[-1] )
         return region_mask
 
@@ -97,6 +89,7 @@ class ShapefileManager(ConfigurableObject):
 
 if __name__ == '__main__':
     from geoproc.data.mwp import MWPDataManager
+    from osgeo import gdal, gdalconst, ogr, osr
     from geoproc.util.visualization import TilePlotter
     from geoproc.xext.xgeo import XGeo
     import xarray as xr
@@ -123,15 +116,18 @@ if __name__ == '__main__':
     dataMgr = MWPDataManager(DATA_DIR, "https://floodmap.modaps.eosdis.nasa.gov/Products")
     dataMgr.setDefaults(product=product, download=download, year=2019, start_day=1, end_day=365)
     data_arrays = dataMgr.get_tile_data(location)
+    utm_sref: osr.SpatialReference = data_arrays[0].xgeo.getUTMProj()
     print( "Downloaded tile data")
 
     gdFrame: gpd.GeoDataFrame = shpManager.read( SHAPEFILE )
     gdFrameTile: gpd.GeoDataFrame = shpManager.extractTile( gdFrame, location, 10 )
     gdFrameTile.plot( ax=axes[1] )
 
-    gdFrameTile = shpManager.toUTM( gdFrameTile, locPoint.x )
-    regions = shpManager.getRegions( "test", "Lake_Name", gdFrameTile )
-    croppedTileImage = shpManager.crop( data_arrays[0], regions )
+    utmFrameTile = gdFrameTile.to_crs( crs=utm_sref.ExportToProj4() )
+
+    poly, region = shpManager.getRegion( gdFrameTile, "Lake_Name", 6 )
+    cropped_data_array = data_arrays[0].xgeo.crop_to_poly( poly )
+    croppedTileImage = shpManager.crop( cropped_data_array, region )
 
     tilePlotter = TilePlotter()
     tilePlotter.plot( axes[0], croppedTileImage )

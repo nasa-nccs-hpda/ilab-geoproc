@@ -1,11 +1,13 @@
 from affine import Affine
 import numpy as np, os
 from geoproc.util.configuration import ConfigurableObject, Region
+from geoproc.util.crs import CRS
 from typing import Dict, List, Tuple
 from osgeo import osr, gdalconst, gdal
 from pyproj import Proj, transform
 from geoproc.data.grid import GDALGrid
-import xarray as xr
+from shapely.geometry import Polygon
+import xarray as xr, regionmask, utm
 
 @xr.register_dataarray_accessor('xgeo')
 class XGeo(object):
@@ -52,6 +54,18 @@ class XGeo(object):
                 return str(cname)
         return  self._obj.dims[ self.StandardAxisPositions[axis] ]
 
+    def mask_with_polygon( self, name: str, poly: Polygon ):
+        poly_regionmask = regionmask.Region_cls( 0, name, name, poly )
+
+    def regionmask( self, name: str, poly: Polygon ) -> regionmask.Region_cls:
+        return regionmask.Region_cls( 0, name, name, poly )
+
+    def crop_to_poly(self, poly: Polygon ) -> xr.DataArray:
+        return self.crop( *poly.envelope.bounds )
+
+    def crop(self, minx: float, miny: float, maxx: float, maxy: float ) -> xr.DataArray:
+        args = { self.x_coord:slice(minx,maxx), self.y_coord:slice(miny,maxy) }
+        return self._obj.sel( *args )
 
     def getSpatialReference( self ) -> osr.SpatialReference:
         sref = osr.SpatialReference()
@@ -67,6 +81,13 @@ class XGeo(object):
             else:
                 raise Exception(f"Unrecognized crs: {crs}")
         return sref
+
+    def getUTMProj(self) -> osr.SpatialReference:
+        y_arr = self._obj.coords[self.y_coord]
+        x_arr = self._obj.coords[self.x_coord]
+        latitude =  (y_arr[0] + y_arr[-1]) / 2.0
+        longitude = (x_arr[0] + x_arr[-1]) / 2.0
+        return CRS.get_utm_sref( longitude, latitude )
 
     def getTransform(self):
         transform = self._obj.attrs.get("transform")
