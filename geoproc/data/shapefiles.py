@@ -65,17 +65,16 @@ class ShapefileManager(ConfigurableObject):
         print( f" Creating region for polygon with bounds = {poly.envelope.bounds}" )
         return regionmask.Regions_cls( region_name, list(range(len(names))), names, names, [poly] )
 
-    def getRegion( self, shape: gpd.GeoDataFrame, name_col: str, poly_index ) -> Tuple[Polygon,Regions_cls]:
+    def getRegion( self, shape: gpd.GeoDataFrame, name_col: str, poly_index, buffer: float = 0.0 ) -> Tuple[Polygon,Regions_cls]:
         poly_name: str = [ shape[name_col].tolist()[poly_index] ]
         poly: Polygon = self.remove_third_dimension( shape.geometry.values[poly_index] )
+        if buffer > 0: poly = poly.buffer( buffer )
         print( f" Creating region for polygon with bounds = {poly.envelope.bounds}" )
         return poly, regionmask.Regions_cls( poly_name, [0], [poly_name], [poly_name], [poly] )
 
-    def crop(self, image: xa.DataArray, regions: Regions_cls ):
-        # bounds = { k:(c.values[0],c.values[-1]) for (k,c) in image.coords.items() if k in image.dims }
-        # print(f" Cropping region for image with bounds = {bounds}")
+    def crop(self, image: xa.DataArray, regions: Regions_cls ) -> xa.DataArray:
         region_mask = regions.mask( image, lat_name=image.dims[-2], lon_name=image.dims[-1] )
-        return region_mask
+        return image.where( region_mask == 0 )
 
     def extractTile(self, gdFrame: gpd.GeoDataFrame, location: str, size: int = 10) -> LinearRing:
         origin: Point = self.parseLocation(location)
@@ -88,48 +87,60 @@ class ShapefileManager(ConfigurableObject):
         return LinearRing( coords )
 
 if __name__ == '__main__':
+    from geoproc.surfaceMapping.lakes import WaterMapGenerator
     from geoproc.data.mwp import MWPDataManager
     from osgeo import gdal, gdalconst, ogr, osr
-    from geoproc.util.visualization import TilePlotter
-    from geoproc.xext.xgeo import XGeo
+    from geoproc.util.visualization import TilePlotter, ArrayAnimation
+    from geoproc.data.grid import GDALGrid
+    import os
+#    from geoproc.xext.xgeo import XGeo
     import xarray as xr
     SHAPEFILE = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/shp/MEASURESLAKESSHAPES.shp"
     locations = [ "120W050N", "100W040N" ]
     products = [ "1D1OS", "3D3OT" ]
     DATA_DIR = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt"
+    dat_url = "https://floodmap.modaps.eosdis.nasa.gov/Products"
     location: str = locations[0]
     product: str = products[0]
     year = 2019
     download = False
-    figure, axes = plt.subplots(1, 2)
     shpManager = ShapefileManager()
     locPoint: Point = shpManager.parseLocation(location)
+    minH20 = 2
+    threshold = 0.5
+    binSize = 8
+    time_range = [1, 365]
+    #    subset = [500,100]
+    subset = None
 
-    tData: xr.DataArray = XGeo.loadRasterFile("/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/120W050N/MWP_2019280_120W050N_1D1OS.tif")
-    coords = tData.coords
-    x = coords['x'].values
-    y = coords['y'].values
-    xbounds = [ round(x[0]), round(x[-1]) ]
-    ybounds = [ round(y[0]), round(y[-1]) ]
-    print( f" xbounds = {xbounds}, ybounds = {ybounds} " )
+    dataMgr = MWPDataManager(DATA_DIR, dat_url)
+    dataMgr.setDefaults(product=product, download=download, year=year, start_day=time_range[0], end_day=time_range[1])
+    file_paths = dataMgr.get_tile(location)
 
-    dataMgr = MWPDataManager(DATA_DIR, "https://floodmap.modaps.eosdis.nasa.gov/Products")
-    dataMgr.setDefaults(product=product, download=download, year=2019, start_day=1, end_day=365)
-    data_arrays = dataMgr.get_tile_data(location)
-    utm_sref: osr.SpatialReference = data_arrays[0].xgeo.getUTMProj()
-    print( "Downloaded tile data")
+    waterMapGenerator = WaterMapGenerator()
+    data_array: xr.DataArray = waterMapGenerator.createDataset(file_paths, subset=subset)
+    print(f" Data Array {data_array.name}: shape = {data_array.shape}, dims = {data_array.dims}")
+
+    waterMask = waterMapGenerator.get_water_masks(data_array, binSize, threshold, minH20)
+    print("waterMask.shape = " + str(waterMask.shape))
+
+    print("Downloaded tile data")
+    utm_sref: osr.SpatialReference = waterMask.xgeo.getUTMProj()
+    gdalGrid: GDALGrid = waterMask.xgeo.to_gdalGrid()
+    utmGdalGrid = gdalGrid.reproject( utm_sref, (250,250) )
+    utmDataArray = utmGdalGrid.xarray( "utmDataArray" )
+    print( "Reprojected tile data")
 
     gdFrame: gpd.GeoDataFrame = shpManager.read( SHAPEFILE )
     gdFrameTile: gpd.GeoDataFrame = shpManager.extractTile( gdFrame, location, 10 )
-    gdFrameTile.plot( ax=axes[1] )
+    utmFrameTile = gdFrameTile.to_crs(crs=utm_sref.ExportToProj4())
 
-    utmFrameTile = gdFrameTile.to_crs( crs=utm_sref.ExportToProj4() )
+    poly, regions = shpManager.getRegion( utmFrameTile, "Lake_Name", 6 )
+    cropped_data_array: xa.DataArray = utmDataArray.xgeo.crop_to_poly( poly, 2000 )
+    croppedTileImage: xa.DataArray = shpManager.crop( cropped_data_array, regions )
 
-    poly, regions = shpManager.getRegion( gdFrameTile, "Lake_Name", 6 )
-    cropped_data_array = data_arrays[0].xgeo.crop_to_poly( poly )
-    croppedTileImage = shpManager.crop( cropped_data_array, regions )
-
-    tilePlotter = TilePlotter()
-    tilePlotter.plot( axes[0], croppedTileImage )
+    animator = ArrayAnimation()
+    waterMaskAnimationFile = os.path.join(DATA_DIR, f'MWP_{year}_{location}_{product}_Lake-mask-m{minH20}.gif')
+    animator.create_multi_array_animation( "Water Mask Segmentation", [ waterMask, cropped_data_array, croppedTileImage ], waterMaskAnimationFile, overwrite = True )
 
     plt.show()

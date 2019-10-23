@@ -33,7 +33,7 @@ class WaterMapGenerator(ConfigurableObject):
         self.transferMetadata( data_array, result )
         return result
 
-    def createDataset(self,  files: List[str], band=1, subset = None ) ->  xr.DataArray:
+    def createDataset(self,  files: List[str], band=-1, subset = None ) ->  xr.DataArray:
         from geoproc.xext.xgeo import XGeo
         t0 = time.time()
         print("\n Executing createDataset ")
@@ -55,7 +55,7 @@ if __name__ == '__main__':
     location: str = locations[0]
     product: str = products[2]
     year = 2019
-    minH20 = 2
+    minH20 = 1
     threshold = 0.5
     download = True
     binSize = 8

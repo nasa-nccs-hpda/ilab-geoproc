@@ -23,13 +23,7 @@ class XGeo(object):
         self.time_coord = self.getCoordName('t')
         self._crs: osr.SpatialReference = self.getSpatialReference()
         self._geotransform = self.getTransform()
-        self._center = None
-        self._y_inverted = None
-
-        # convert lon from [0 to 360] to [-180 to 180]
-        self.lon_to_180 = False
-        # coordinates are projected already
-        self.coords_projected = False
+        self._y_inverted = self.ycoords[0] > self.ycoords[-1]
 
     @classmethod
     def loadRasterFile( cls, filePath: str, **args ) -> xr.DataArray:
@@ -38,6 +32,14 @@ class XGeo(object):
         grid = GDALGrid( filePath )
         if name is None: name = os.path.basename(filePath)
         return grid.xarray( name, band )
+
+    @property
+    def xcoords(self)-> np.ndarray:
+        return self._obj[self.x_coord].values
+
+    @property
+    def ycoords(self)-> np.ndarray:
+        return self._obj[self.y_coord].values
 
     @classmethod
     def loadRasterFiles( cls, filePaths: List[str], **args ) -> List[xr.DataArray]:
@@ -54,17 +56,20 @@ class XGeo(object):
                 return str(cname)
         return  self._obj.dims[ self.StandardAxisPositions[axis] ]
 
-    def mask_with_polygon( self, name: str, poly: Polygon ):
-        poly_regionmask = regionmask.Region_cls( 0, name, name, poly )
+    def countInstances(self, values: List[int] ) -> xr.DataArray:
+        counts = ( [( self._obj == cval ).sum(dim=[self.x_coord,self.y_coord],keep_attrs=True) for cval in values] )
+        return xr.concat( counts, 'counts' ).transpose()
 
     def regionmask( self, name: str, poly: Polygon ) -> regionmask.Region_cls:
         return regionmask.Region_cls( 0, name, name, poly )
 
-    def crop_to_poly(self, poly: Polygon ) -> xr.DataArray:
-        return self.crop( *poly.envelope.bounds )
+    def crop_to_poly(self, poly: Polygon, buffer: float = 0 ) -> xr.DataArray:
+        return self.crop( *poly.envelope.bounds, buffer )
 
-    def crop(self, minx: float, miny: float, maxx: float, maxy: float ) -> xr.DataArray:
-        args = { self.x_coord:slice(minx,maxx), self.y_coord:slice(miny,maxy) }
+    def crop(self, minx: float, miny: float, maxx: float, maxy: float, buffer: float = 0 ) -> xr.DataArray:
+        xbnds = [ minx - buffer, maxx + buffer ]
+        ybnds = [ maxy + buffer, miny - buffer ] if self._y_inverted else  [ miny - buffer, maxy + buffer ]
+        args = { self.x_coord: slice(*xbnds), self.y_coord: slice(*ybnds)  }
         return self._obj.sel( args )
 
     def getSpatialReference( self ) -> osr.SpatialReference:
@@ -89,6 +94,34 @@ class XGeo(object):
         longitude = (x_arr[0] + x_arr[-1]) / 2.0
         return CRS.get_utm_sref( longitude, latitude )
 
+    @property
+    def resolution(self):
+        transform = self.getTransform()
+        return [ transform[1], -transform[5] ]
+
+    def bounds(self, geographic = False, sref= None ):
+        min_x, x_step, _, max_y, _, y_step = self.getTransform()
+        bnds = [ min_x, max_y + y_step*self._obj.shape[-2], min_x + x_step*self._obj.shape[-1], max_y ]
+        if geographic or sref:
+            if geographic: sref = self.geographic_sref
+            gbnds0 = self.project_coords( bnds[0], bnds[1], sref )
+            gbnds1 = self.project_coords( bnds[2], bnds[3], sref )
+            return gbnds0 + gbnds1
+        return bnds
+
+    @property
+    def geographic_sref(self):
+        sref = osr.SpatialReference()
+        sref.ImportFromEPSG(4326)
+        return sref
+
+    def project_to_geographic( self, x_coord: float, y_coord: float ) -> Tuple[float,float]:
+        return self.project_coords( x_coord, y_coord, self.geographic_sref )
+
+    def project_coords( self, x_coord: float, y_coord: float, sref: osr.SpatialReference ) -> Tuple[float,float]:
+        trans = osr.CoordinateTransformation( self._crs, sref )
+        return trans.TransformPoint( x_coord, y_coord )[:2]
+
     def getTransform(self):
         transform = self._obj.attrs.get("transform")
         if transform is None:
@@ -112,8 +145,8 @@ class XGeo(object):
         return transform
 
     def to_gdal(self):
-        num_bands = 1
         in_array = self._obj.values
+        num_bands = 1
         nodata_value = self._obj.attrs.get('nodatavals',[None])[0]
         gdal_dtype = gdalconst.GDT_Float32
         proj = self._crs.ExportToWkt()

@@ -101,6 +101,7 @@ class GDALGrid(object):
         return x_min, x_max, y_min, y_max
 
     def get_utm_proj(self) -> osr.SpatialReference:
+        """ returns: utm projection for center of grid """
         x_min, y_min = self.affine * (0, self.dataset.RasterYSize)
         x_max, y_max = self.affine * (self.dataset.RasterXSize, 0)
 
@@ -113,44 +114,16 @@ class GDALGrid(object):
         return CRS.get_utm_sref(longitude, latitude)
 
 
-    def pixel2coord(self, col, row):
-        """Returns global coordinates to pixel center using base-0 raster index.
-
-        Parameters
-        ----------
-        col: int
-            The 0-based column index.
-        row:  int
-            The 0-based row index.
-
-        Returns
-        -------
-        :obj:`tuple`
-            (x_coord, y_coord) - The x, y coordinate of the pixel
-            center in the dataset's projection.
-
-        """
+    def pixel2coord(self, col: int, row: int) -> Tuple[float,float]:
+        """Returns global coordinates to pixel center using base-0 raster index -> (x_coord, y_coord) in the dataset's projection. """
         if col >= self.x_size:
             raise IndexError("Column index out of bounds...")
         if row >= self.y_size:
             raise IndexError("Row index is out of bounds ...")
         return self.affine * (col + 0.5, row + 0.5)
 
-    def coord2pixel(self, x_coord, y_coord):
-        """Returns base-0 raster index using global coordinates to pixel center
-
-        Parameters
-        ----------
-        x_coord: float
-            The projected x coordinate of the cell center.
-        y_coord:  float
-            The projected y coordinate of the cell center.
-
-        Returns
-        -------
-        :obj:`tuple`
-            (col, row) - The 0-based column and row index of the pixel.
-        """
+    def coord2pixel(self, x_coord: float, y_coord: float) -> Tuple[int,int]:
+        """Using global coordinates to pixel center in the dataset's projection returns (col, row) base-0 raster indexes """
         col, row = ~self.affine * (x_coord, y_coord)
         if col > self.x_size or col < 0:
             raise IndexError("Longitude {0} is out of bounds ..."
@@ -206,12 +179,17 @@ class GDALGrid(object):
                 return np.ma.array(data=grid_data, mask=(grid_data == nodata_value))
         return np.array(grid_data)
 
-    def xarray( self, name: str, band: int = 1, masked: bool = True ) -> xr.DataArray:
+    def xarray( self, name: str, band: int = -1, masked: bool = True ) -> xr.DataArray:
         xy_data = self.np_array( band, masked )
         transform = self.geotransform
         attrs = dict( crs=self.projection.ExportToProj4(), transform=transform )
         if transform[2] == 0 and transform[4] == 0: attrs["res"] = [ transform[1], transform[5] ]
-        return xr.DataArray( xy_data, name=name, coords = dict( x=self.x_coords, y=self.y_coords ), dims = [ "y", "x" ], attrs=attrs )
+        coords = dict( x=self.x_coords, y=self.y_coords )
+        dims = [ "y", "x" ]
+        if xy_data.ndim == 3:
+            coords["time"] = range( xy_data.shape[0] )
+            dims = ["time"] + dims
+        return xr.DataArray( xy_data, name=name, coords = coords, dims = dims, attrs=attrs )
 
     def get_val(self, x_pixel: int, y_pixel: int, band=1):
         """Returns value of raster, pixel locations (0-based), Band number (1-based). Default is 1. """
@@ -241,17 +219,8 @@ class GDALGrid(object):
         x_pixel, y_pixel = self.coord2pixel(x_coord, y_coord)
         return self.get_val(x_pixel, y_pixel, band)
 
-    def write_prj(self, out_projection_file, esri_format=False):
-        """Writes projection file.
-
-        Parameters
-        ----------
-        out_projection_file:  :obj:`str`
-            Output path for file.
-        esri_format: bool, optional
-            If True, it will convert the projection string to
-            the Esri format. Default is False.
-        """
+    def write_prj(self, out_projection_file: str, esri_format: bool =False ):
+        """Writes projection file to Output path (optionally in Esri format). """
         if esri_format:
             self.projection.MorphToESRI()
         with open(out_projection_file, 'w') as prj_file:
@@ -344,9 +313,10 @@ class GDALGrid(object):
     def reproject( self, dstSRS: osr.SpatialReference, resolution: Tuple[float,float],  resampling=gdalconst.GRA_NearestNeighbour ):
         newbounds = self.bounds( as_projection=dstSRS )
         mem_drv = gdal.GetDriverByName('MEM')
+        nBands = self.dataset.RasterCount
         nx = int((newbounds[1] - newbounds[0]) / resolution[0])
         ny = int((newbounds[3] - newbounds[2]) / resolution[1])
-        dest: gdal.Dataset = mem_drv.Create('', nx, ny, 1, gdal.GDT_Float32)
+        dest: gdal.Dataset = mem_drv.Create('', nx, ny, nBands, gdal.GDT_Float32)
         new_geo = (newbounds[0], resolution[0], 0.0,  newbounds[3], 0.0, -resolution[1] )
         srcWkt = self.wkt
         destWkt = dstSRS.ExportToWkt()
