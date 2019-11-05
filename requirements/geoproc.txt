@@ -7,6 +7,5 @@ geopandas
 descartes
 shapely
 regionmask
-iris
 
 

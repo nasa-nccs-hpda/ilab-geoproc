@@ -47,7 +47,9 @@ class ConfigurableObject:
         return Point( lonVal, latVal )
 
     def time_merge( self, data_arrays: List[xr.DataArray] ) -> xr.DataArray:
-        return xr.concat( data_arrays, xr.DataArray(range(len(data_arrays)), name='time', dims="time") )
+        result = xr.concat( data_arrays, xr.DataArray(range(len(data_arrays)), name='time', dims="time") )
+        result.attrs['names'] = [ da.name for da in data_arrays ]
+        return result
 
 class Region:
 

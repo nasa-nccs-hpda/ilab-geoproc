@@ -1,5 +1,5 @@
 import time, os, wget, sys
-from typing import List
+from typing import List, Union, Dict
 import numpy as np
 from multiprocessing import Pool
 from geoproc.xext.xgeo import XGeo
@@ -50,16 +50,17 @@ class MWPDataManager(ConfigurableObject):
                     except Exception:
                         print( f"     ---> Can't access {target_url}")
             else:
+                print(f" Array[{len(files)}] -> Time[{iFile}]: {target_file_path}")
                 files.append( target_file_path )
-                print(f"     ---> Skipping (already downloaded): {target_file_path}")
         return files
 
-    def get_array_data(self, files: List[str] ) ->  List[xr.DataArray]:
-        return XGeo.loadRasterFiles( files, region = self.getParameter("bbox") )
+    def get_array_data(self, files: List[str], merge=False ) ->  Union[xr.DataArray,List[xr.DataArray]]:
+        arrays = XGeo.loadRasterFiles( files, region = self.getParameter("bbox") )
+        return self.time_merge(arrays) if merge else arrays
 
-    def get_tile_data(self, location: str = "120W050N", **kwargs) -> List[xr.DataArray]:
+    def get_tile_data(self, location: str = "120W050N", merge=False, **kwargs) -> Union[xr.DataArray,List[xr.DataArray]]:
         files = self.get_tile(location, **kwargs)
-        return self.get_array_data( files )
+        return self.get_array_data( files, merge )
 
     def get_global_locations( self ) -> List:
         global_locs = []

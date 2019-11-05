@@ -2,7 +2,7 @@ import xarray as xr
 from  xarray.core.groupby import DatasetGroupBy
 import numpy as np
 from geoproc.util.configuration import ConfigurableObject, Region
-from typing import List, Union
+from typing import List, Union, Tuple
 import os, time
 
 
@@ -11,27 +11,29 @@ class WaterMapGenerator(ConfigurableObject):
     def __init__(self, **kwargs ):
         ConfigurableObject.__init__( self, **kwargs )
 
-    def get_water_mask(self, inputs: Union[ xr.DataArray, List[xr.DataArray] ], threshold = 0.5, min_h20 = 1 )-> xr.DataArray:
+    def get_water_mask(self, inputs: Union[ xr.DataArray, List[xr.DataArray] ], threshold = 0.5, min_h20 = 1 )-> xr.Dataset:
         da: xr.DataArray = self.time_merge(inputs) if isinstance(inputs, list) else inputs
+        binSize = da.shape[0]
         land = ( da == 1 ).sum( axis=0 )
         perm_water = ( da == 2 ).sum( axis=0 )
         fld_water = ( da == 3 ).sum( axis=0 )
         water = (perm_water + fld_water)
         visible = ( water + land )
+        reliability = visible / float(binSize)
         prob_h20 = water / visible
         water_mask = np.logical_and( prob_h20 >= threshold, fld_water >= min_h20 )
         result =  xr.where( perm_water > 0, 3, xr.where( water_mask, 2, xr.where( land > 0, 1, 0 ) ) )
-        return result
+        return xr.Dataset( { "mask": result,  "reliability": reliability } )
 
-    def get_water_masks(self, data_array: xr.DataArray, binSize: int, threshold = 0.5, min_h20 = 1  ) -> xr.DataArray:
+    def get_water_masks(self, data_array: xr.DataArray, binSize: int, threshold = 0.5, min_h20 = 1  ) -> xr.Dataset:
         print("\n Executing get_water_masks ")
         t0 = time.time()
         time_bins = np.array( range( 0, data_array.shape[0]+1, binSize ) )
         grouped_data: DatasetGroupBy = data_array.groupby_bins( 'time', time_bins )
-        result: xr.DataArray = grouped_data.apply( self.get_water_mask, threshold = threshold, min_h20 = min_h20 )
+        results:  xr.Dataset = grouped_data.apply( self.get_water_mask, threshold = threshold, min_h20 = min_h20 )
         print( f" Completed get_water_masks in {time.time()-t0:.3f} seconds" )
-        self.transferMetadata( data_array, result )
-        return result
+        for result in results.values(): self.transferMetadata( data_array, result )
+        return results
 
     def createDataset(self,  files: List[str], band=-1, subset = None ) ->  xr.DataArray:
         from geoproc.xext.xgeo import XGeo

@@ -27,7 +27,8 @@ class XGeo(object):
 
     @classmethod
     def loadRasterFile( cls, filePath: str, **args ) -> xr.DataArray:
-        name: str = args.get("name")
+        dirName = os.path.basename(os.path.dirname(filePath))
+        name: str = args.get( "name", os.path.basename( filePath ) )
         band: int = args.get("band",-1)
         grid = GDALGrid( filePath )
         if name is None: name = os.path.basename(filePath)
@@ -47,7 +48,7 @@ class XGeo(object):
         if bbox is None:
             data_arrays: List[xr.DataArray] = [ cls.loadRasterFile( file, **args ) for file in filePaths]
         else:
-            data_arrays: List[xr.DataArray] = [ cls.loadRasterFile( file, **args )[0, bbox.origin[0]:bbox.bounds[0], bbox.origin[1]:bbox.bounds[1]] for file in filePaths]
+            data_arrays: List[xr.DataArray] = [ cls.loadRasterFile( file, **args )[ bbox.origin[1]:bbox.bounds[1], bbox.origin[0]:bbox.bounds[0] ] for file in filePaths]
         return data_arrays
 
     def getCoordName( self, axis: str ) -> str:

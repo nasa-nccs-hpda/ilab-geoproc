@@ -5,11 +5,13 @@ from geoproc.util.configuration import ConfigurableObject, Region
 from matplotlib.colors import LinearSegmentedColormap, Normalize
 import geopandas as gpd
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from shapely.geometry import *
 from PIL import Image
 from typing import Dict, List, Tuple, Union
 import os, time, sys
 import xarray as xr
+import numpy as np
 from geoproc.surfaceMapping.lakes import WaterMapGenerator
 from geoproc.data.mwp import MWPDataManager
 from geoproc.data.shapefiles import ShapefileManager
@@ -46,14 +48,21 @@ waterMapGenerator = WaterMapGenerator()
 data_array: xr.DataArray = waterMapGenerator.createDataset(file_paths, subset=subset)
 print(f" Data Array {data_array.name}: shape = {data_array.shape}, dims = {data_array.dims}")
 
-waterMask = waterMapGenerator.get_water_masks(data_array, binSize, threshold, minH20)
+masking_results: xr.Dataset = waterMapGenerator.get_water_masks(data_array, binSize, threshold, minH20)
+waterMask = masking_results["mask"]
+reliability = masking_results["reliability"]
 print("waterMask.shape = " + str(waterMask.shape))
 
 print("Downloaded tile data")
 utm_sref: osr.SpatialReference = waterMask.xgeo.getUTMProj()
 gdalWaterMask: GDALGrid = waterMask.xgeo.to_gdalGrid()
 utmGdalWaterMask = gdalWaterMask.reproject(utm_sref, (250, 250))
-utmWaterMask = utmGdalWaterMask.xarray("utmDataArray")
+utmWaterMask = utmGdalWaterMask.xarray("utmWaterMask")
+
+gdalReliability: GDALGrid = reliability.xgeo.to_gdalGrid()
+reliabilityMap = gdalReliability.reproject(utm_sref, (250, 250))
+utmReliability = reliabilityMap.xarray("utmReliability")
+
 print( "Reprojected tile data")
 
 gdFrame: gpd.GeoDataFrame = shpManager.read( SHAPEFILE )
@@ -64,20 +73,25 @@ utmLakeShape: gpd.GeoDataFrame = gdLakeShape.to_crs(crs=utm_sref.ExportToProj4()
 
 utmPoly, utmRegions = shpManager.getRegion(utmLakeShape, "Lake_Name", LakeIndex, 2000 )
 utmCroppedWaterMask: xr.DataArray = utmWaterMask.xgeo.crop_to_poly(utmPoly)
-utmCroppedWaterMask.xgeo.to_gdalGrid()
 utmCutoutWaterMask: xr.DataArray = shpManager.crop(utmCroppedWaterMask, utmRegions)
+utmCroppedReliability: xr.DataArray = utmReliability.xgeo.crop_to_poly(utmPoly)
+utmCutoutReliability: xr.DataArray = shpManager.crop(utmCroppedReliability, utmRegions)
 
 croppedWaterMask = waterMask.xgeo.crop( *geoBounds )
 
 counts = utmCutoutWaterMask.xgeo.countInstances([2, 3])
 norm = counts.max( dim="time" )
 counts = counts/norm
+reliability_series = reliability.sum( dim=['x','y'] )
+rnorm = reliability_series.max( dim="time_bins" )
+norm_reliability: xr.DataArray = reliability_series/rnorm
 
 t0 = time.time()
 cm_colors = [(0, 0, 0), (0, 1, 0), (1, 1, 0), (0, 0, 1)]
-bar_colors = cm_colors[2:]
-norm = Normalize(0, len(cm_colors))
+bar_colors = [ (1, 1, 0), (0, 0, 1), (0,0,0) ]
+normalize = Normalize(0, len(cm_colors))
 cm = LinearSegmentedColormap.from_list("tmp-colormap", cm_colors, N=len(cm_colors))
+subtitle_size = 10
 fps =  1.0
 roi: Region = None
 print("\n Executing create_array_animation ")
@@ -94,33 +108,51 @@ def onClick(event):
         anim.event_source.start()
         anim_running = True
 
-figure, axes = plt.subplots( 2, 2 )
+figure, axes = plt.subplots( 2, 3 )
 figure.suptitle( "Lake Mapping Analysis", fontsize=16)
 figure.canvas.mpl_connect('button_press_event', onClick)
-titles = [ "Raw Data", "Clipped to Lake", "UTM Projected and Masked" ]
+titles = [ "Water Mask", "Clipped WMask", "Projected+cut" ]
 
 images: List[AxesImage] = []
 for iAxis in range(len(data_arrays)):
-    axis = axes[ iAxis//2, iAxis%2 ]
-    axis.title.set_text(titles[iAxis])
+    axis = axes[ 0, iAxis ]
+    axis.set_title(titles[iAxis], size=subtitle_size)
     image_data = data_arrays[iAxis][0]
-    image: Image = axis.imshow(image_data, cmap=cm, norm=norm)
+    image: Image = axis.imshow(image_data, cmap=cm, norm=normalize)
     axis.set_yticklabels([]); axis.set_xticklabels([])
     images.append(image)
 
-bar_heights = counts[0]
-axis = axes[1,1]
-barplot = axis.bar( [0, 1], bar_heights.values, color = bar_colors )
+axis = axes[ 1, 0 ]
+axis.set_title("Reliability", size=subtitle_size)
 axis.set_yticklabels([]); axis.set_xticklabels([])
-axis.title.set_text("Normalized Class Counts")
+rnormalize = Normalize( 0.0, 1.0 )
+reliability_image: Image = axis.imshow(reliability[0], cmap="jet", norm=rnormalize )
+divider = make_axes_locatable(axis)
+cax = divider.append_axes('bottom', size='5%', pad=0.05 )
+figure.colorbar( reliability_image, cax=cax, orientation='horizontal' )
+
+axis = axes[ 1, 1 ]
+axis.set_title("Projected+cut", size=subtitle_size)
+axis.set_yticklabels([]); axis.set_xticklabels([])
+rnormalize = Normalize( 0.0, 1.0 )
+cutout_reliability_image: Image = axis.imshow(utmCutoutReliability[0], cmap="jet", norm=rnormalize )
+
+init_counts = counts[0].values
+init_bar_heights = [ init_counts[0], init_counts[1], norm_reliability.values[0] ]
+axis = axes[1,2]
+barplot = axis.bar( [0, 1, 2], init_bar_heights, color = bar_colors )
+axis.set_yticklabels([]); axis.set_xticklabels([])
+axis.set_title("Counts+Reliability", size=subtitle_size)
 
 def animate(frameIndex):
     frame_data = [ data_array[frameIndex] for data_array in data_arrays ]
-    for data, image in zip( frame_data, images ):
-        image.set_array( data )
+    for data, image in zip( frame_data, images ): image.set_array( data )
+    reliability_image.set_array( reliability[frameIndex] )
+    cutout_reliability_image.set_array( utmCutoutReliability[frameIndex] )
     bar_heights = counts[frameIndex]
-    for rect, y in zip( barplot, bar_heights ):
-        rect.set_height(y)
+    barplot[0].set_height( bar_heights[0] )
+    barplot[1].set_height( bar_heights[1] )
+    barplot[2].set_height( norm_reliability.values[frameIndex] )
 
 anim = animation.FuncAnimation( figure, animate, frames=nFrames, interval=1000.0 / fps, blit=False)
 

@@ -58,7 +58,7 @@ class ArrayAnimation(ConfigurableObject):
     def create_animation( self, data_arrays: List[xr.DataArray], savePath: str = None, overwrite = False ) -> animation.TimedAnimation:
         images = []
         t0 = time.time()
-        colors = [(0, 0, 0), (0.05, 0.4, 0.2), (1, 1, 0), (0, 1, 1)]   # (0.15, 0.3, 0.5)
+        colors = [(0.7, 0.7, 0.7), (0.05, 0.4, 0.2), (0, 0, 1), (1, 1, 0)]   # (0.15, 0.3, 0.5)
         norm = Normalize(0,len(colors))
         cm = LinearSegmentedColormap.from_list( "lake-map", colors, N=4 )
         fps = self.getParameter( "fps", 1 )
@@ -68,16 +68,18 @@ class ArrayAnimation(ConfigurableObject):
 
         if roi is  None:
             axes.set_yticklabels([]); axes.set_xticklabels([])
-            for da in data_arrays:
+            for iF, da in enumerate(data_arrays):
                 im: Image = axes.imshow( da.values, animated=True, cmap=cm, norm=norm )
-                images.append([im])
+                t = axes.annotate( f"{da.name}[{iF}]", (0,0) )
+                images.append([im,t])
         else:
             for axis in axes:
                 axis.set_yticklabels([]); axis.set_xticklabels([])
-            for da in data_arrays:
+            for iF, da in enumerate(data_arrays):
                 im0: Image = axes[0].imshow( da.values, animated=True, cmap=cm, norm=norm  )
                 im1: Image = axes[1].imshow( da[ roi.origin[0]:roi.bounds[0], roi.origin[1]:roi.bounds[1] ], animated=True, cmap=cm, norm=norm )
-                images.append( [im0,im1] )
+                t = axes.annotate( f"{da.name}[{iF}]", ( 0,0) )
+                images.append( [im0,im1,t] )
 
             rect = patches.Rectangle( roi.origin, roi.size, roi.size, linewidth=1, edgecolor='r', facecolor='none')
             axes[0].add_patch(rect)
@@ -253,14 +255,16 @@ if __name__ == '__main__':
     product = products[0]
     year = 2019
     download = False
-    roi = Region( [250,250], 20 )
-    bbox = Region([1750, 1750], 500 )
+    roi = None
+    bbox = Region( [3000,3500], 750 )
     savePath = DATA_DIR + "/watermap_diagnostic_animation.gif"
     fps = 1.0
+    time_index_range = [ 192, 195 ]
 
     dataMgr = MWPDataManager(DATA_DIR, "https://floodmap.modaps.eosdis.nasa.gov/Products")
-    dataMgr.setDefaults( product=product, download=download, year=2019, start_day=1, end_day=365, bbox=bbox )
+    dataMgr.setDefaults( product=product, download=download, year=2019, start_day=time_index_range[0], end_day=time_index_range[1], bbox=bbox )
     data_arrays = dataMgr.get_tile_data(location)
 
     animator = ArrayAnimation( roi=roi, fps=fps )
-    anim = animator.create_watermap_diag_animation( f"{product} @ {location}", data_arrays, savePath, True )
+    anim = animator.create_animation( data_arrays )
+#    anim = animator.create_watermap_diag_animation( f"{product} @ {location}", data_arrays, savePath, True )
