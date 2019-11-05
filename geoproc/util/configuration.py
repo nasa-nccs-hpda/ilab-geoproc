@@ -2,6 +2,7 @@ from typing import Dict, List, Tuple
 from shapely.geometry import Point
 import xarray as xr
 import string, random
+import pandas as pd
 
 class ConfigurableObject:
 
@@ -47,9 +48,9 @@ class ConfigurableObject:
         return Point( lonVal, latVal )
 
     def time_merge( self, data_arrays: List[xr.DataArray] ) -> xr.DataArray:
-        result = xr.concat( data_arrays, xr.DataArray(range(len(data_arrays)), name='time', dims="time") )
-        result.attrs['names'] = [ da.name for da in data_arrays ]
-        return result
+        frame_names = [ da.name for da in data_arrays ]
+        merge_coord = pd.Index( frame_names, name="frames" )
+        return xr.concat( objs=data_arrays, dim=merge_coord )
 
 class Region:
 
