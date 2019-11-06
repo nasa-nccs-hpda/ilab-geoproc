@@ -8,6 +8,7 @@ from threading import  Thread
 from matplotlib.figure import Figure
 from matplotlib.image import AxesImage
 import xarray as xa
+import numpy as np
 from typing import List, Union, Dict, Callable, Tuple
 import time, math, atexit
 from enum import Enum
@@ -189,42 +190,81 @@ class PageSlider(matplotlib.widgets.Slider):
 
 class SliceAnimation:
 
-    def __init__(self, data_array: xa.DataArray, **kwargs ):
-        self.data = data_array
-        assert data_array.ndim == 3, f"This plotter only works with 3 dimensional [t,y,x] data arrays.  Found {data_array.dims}"
-        self.anim_coord = data_array.coords[ data_array.dims[0] ].values
-        self.y_coord = data_array.coords[data_array.dims[1]].values
-        self.x_coord = data_array.coords[data_array.dims[2]].values
-        self.anim_coord_name: str = data_array.coords[ data_array.dims[0] ].name
-        self.plot_axes: SubplotBase = None
+    def __init__(self, data_arrays: Union[xa.DataArray,List[xa.DataArray]], **kwargs ):
+        self.data: List[xa.DataArray] = data_arrays if isinstance(data_arrays, list) else [ data_arrays ]
+        assert self.data[0].ndim == 3, f"This plotter only works with 3 dimensional [t,y,x] data arrays.  Found {self.data[0].dims}"
+        self.plot_axes = None
         self.figure: Figure = None
-        self.figure, self.plot_axes = plt.subplots()
+        self.images: Dict[int,AxesImage] = {}
+        self.nPlots = len(self.data)
+        self.plot_grid_shape: List[int] = self.getSubplotShape( )  # [ rows, cols ]
+        self.figure, self.plot_axes = plt.subplots( *self.plot_grid_shape )
         self.figure.suptitle( kwargs.get("title",""), fontsize=14 )
         self.figure.subplots_adjust(bottom=0.18)
         self.slider_axes: SubplotBase = self.figure.add_axes([0.1, 0.05, 0.8, 0.04])  # [left, bottom, width, height]
 
-        self.nFrames = data_array.shape[0]
+        self.nFrames = self.data[0].shape[0]
         self.create_cmap( **kwargs )
-        self.add_plot( **kwargs )
+        self.add_plots( **kwargs )
         self.add_slider( **kwargs )
         self._update(0)
+
+    def get_xy_coords(self, iPlot: int ) -> Tuple[ np.ndarray, np.ndarray ]:
+        return self.get_coord( iPlot, 2 ), self.get_coord( iPlot, 1 )
+
+    def get_anim_coord(self, iPlot: int ) -> np.ndarray:
+        return self.get_coord( iPlot, 0 )
+
+    def get_coord(self, iPlot: int, iCoord: int ) -> np.ndarray:
+        data = self.data[iPlot]
+        return data.coords[ data.dims[iCoord] ].values
+
+    def getSubplotShape(self ) -> List[int]:
+        ncols = math.floor( math.sqrt( self.nPlots ) )
+        nrows = math.ceil( self.nPlots / ncols )
+        return [ nrows, ncols ]
+
+    def getSubplot( self, iPlot: int  ) -> SubplotBase:
+        if self.plot_grid_shape == [1, 1]: return self.plot_axes
+        if self.plot_grid_shape[0] == 1: return self.plot_axes[iPlot]
+        plot_coords = [ iPlot//self.plot_grid_shape[1], iPlot % self.plot_grid_shape[1]  ]
+        return self.plot_axes[ plot_coords[0], plot_coords[1] ]
 
     def create_cmap( self, **kwargs ):
         self.cmap = kwargs.get("cmap")
         self.cnorm = None
         if self.cmap is None:
             colors = kwargs.get("colors")
-            if colors is not None:
+            if colors is None:
+                self.cmap = "jet"
+            else:
                 self.cnorm = Normalize(0, len(colors))
                 self.cmap = LinearSegmentedColormap.from_list("custom colors", colors, N=4)
 
-    def add_plot(self, **kwargs ):
-        self.image: AxesImage = self.plot_axes.imshow( self.data[0, :, :], cmap=self.cmap, norm=self.cnorm, interpolation='nearest')
-        dx2, dy2 = self.x_coord[1] - self.x_coord[0], self.y_coord[0] - self.y_coord[1]
-        self.image.set_extent( [self.x_coord[0]-dx2, self.x_coord[-1]+dx2, self.y_coord[-1]-dy2, self.y_coord[0]]+dy2 )
+    def create_image(self, iPlot: int ) -> AxesImage:
+        data = self.data[iPlot]
+        subplot: SubplotBase = self.getSubplot( iPlot )
+        image: AxesImage = subplot.imshow( data[0, :, :], cmap=self.cmap, norm=self.cnorm, interpolation='nearest')
+        subplot.title.set_text( data.name )
+        x_coord, y_coord = self.get_xy_coords( iPlot )
+        dx2, dy2 = x_coord[1] - x_coord[0], y_coord[0] - y_coord[1]
+        image.set_extent( [ x_coord[0] - dx2,  x_coord[-1] + dx2,  y_coord[-1] - dy2,  y_coord[0] + dy2 ] )
+        return image
+
+    def update_plots(self, iFrame: int ):
+        for iPlot in range(self.nPlots):
+            subplot: SubplotBase = self.getSubplot(iPlot)
+            data = self.data[iPlot]
+            self.images[iPlot].set_data( data[iFrame,:,:] )
+            acoord = self.get_anim_coord( iPlot )
+            subplot.title.set_text( f"{data.name}: {acoord[iFrame]}" )
+
+    def add_plots(self, **kwargs ):
+        for iPlot in range(self.nPlots):
+            self.images[iPlot] = self.create_image( iPlot )
         divider = make_axes_locatable(self.plot_axes)
         cax = divider.append_axes('right', size='5%', pad=0.05)
-        self.figure.colorbar( self.image, cax=cax, orientation='vertical')
+        self.figure.colorbar( self.images[self.nPlots-1], cax=cax, orientation='vertical')
 
     def add_slider(self,  **kwargs ):
         self.slider = PageSlider( self.slider_axes, self.nFrames )
@@ -232,8 +272,9 @@ class SliceAnimation:
 
     def _update( self, val ):
         i = int( self.slider.val )
-        self.image.set_data( self.data[i,:,:] )
-        self.plot_axes.title.set_text( f"Frame {i+1}: {self.anim_coord[i]}" )
+        self.update_plots(i)
+
+#        self.plot_axes.title.set_text( f"Frame {i+1}: {self.anim_coord[i]}" )
 
     def show(self):
         self.slider.start()
@@ -258,7 +299,7 @@ if __name__ == "__main__":
 
     dataMgr = MWPDataManager(DATA_DIR, "https://floodmap.modaps.eosdis.nasa.gov/Products")
     dataMgr.setDefaults( product=product, download=download, year=2019, start_day=time_index_range[0], end_day=time_index_range[1] ) # , bbox=bbox )
-    data_array = dataMgr.get_tile_data( location, True )
+    tile_data = dataMgr.get_tile_data( location, True )
 
-    animation = SliceAnimation( data_array, title='MPW Time Slice Animation', colors=colors )
+    animation = SliceAnimation( tile_data, title='MPW Time Slice Animation', colors=colors )
     animation.show()

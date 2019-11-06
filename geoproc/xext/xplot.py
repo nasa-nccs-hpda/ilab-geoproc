@@ -1,10 +1,11 @@
 import xarray as xr, regionmask, utm
+from typing import List, Union, Tuple
 from geoproc.xext.xextension import XExtension
 from geoproc.plot.animation import SliceAnimation
 
 @xr.register_dataarray_accessor('xplot')
 class XGeo(XExtension):
-    """  This is an extension for xarray to provide an interface to matplotlib capabilities """
+    """  This is an extension for xarray DataArrays to provide an interface to matplotlib capabilities """
 
     def __init__(self, xarray_obj: xr.DataArray):
         XExtension.__init__( self, xarray_obj )
@@ -13,6 +14,25 @@ class XGeo(XExtension):
         animation = SliceAnimation( self._obj, **kwargs )
         animation.show()
 
+@xr.register_dataset_accessor('xplot')
+class XGeoDS:
+    """  This is an extension for xarray Datasets to provide an interface to matplotlib capabilities """
+
+    def __init__( self, dset: xr.Dataset ):
+        self._dset = dset
+
+    def animate(self, **kwargs ):
+        vars = kwargs.get( "vars", self.get_data_vars() )
+        data_arrays = [ self._dset[vname] for vname in vars ]
+        animation = SliceAnimation( data_arrays, **kwargs )
+        animation.show()
+
+    def get_data_vars(self) -> List[str]:
+        data_vars = []
+        for (key,dval) in self._dset.data_vars.items():
+            if not( key.endswith("_bnds") or "bnds" in dval.coords.keys() ):
+                data_vars.append( key )
+        return data_vars
 
 
 if __name__ == "__main__":
