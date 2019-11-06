@@ -5,6 +5,7 @@ from matplotlib.axes import SubplotBase
 import matplotlib.pyplot as plt
 from threading import  Thread
 from matplotlib.figure import Figure
+from matplotlib.image import AxesImage
 import xarray as xa
 from typing import List, Union, Dict, Callable, Tuple
 import time, math, atexit
@@ -30,7 +31,9 @@ class EventSource(Thread):
     def run(self):
         while self.running:
             time.sleep( self.interval )
-            if self.active: self.action( self.event )
+            if self.active:
+                plt.pause( 0.01 )
+                self.action( self.event )
 
     def activate(self, delay = None ):
         if delay is not None: self.interval = delay
@@ -58,7 +61,6 @@ class PageSlider(matplotlib.widgets.Slider):
         self.anim_delay_multiplier = 1.5
         self.anim_state = ADirection.STOP
         self.event_source = EventSource( self.step )
-        self.event_source.start()
 
         super(PageSlider, self).__init__(ax, "", 0, numpages, valinit=valinit, valfmt=valfmt, **kwargs)
 
@@ -98,6 +100,9 @@ class PageSlider(matplotlib.widgets.Slider):
         self.button_aback.on_clicked(self.anim_backward)
         self.button_astop.on_clicked(self.anim_stop)
         self.button_aforward.on_clicked(self.anim_forward)
+
+    def start(self):
+        self.event_source.start()
 
     def _update(self, event):
         super(PageSlider, self)._update(event)
@@ -198,7 +203,7 @@ class SliceAnimation:
                 self.cmap = LinearSegmentedColormap.from_list("custom colors", colors, N=4)
 
     def add_plot(self, **kwargs ):
-        self.image = self.plot_axes.imshow( self.data[0, :, :], cmap=self.cmap, norm=self.cnorm, interpolation='nearest')
+        self.image: AxesImage = self.plot_axes.imshow( self.data[0, :, :], cmap=self.cmap, norm=self.cnorm, interpolation='nearest')
         dx2, dy2 = self.x_coord[1] - self.x_coord[0], self.y_coord[0] - self.y_coord[1]
         self.image.set_extent( [self.x_coord[0]-dx2, self.x_coord[-1]+dx2, self.y_coord[-1]-dy2, self.y_coord[0]]+dy2 )
         divider = make_axes_locatable(self.plot_axes)
@@ -213,6 +218,11 @@ class SliceAnimation:
         i = int( self.slider.val )
         self.image.set_data( data_array[i,:,:] )
         self.plot_axes.title.set_text( f"Frame {i+1}: {self.anim_coord[i]}" )
+
+    def show(self):
+        self.slider.start()
+        plt.show()
+
 
 if __name__ == "__main__":
     from geoproc.util.configuration import Region
@@ -237,5 +247,4 @@ if __name__ == "__main__":
     data_array = dataMgr.get_tile_data( location, True )
 
     animation = SliceAnimation( data_array, title='MPW Time Slice Animation', colors=colors )
-
-    plt.show()
+    animation.show()
