@@ -1,15 +1,46 @@
 import matplotlib.widgets
 import matplotlib.patches
 import mpl_toolkits.axes_grid1
+from matplotlib.backend_bases import TimerBase
+import matplotlib.pyplot as plt
+from threading import  Thread
+from matplotlib.figure import Figure
 import xarray as xa
-from typing import List, Union, Dict
-import time, math
+from typing import List, Union, Dict, Callable
+import time, math, atexit
 from enum import Enum
 
 class ADirection(Enum):
     BACKWARD = -1
     STOP = 0
     FORWARD = 1
+
+class EventSource(Thread):
+
+    def __init__( self, action: Callable, delay = 0.1 ):
+        Thread.__init__(self)
+        self.event = None
+        self.action = action
+        self.interval = delay
+        self.active = False
+        self.running = True
+        atexit.register( self.exit )
+
+    def run(self):
+        while self.running:
+            time.sleep( self.interval )
+            if self.active: self.action( self.event )
+
+    def activate(self, delay = None ):
+        if delay is not None: self.interval = delay
+        self.active = True
+
+    def deactivate(self):
+        self.active = False
+
+    def exit(self):
+        print( "Exiting EventSource" )
+        self.running = False
 
 class PageSlider(matplotlib.widgets.Slider):
 
@@ -20,11 +51,15 @@ class PageSlider(matplotlib.widgets.Slider):
         self.stepcolor = kwargs.pop('stepcolor', "#ff6f6f" )
         self.animcolor = kwargs.pop('animcolor', "#6fff6f" )
         self.fontsize = kwargs.pop('fontsize', 10)
+        self.figure = fig
         self.maxIndexedPages = 24
         self.numpages = numpages
-        self.init_anim_delay = 0.1
-        self.anim_delay = self.init_anim_delay
+        self.init_anim_delay: float = 0.5   # time between timer events in seconds
+        self.anim_delay: float = self.init_anim_delay
+        self.anim_delay_multiplier = 1.5
         self.anim_state = ADirection.STOP
+        self.event_source = EventSource( self.step )
+        self.event_source.start()
 
         super(PageSlider, self).__init__(ax, "", 0, numpages, valinit=valinit, valfmt=valfmt, **kwargs)
 
@@ -44,8 +79,8 @@ class PageSlider(matplotlib.widgets.Slider):
         divider = mpl_toolkits.axes_grid1.make_axes_locatable(ax)
         bax = divider.append_axes("right", size="5%", pad=0.05)
         fax = divider.append_axes("right", size="5%", pad=0.05)
-        self.button_back = matplotlib.widgets.Button(bax, label='$\u25C0$', color=self.stepcolor, hovercolor=self.activecolor)
-        self.button_forward = matplotlib.widgets.Button(fax, label='$\u25B6$', color=self.stepcolor, hovercolor=self.activecolor)
+        self.button_back = matplotlib.widgets.Button(bax, label='$\u25C1$', color=self.stepcolor, hovercolor=self.activecolor)
+        self.button_forward = matplotlib.widgets.Button(fax, label='$\u25B7$', color=self.stepcolor, hovercolor=self.activecolor)
         self.button_back.label.set_fontsize(self.fontsize)
         self.button_forward.label.set_fontsize(self.fontsize)
         self.button_back.on_clicked(self.backward)
@@ -54,9 +89,9 @@ class PageSlider(matplotlib.widgets.Slider):
         afax = divider.append_axes("left", size="5%", pad=0.05)
         asax = divider.append_axes("left", size="5%", pad=0.05)
         abax = divider.append_axes("left", size="5%", pad=0.05)
-        self.button_aback    = matplotlib.widgets.Button( abax, label='$\u25C1$', color=self.animcolor, hovercolor=self.activecolor)
-        self.button_astop = matplotlib.widgets.Button( asax, label='$\u25A2$', color=self.animcolor, hovercolor=self.activecolor)
-        self.button_aforward = matplotlib.widgets.Button( afax, label='$\u25B7$', color=self.animcolor, hovercolor=self.activecolor)
+        self.button_aback    = matplotlib.widgets.Button( abax, label='$\u25C0$', color=self.animcolor, hovercolor=self.activecolor)
+        self.button_astop = matplotlib.widgets.Button( asax, label='$\u25FE$', color=self.animcolor, hovercolor=self.activecolor)
+        self.button_aforward = matplotlib.widgets.Button( afax, label='$\u25B6$', color=self.animcolor, hovercolor=self.activecolor)
 
         self.button_aback.label.set_fontsize(self.fontsize)
         self.button_astop.label.set_fontsize(self.fontsize)
@@ -68,8 +103,7 @@ class PageSlider(matplotlib.widgets.Slider):
     def _update(self, event):
         super(PageSlider, self)._update(event)
         i = int(self.val)
-        if i >=self.valmax:
-            return
+        if i >=self.valmax: return
         self._colorize(i)
 
     def _colorize(self, i):
@@ -77,49 +111,67 @@ class PageSlider(matplotlib.widgets.Slider):
             self.pageRects[j].set_facecolor(self.facecolor)
         self.pageRects[i].set_facecolor(self.activecolor)
 
-    def forward(self, event):
+    def step( self, event=None ):
+        print( f"Stepping, self.anim_state = {self.anim_state} ")
+        if   self.anim_state == ADirection.FORWARD:  self.forward(event)
+        elif self.anim_state == ADirection.BACKWARD: self.backward(event)
+
+    def forward(self, event=None):
+        self.anim_stop()
         current_i = int(self.val)
         i = current_i+1
-        if (i < self.valmin) or (i >= self.valmax):
-            return
+        if i >= self.valmax: i = self.valmin
         self.set_val(i)
         self._colorize(i)
 
-    def backward(self, event):
+    def backward(self, event=None):
+        self.anim_stop()
         current_i = int(self.val)
         i = current_i-1
-        if (i < self.valmin) or (i >= self.valmax):
-            return
+        if i < self.valmin: i = self.valmax -1
         self.set_val(i)
         self._colorize(i)
 
-    def anim_forward(self, event):
+    def anim_forward(self, event=None):
         if self.anim_state == ADirection.FORWARD:
-            self.anim_delay = self.anim_delay/2.0
+            self.anim_delay = self.anim_delay / self.anim_delay_multiplier
+            self.event_source.interval = self.anim_delay
+        elif self.anim_state == ADirection.BACKWARD:
+            self.anim_delay = self.anim_delay * self.anim_delay_multiplier
+            self.event_source.interval = self.anim_delay
         else:
             self.anim_delay = self.init_anim_delay
             self.anim_state = ADirection.FORWARD
+            self.event_source.activate( self.anim_delay )
 
-    def anim_backward(self, event):
+    def anim_backward(self, event=None):
         if self.anim_state == ADirection.BACKWARD:
-            self.anim_delay = self.anim_delay/2.0
+            self.anim_delay = self.anim_delay / self.anim_delay_multiplier
+            self.event_source.interval = self.anim_delay
+        elif self.anim_state == ADirection.BACKWARD:
+            self.anim_delay = self.anim_delay * self.anim_delay_multiplier
+            self.event_source.interval = self.anim_delay
         else:
             self.anim_delay = self.init_anim_delay
             self.anim_state = ADirection.BACKWARD
+            self.event_source.activate( self.anim_delay )
 
-    def anim_stop(self, event):
-        self.anim_delay = self.init_anim_delay
-        self.anim_state = ADirection.STOP
+    def anim_stop(self, event=None):
+        if self.anim_state != ADirection.STOP:
+            self.anim_delay = self.init_anim_delay
+            self.anim_state = ADirection.STOP
+            self.event_source.deactivate()
 
 class SliceAnimation:
 
-    def __init__(self, data_array: xa.DataArray, axes: Dict, **kwargs ):
+    def __init__(self, fig: Figure, data_array: xa.DataArray, axes: Dict, **kwargs ):
         self.data = data_array
         assert data_array.ndim == 3, f"This plotter only works with 3 dimensional [t,y,x] data arrays.  Found {data_array.dims}"
         self.anim_coord = data_array.coords[ data_array.dims[0] ].values
         self.y_coord = data_array.coords[data_array.dims[1]].values
         self.x_coord = data_array.coords[data_array.dims[2]].values
         self.anim_coord_name: str = data_array.coords[ data_array.dims[0] ].name
+        self.figure = fig
         self.nFrames = data_array.shape[0]
         self.create_cmap( **kwargs )
         self.add_plot( axes, **kwargs )
@@ -184,6 +236,6 @@ if __name__ == "__main__":
     ax_slider = fig.add_axes([0.1, 0.05, 0.8, 0.04])    # [left, bottom, width, height]
     axes = dict( plot=ax, slider=ax_slider )
 
-    animation = SliceAnimation( data_array, axes, colors=colors )
+    animation = SliceAnimation( fig, data_array, axes, colors=colors )
 
     plt.show()
