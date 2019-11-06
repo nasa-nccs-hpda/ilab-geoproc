@@ -1,12 +1,12 @@
 import matplotlib.widgets
 import matplotlib.patches
-import mpl_toolkits.axes_grid1
-from matplotlib.backend_bases import TimerBase
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from matplotlib.axes import SubplotBase
 import matplotlib.pyplot as plt
 from threading import  Thread
 from matplotlib.figure import Figure
 import xarray as xa
-from typing import List, Union, Dict, Callable
+from typing import List, Union, Dict, Callable, Tuple
 import time, math, atexit
 from enum import Enum
 
@@ -24,6 +24,7 @@ class EventSource(Thread):
         self.interval = delay
         self.active = False
         self.running = True
+        self.daemon = True
         atexit.register( self.exit )
 
     def run(self):
@@ -39,19 +40,17 @@ class EventSource(Thread):
         self.active = False
 
     def exit(self):
-        print( "Exiting EventSource" )
         self.running = False
 
 class PageSlider(matplotlib.widgets.Slider):
 
 
-    def __init__(self, ax, numpages = 10, valinit=0, valfmt='%1d', **kwargs ):
+    def __init__(self, ax: SubplotBase, numpages = 10, valinit=0, valfmt='%1d', **kwargs ):
         self.facecolor=kwargs.get('facecolor',"yellow")
         self.activecolor = kwargs.pop('activecolor',"blue" )
         self.stepcolor = kwargs.pop('stepcolor', "#ff6f6f" )
         self.animcolor = kwargs.pop('animcolor', "#6fff6f" )
         self.fontsize = kwargs.pop('fontsize', 10)
-        self.figure = fig
         self.maxIndexedPages = 24
         self.numpages = numpages
         self.init_anim_delay: float = 0.5   # time between timer events in seconds
@@ -76,15 +75,15 @@ class PageSlider(matplotlib.widgets.Slider):
                 ax.text(float(i)/numpages+0.5/numpages, 0.5, str(i+1), ha="center", va="center", transform=ax.transAxes, fontsize=self.fontsize)
         self.valtext.set_visible(False)
 
-        divider = mpl_toolkits.axes_grid1.make_axes_locatable(ax)
+        divider = make_axes_locatable(ax)
         bax = divider.append_axes("right", size="5%", pad=0.05)
         fax = divider.append_axes("right", size="5%", pad=0.05)
         self.button_back = matplotlib.widgets.Button(bax, label='$\u25C1$', color=self.stepcolor, hovercolor=self.activecolor)
         self.button_forward = matplotlib.widgets.Button(fax, label='$\u25B7$', color=self.stepcolor, hovercolor=self.activecolor)
         self.button_back.label.set_fontsize(self.fontsize)
         self.button_forward.label.set_fontsize(self.fontsize)
-        self.button_back.on_clicked(self.backward)
-        self.button_forward.on_clicked(self.forward)
+        self.button_back.on_clicked(self.step_backward)
+        self.button_forward.on_clicked(self.step_forward)
 
         afax = divider.append_axes("left", size="5%", pad=0.05)
         asax = divider.append_axes("left", size="5%", pad=0.05)
@@ -112,12 +111,10 @@ class PageSlider(matplotlib.widgets.Slider):
         self.pageRects[i].set_facecolor(self.activecolor)
 
     def step( self, event=None ):
-        print( f"Stepping, self.anim_state = {self.anim_state} ")
         if   self.anim_state == ADirection.FORWARD:  self.forward(event)
         elif self.anim_state == ADirection.BACKWARD: self.backward(event)
 
     def forward(self, event=None):
-        self.anim_stop()
         current_i = int(self.val)
         i = current_i+1
         if i >= self.valmax: i = self.valmin
@@ -125,12 +122,19 @@ class PageSlider(matplotlib.widgets.Slider):
         self._colorize(i)
 
     def backward(self, event=None):
-        self.anim_stop()
         current_i = int(self.val)
         i = current_i-1
         if i < self.valmin: i = self.valmax -1
         self.set_val(i)
         self._colorize(i)
+
+    def step_forward(self, event=None):
+        self.anim_stop()
+        self.forward(event)
+
+    def step_backward(self, event=None):
+        self.anim_stop()
+        self.backward(event)
 
     def anim_forward(self, event=None):
         if self.anim_state == ADirection.FORWARD:
@@ -145,11 +149,11 @@ class PageSlider(matplotlib.widgets.Slider):
             self.event_source.activate( self.anim_delay )
 
     def anim_backward(self, event=None):
-        if self.anim_state == ADirection.BACKWARD:
-            self.anim_delay = self.anim_delay / self.anim_delay_multiplier
+        if self.anim_state == ADirection.FORWARD:
+            self.anim_delay = self.anim_delay * self.anim_delay_multiplier
             self.event_source.interval = self.anim_delay
         elif self.anim_state == ADirection.BACKWARD:
-            self.anim_delay = self.anim_delay * self.anim_delay_multiplier
+            self.anim_delay = self.anim_delay / self.anim_delay_multiplier
             self.event_source.interval = self.anim_delay
         else:
             self.anim_delay = self.init_anim_delay
@@ -164,18 +168,24 @@ class PageSlider(matplotlib.widgets.Slider):
 
 class SliceAnimation:
 
-    def __init__(self, fig: Figure, data_array: xa.DataArray, axes: Dict, **kwargs ):
+    def __init__(self, data_array: xa.DataArray, **kwargs ):
         self.data = data_array
         assert data_array.ndim == 3, f"This plotter only works with 3 dimensional [t,y,x] data arrays.  Found {data_array.dims}"
         self.anim_coord = data_array.coords[ data_array.dims[0] ].values
         self.y_coord = data_array.coords[data_array.dims[1]].values
         self.x_coord = data_array.coords[data_array.dims[2]].values
         self.anim_coord_name: str = data_array.coords[ data_array.dims[0] ].name
-        self.figure = fig
+        self.plot_axes: SubplotBase = None
+        self.figure: Figure = None
+        self.figure, self.plot_axes = plt.subplots()
+        self.figure.suptitle( kwargs.get("title",""), fontsize=14 )
+        self.figure.subplots_adjust(bottom=0.18)
+        self.slider_axes: SubplotBase = self.figure.add_axes([0.1, 0.05, 0.8, 0.04])  # [left, bottom, width, height]
+
         self.nFrames = data_array.shape[0]
         self.create_cmap( **kwargs )
-        self.add_plot( axes, **kwargs )
-        self.add_slider( axes, **kwargs )
+        self.add_plot( **kwargs )
+        self.add_slider( **kwargs )
         self._update(0)
 
     def create_cmap( self, **kwargs ):
@@ -187,26 +197,22 @@ class SliceAnimation:
                 self.cnorm = Normalize(0, len(colors))
                 self.cmap = LinearSegmentedColormap.from_list("custom colors", colors, N=4)
 
-    def add_plot(self, axes: Dict, **kwargs ):
-        self.ax_plot = axes.get("plot")
-        self.image = self.ax_plot.imshow( self.data[0, :, :], cmap=self.cmap, norm=self.cnorm, interpolation='nearest')
+    def add_plot(self, **kwargs ):
+        self.image = self.plot_axes.imshow( self.data[0, :, :], cmap=self.cmap, norm=self.cnorm, interpolation='nearest')
         dx2, dy2 = self.x_coord[1] - self.x_coord[0], self.y_coord[0] - self.y_coord[1]
         self.image.set_extent( [self.x_coord[0]-dx2, self.x_coord[-1]+dx2, self.y_coord[-1]-dy2, self.y_coord[0]]+dy2 )
+        divider = make_axes_locatable(self.plot_axes)
+        cax = divider.append_axes('right', size='5%', pad=0.05)
+        self.figure.colorbar( self.image, cax=cax, orientation='vertical')
 
-    def add_slider(self, axes: Dict, **kwargs ):
-        self.slider = kwargs.get("slider")
-        self.slider_cid = None
-        self.ax_slider = axes.get("slider")
-        if self.slider is not None:
-            self.slider_cid = self.slider.on_changed(self._update)
-        elif self.ax_slider is not None:
-            self.slider = PageSlider( self.ax_slider, self.nFrames )
-            self.slider_cid = self.slider.on_changed(self._update)
+    def add_slider(self,  **kwargs ):
+        self.slider = PageSlider( self.slider_axes, self.nFrames )
+        self.slider_cid = self.slider.on_changed(self._update)
 
     def _update( self, val ):
         i = int( self.slider.val )
         self.image.set_data( data_array[i,:,:] )
-        self.ax_plot.title.set_text( f"Frame {i+1}: {self.anim_coord[i]}" )
+        self.plot_axes.title.set_text( f"Frame {i+1}: {self.anim_coord[i]}" )
 
 if __name__ == "__main__":
     from geoproc.util.configuration import Region
@@ -224,18 +230,12 @@ if __name__ == "__main__":
     download = False
     roi = None
     bbox = Region( [3000,3500], 750 )
-    time_index_range = [ 190, 350 ]
+    time_index_range = [ 0, 365 ]
 
     dataMgr = MWPDataManager(DATA_DIR, "https://floodmap.modaps.eosdis.nasa.gov/Products")
-    dataMgr.setDefaults( product=product, download=download, year=2019, start_day=time_index_range[0], end_day=time_index_range[1], bbox=bbox )
+    dataMgr.setDefaults( product=product, download=download, year=2019, start_day=time_index_range[0], end_day=time_index_range[1] ) # , bbox=bbox )
     data_array = dataMgr.get_tile_data( location, True )
 
-    fig, ax = plt.subplots()
-    fig.suptitle('MPW Time Slice Animation', fontsize=16)
-    fig.subplots_adjust(bottom=0.18)
-    ax_slider = fig.add_axes([0.1, 0.05, 0.8, 0.04])    # [left, bottom, width, height]
-    axes = dict( plot=ax, slider=ax_slider )
-
-    animation = SliceAnimation( fig, data_array, axes, colors=colors )
+    animation = SliceAnimation( data_array, title='MPW Time Slice Animation', colors=colors )
 
     plt.show()
