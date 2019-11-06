@@ -2,6 +2,7 @@ import matplotlib.widgets
 import matplotlib.patches
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.axes import SubplotBase
+from matplotlib.colors import LinearSegmentedColormap, Normalize
 import matplotlib.pyplot as plt
 from threading import  Thread
 from matplotlib.figure import Figure
@@ -18,11 +19,11 @@ class ADirection(Enum):
 
 class EventSource(Thread):
 
-    def __init__( self, action: Callable, delay = 0.1 ):
+    def __init__( self, action: Callable, **kwargs ):
         Thread.__init__(self)
         self.event = None
         self.action = action
-        self.interval = delay
+        self.interval = kwargs.get( "delay",0.5 )
         self.active = False
         self.running = True
         self.daemon = True
@@ -47,12 +48,12 @@ class EventSource(Thread):
 
 class PageSlider(matplotlib.widgets.Slider):
 
-
     def __init__(self, ax: SubplotBase, numpages = 10, valinit=0, valfmt='%1d', **kwargs ):
         self.facecolor=kwargs.get('facecolor',"yellow")
         self.activecolor = kwargs.pop('activecolor',"blue" )
         self.stepcolor = kwargs.pop('stepcolor', "#ff6f6f" )
         self.animcolor = kwargs.pop('animcolor', "#6fff6f" )
+        self.on_animcolor = kwargs.pop('on-animcolor', "#006622")
         self.fontsize = kwargs.pop('fontsize', 10)
         self.maxIndexedPages = 24
         self.numpages = numpages
@@ -60,7 +61,8 @@ class PageSlider(matplotlib.widgets.Slider):
         self.anim_delay: float = self.init_anim_delay
         self.anim_delay_multiplier = 1.5
         self.anim_state = ADirection.STOP
-        self.event_source = EventSource( self.step )
+        self.axes = ax
+        self.event_source = EventSource( self.step, delay = self.init_anim_delay )
 
         super(PageSlider, self).__init__(ax, "", 0, numpages, valinit=valinit, valfmt=valfmt, **kwargs)
 
@@ -100,6 +102,15 @@ class PageSlider(matplotlib.widgets.Slider):
         self.button_aback.on_clicked(self.anim_backward)
         self.button_astop.on_clicked(self.anim_stop)
         self.button_aforward.on_clicked(self.anim_forward)
+
+    def reset_buttons(self):
+        for button in [ self.button_aback, self.button_astop, self.button_aforward ]:
+            button.color = self.animcolor
+        self.refesh()
+
+
+    def refesh(self):
+        self.axes.figure.canvas.draw()
 
     def start(self):
         self.event_source.start()
@@ -152,6 +163,8 @@ class PageSlider(matplotlib.widgets.Slider):
             self.anim_delay = self.init_anim_delay
             self.anim_state = ADirection.FORWARD
             self.event_source.activate( self.anim_delay )
+            self.button_aforward.color = self.on_animcolor
+            self.refesh()
 
     def anim_backward(self, event=None):
         if self.anim_state == ADirection.FORWARD:
@@ -164,12 +177,15 @@ class PageSlider(matplotlib.widgets.Slider):
             self.anim_delay = self.init_anim_delay
             self.anim_state = ADirection.BACKWARD
             self.event_source.activate( self.anim_delay )
+            self.button_aback.color = self.on_animcolor
+            self.refesh()
 
     def anim_stop(self, event=None):
         if self.anim_state != ADirection.STOP:
             self.anim_delay = self.init_anim_delay
             self.anim_state = ADirection.STOP
             self.event_source.deactivate()
+            self.reset_buttons()
 
 class SliceAnimation:
 
@@ -216,7 +232,7 @@ class SliceAnimation:
 
     def _update( self, val ):
         i = int( self.slider.val )
-        self.image.set_data( data_array[i,:,:] )
+        self.image.set_data( self.data[i,:,:] )
         self.plot_axes.title.set_text( f"Frame {i+1}: {self.anim_coord[i]}" )
 
     def show(self):
@@ -226,9 +242,7 @@ class SliceAnimation:
 
 if __name__ == "__main__":
     from geoproc.util.configuration import Region
-    from matplotlib import pyplot as plt
     from geoproc.data.mwp import MWPDataManager
-    from matplotlib.colors import LinearSegmentedColormap, Normalize
 
     colors = [ (0, 0, 0), (0, 1, 0), (0, 0, 1), (1, 1, 0) ]
     locations = [ "120W050N", "100W040N" ]
