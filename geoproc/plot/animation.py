@@ -3,6 +3,7 @@ import matplotlib.patches
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.axes import SubplotBase
 from matplotlib.colors import LinearSegmentedColormap, Normalize
+from matplotlib.collections import QuadMesh
 import matplotlib.pyplot as plt
 from threading import  Thread
 from matplotlib.figure import Figure
@@ -202,6 +203,8 @@ class SliceAnimation:
         self.figure.suptitle( kwargs.get("title",""), fontsize=14 )
         self.figure.subplots_adjust(bottom=0.18)
         self.slider_axes: SubplotBase = self.figure.add_axes([0.1, 0.05, 0.8, 0.04])  # [left, bottom, width, height]
+        self.anim_axis = kwargs.get('axis',0)
+        self.anim_axis_name = self.data[0].dims[ self.anim_axis ]
 
         self.nFrames = self.data[0].shape[0]
         self.create_cmap( **kwargs )
@@ -240,6 +243,12 @@ class SliceAnimation:
             else:
                 self.cnorm = Normalize(0, len(colors))
                 self.cmap = LinearSegmentedColormap.from_list("custom colors", colors, N=4)
+
+    def create_image1(self, iPlot: int ) -> QuadMesh:
+        data = self.data[iPlot]
+        subplot: SubplotBase = self.getSubplot( iPlot )
+        image: QuadMesh = data.isel( **{self.anim_axis_name:0} ).plot( ax=subplot )
+        return image
 
     def create_image(self, iPlot: int ) -> AxesImage:
         data = self.data[iPlot]
