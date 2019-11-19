@@ -358,14 +358,17 @@ class ArrayListAnimation:
 
     def update_plot(self, iFrame: int):
         data: xa.DataArray = self.data[iFrame]
+        vmin, vmax = data.min(), data.max()
         self.image.set_data( data[:,:] )
+        self.image.set_clim(vmin, vmax)
         acoord = self.get_anim_coord()
         self.plot_axes.title.set_text( f"{data.name}: {acoord[iFrame]}" )
-        self.cbar.set_clim( data.min(), data.max() )
+#        self.cbar.set_clim( data.min(), data.max() )
+#        self.cbar.draw_all()
 
     def add_plot(self, **kwargs):
         self.image = self.create_image( )
-        self.cbar = plt.colorbar(self.image)
+#        self.cbar = plt.colorbar(self.image)
 
     def add_slider(self,  **kwargs ):
         self.slider = PageSlider( self.slider_axes, self.nFrames )
