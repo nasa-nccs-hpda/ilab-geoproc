@@ -203,8 +203,12 @@ class SliceAnimation:
         self.figure.suptitle( kwargs.get("title",""), fontsize=14 )
         self.figure.subplots_adjust(bottom=0.18)
         self.slider_axes: SubplotBase = self.figure.add_axes([0.1, 0.05, 0.8, 0.04])  # [left, bottom, width, height]
-        self.anim_axis = kwargs.get('axis',0)
-        self.anim_axis_name = self.data[0].dims[ self.anim_axis ]
+        self.z_axis = kwargs.get('z', 0)
+        self.z_axis_name = self.data[0].dims[ self.z_axis ]
+        self.x_axis = kwargs.get( 'x', 2 )
+        self.x_axis_name = self.data[0].dims[ self.x_axis ]
+        self.y_axis = kwargs.get( 'y', 1 )
+        self.y_axis_name = self.data[0].dims[ self.y_axis ]
 
         self.nFrames = self.data[0].shape[0]
         self.create_cmap( **kwargs )
@@ -213,7 +217,7 @@ class SliceAnimation:
         self._update(0)
 
     def get_xy_coords(self, iPlot: int ) -> Tuple[ np.ndarray, np.ndarray ]:
-        return self.get_coord( iPlot, 2 ), self.get_coord( iPlot, 1 )
+        return self.get_coord( iPlot, self.x_axis ), self.get_coord( iPlot, self.y_axis )
 
     def get_anim_coord(self, iPlot: int ) -> np.ndarray:
         return self.get_coord( iPlot, 0 )
@@ -247,17 +251,26 @@ class SliceAnimation:
     def create_image1(self, iPlot: int ) -> QuadMesh:
         data = self.data[iPlot]
         subplot: SubplotBase = self.getSubplot( iPlot )
-        image: QuadMesh = data.isel( **{self.anim_axis_name:0} ).plot( ax=subplot )
+        image: QuadMesh = data.isel(**{self.z_axis_name:0}).plot(ax=subplot)
+        return image
+
+    def create_image2(self, iPlot: int ) -> QuadMesh:
+        data = self.data[iPlot]
+        subplot: SubplotBase = self.getSubplot( iPlot )
+        image: QuadMesh =  subplot.pcolormesh(data.isel(**{self.z_axis_name:0}))
         return image
 
     def create_image(self, iPlot: int ) -> AxesImage:
+        from geoproc.plot.plot import imshow
         data = self.data[iPlot]
         subplot: SubplotBase = self.getSubplot( iPlot )
-        image: AxesImage = subplot.imshow( data[0, :, :], cmap=self.cmap, norm=self.cnorm, interpolation='nearest')
+#        x, y = self.get_xy_coords( iPlot )
+        z =  data[ 0, :, : ]   # .transpose()
+        image: AxesImage = imshow( z, ax=subplot, cmap=self.cmap, norm=self.cnorm )
         subplot.title.set_text( data.name )
-        x_coord, y_coord = self.get_xy_coords( iPlot )
-        dx2, dy2 = x_coord[1] - x_coord[0], y_coord[0] - y_coord[1]
-        image.set_extent( [ x_coord[0] - dx2,  x_coord[-1] + dx2,  y_coord[-1] - dy2,  y_coord[0] + dy2 ] )
+        # x_coord, y_coord = self.get_xy_coords( iPlot )
+        # dx2, dy2 = x_coord[1] - x_coord[0], y_coord[0] - y_coord[1]
+        # image.set_extent( [ x_coord[0] - dx2,  x_coord[-1] + dx2,  y_coord[-1] - dy2,  y_coord[0] + dy2 ] )
         return image
 
     def update_plots(self, iFrame: int ):
@@ -265,15 +278,16 @@ class SliceAnimation:
             subplot: SubplotBase = self.getSubplot(iPlot)
             data = self.data[iPlot]
             self.images[iPlot].set_data( data[iFrame,:,:] )
+#            self.images[iPlot].set_array( data[iFrame,:,:].values.ravel() )
             acoord = self.get_anim_coord( iPlot )
             subplot.title.set_text( f"{data.name}: {acoord[iFrame]}" )
 
     def add_plots(self, **kwargs ):
         for iPlot in range(self.nPlots):
             self.images[iPlot] = self.create_image( iPlot )
-        divider = make_axes_locatable(self.plot_axes)
-        cax = divider.append_axes('right', size='5%', pad=0.05)
-        self.figure.colorbar( self.images[self.nPlots-1], cax=cax, orientation='vertical')
+#        divider = make_axes_locatable(self.plot_axes)
+#        cax = divider.append_axes('right', size='5%', pad=0.05)
+#        self.figure.colorbar( self.images[self.nPlots-1], cax=cax, orientation='vertical')
 
     def add_slider(self,  **kwargs ):
         self.slider = PageSlider( self.slider_axes, self.nFrames )
@@ -284,6 +298,81 @@ class SliceAnimation:
         self.update_plots(i)
 
 #        self.plot_axes.title.set_text( f"Frame {i+1}: {self.anim_coord[i]}" )
+
+    def show(self):
+        self.slider.start()
+        plt.show()
+
+
+class VariableAnimation:
+
+    def __init__(self, dataset: xa.Dataset, **kwargs ):
+        self.data: List[xa.DataArray] = dataset.data_vars
+        for dvar in self.data:
+            assert dvar.ndim == 2, f"This plotter only works with 2 dimensional [y,x] data arrays.  Found {dvar.dims}"
+        self.plot_axes = None
+        self.figure: Figure = None
+        self.image: AxesImage = None
+        self.figure, self.plot_axes = plt.subplots()
+        self.figure.suptitle( kwargs.get("title",""), fontsize=14 )
+        self.figure.subplots_adjust(bottom=0.18)
+        self.slider_axes: SubplotBase = self.figure.add_axes([0.1, 0.05, 0.8, 0.04])  # [left, bottom, width, height]
+        self.z_axis = kwargs.get('z', 0)
+        self.z_axis_name = self.data[0].dims[ self.z_axis ]
+        self.x_axis = kwargs.get( 'x', 2 )
+        self.x_axis_name = self.data[0].dims[ self.x_axis ]
+        self.y_axis = kwargs.get( 'y', 1 )
+        self.y_axis_name = self.data[0].dims[ self.y_axis ]
+
+        self.nFrames = len(self.data)
+        self.create_cmap( **kwargs )
+        self.add_plot(**kwargs)
+        self.add_slider( **kwargs )
+        self._update(0)
+
+    def get_xy_coords(self) -> Tuple[ np.ndarray, np.ndarray ]:
+        return self.get_coord( self.x_axis ), self.get_coord( self.y_axis )
+
+    def get_anim_coord(self ) -> np.ndarray:
+        return self.get_coord( 0 )
+
+    def get_coord(self, iCoord: int ) -> np.ndarray:
+        return self.data[0].coords[ self.data[0].dims[iCoord] ].values
+
+    def create_cmap( self, **kwargs ):
+        self.cmap = kwargs.get("cmap")
+        self.cnorm = None
+        if self.cmap is None:
+            colors = kwargs.get("colors")
+            if colors is None:
+                self.cmap = "jet"
+            else:
+                self.cnorm = Normalize(0, len(colors))
+                self.cmap = LinearSegmentedColormap.from_list("custom colors", colors, N=4)
+
+    def create_image(self ) -> AxesImage:
+        from geoproc.plot.plot import imshow
+        z =  self.data[ 0 ]   # .transpose()
+        image: AxesImage = imshow( z, ax=self.plot_axes, cmap=self.cmap, norm=self.cnorm )
+        self.plot_axes.title.set_text( z.name )
+        return image
+
+    def update_plot(self, iFrame: int):
+        data = self.data[iFrame]
+        self.image.set_data( data[:,:] )
+        acoord = self.get_anim_coord()
+        self.plot_axes.title.set_text( f"{data.name}: {acoord[iFrame]}" )
+
+    def add_plot(self, **kwargs):
+        self.image = self.create_image( )
+
+    def add_slider(self,  **kwargs ):
+        self.slider = PageSlider( self.slider_axes, self.nFrames )
+        self.slider_cid = self.slider.on_changed(self._update)
+
+    def _update( self, val ):
+        i = int( self.slider.val )
+        self.update_plot(i)
 
     def show(self):
         self.slider.start()
