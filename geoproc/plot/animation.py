@@ -318,11 +318,9 @@ class ArrayListAnimation:
         self.figure.suptitle( kwargs.get("title",""), fontsize=14 )
         self.figure.subplots_adjust(bottom=0.18)
         self.slider_axes: SubplotBase = self.figure.add_axes([0.1, 0.05, 0.8, 0.04])  # [left, bottom, width, height]
-        self.z_axis = kwargs.get('z', 0)
-        self.z_axis_name = self.data[0].dims[ self.z_axis ]
-        self.x_axis = kwargs.get( 'x', 2 )
+        self.x_axis = kwargs.get( 'x', 1 )
         self.x_axis_name = self.data[0].dims[ self.x_axis ]
-        self.y_axis = kwargs.get( 'y', 1 )
+        self.y_axis = kwargs.get( 'y', 0 )
         self.y_axis_name = self.data[0].dims[ self.y_axis ]
 
         self.nFrames = len(self.data)
