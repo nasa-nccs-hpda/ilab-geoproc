@@ -304,10 +304,11 @@ class SliceAnimation:
         plt.show()
 
 
-class VariableAnimation:
+class ArrayListAnimation:
 
-    def __init__(self, dataset: xa.Dataset, **kwargs ):
-        self.data: List[xa.DataArray] = dataset.data_vars
+    def __init__(self, dataset: Union[xa.Dataset,List[xa.DataArray]], **kwargs ):
+        self.data: List[xa.DataArray] = dataset if isinstance(dataset, list) else ( list(dataset.data_vars.values()) if isinstance(dataset, xa.Dataset) else None )
+        assert self.data is not None, " Input must be either xa.Dataset or List[xa.DataArray]"
         for dvar in self.data:
             assert dvar.ndim == 2, f"This plotter only works with 2 dimensional [y,x] data arrays.  Found {dvar.dims}"
         self.plot_axes = None
