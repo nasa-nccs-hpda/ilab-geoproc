@@ -35,7 +35,7 @@ class EventSource(Thread):
         while self.running:
             time.sleep( self.interval )
             if self.active:
-                plt.pause( 0.01 )
+                plt.pause( 0.05 )
                 self.action( self.event )
 
     def activate(self, delay = None ):
@@ -359,12 +359,10 @@ class ArrayListAnimation:
     def update_plot(self, iFrame: int):
         data: xa.DataArray = self.data[iFrame]
         vmin, vmax = data.min(), data.max()
-        self.image.set_data( data[:,:] )
-        self.image.set_clim(vmin, vmax)
         acoord = self.get_anim_coord()
         self.plot_axes.title.set_text( f"{data.name}: {acoord[iFrame]}" )
-#        self.cbar.set_clim( data.min(), data.max() )
-#        self.cbar.draw_all()
+        self.image.set_clim(vmin, vmax)
+        self.image.set_data( data[:,:] )
 
     def add_plot(self, **kwargs):
         self.image = self.create_image( )
