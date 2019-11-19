@@ -57,6 +57,7 @@ class PageSlider(matplotlib.widgets.Slider):
         self.animcolor = kwargs.pop('animcolor', "#6fff6f" )
         self.on_animcolor = kwargs.pop('on-animcolor', "#006622")
         self.fontsize = kwargs.pop('fontsize', 10)
+        self.animation_controls = kwargs.pop('dynamic', True )
         self.maxIndexedPages = 24
         self.numpages = numpages
         self.init_anim_delay: float = 0.5   # time between timer events in seconds
@@ -91,25 +92,26 @@ class PageSlider(matplotlib.widgets.Slider):
         self.button_back.on_clicked(self.step_backward)
         self.button_forward.on_clicked(self.step_forward)
 
-        afax = divider.append_axes("left", size="5%", pad=0.05)
-        asax = divider.append_axes("left", size="5%", pad=0.05)
-        abax = divider.append_axes("left", size="5%", pad=0.05)
-        self.button_aback    = matplotlib.widgets.Button( abax, label='$\u25C0$', color=self.animcolor, hovercolor=self.activecolor)
-        self.button_astop = matplotlib.widgets.Button( asax, label='$\u25FE$', color=self.animcolor, hovercolor=self.activecolor)
-        self.button_aforward = matplotlib.widgets.Button( afax, label='$\u25B6$', color=self.animcolor, hovercolor=self.activecolor)
+        if self.animation_controls:
+            afax = divider.append_axes("left", size="5%", pad=0.05)
+            asax = divider.append_axes("left", size="5%", pad=0.05)
+            abax = divider.append_axes("left", size="5%", pad=0.05)
+            self.button_aback    = matplotlib.widgets.Button( abax, label='$\u25C0$', color=self.animcolor, hovercolor=self.activecolor)
+            self.button_astop = matplotlib.widgets.Button( asax, label='$\u25FE$', color=self.animcolor, hovercolor=self.activecolor)
+            self.button_aforward = matplotlib.widgets.Button( afax, label='$\u25B6$', color=self.animcolor, hovercolor=self.activecolor)
 
-        self.button_aback.label.set_fontsize(self.fontsize)
-        self.button_astop.label.set_fontsize(self.fontsize)
-        self.button_aforward.label.set_fontsize(self.fontsize)
-        self.button_aback.on_clicked(self.anim_backward)
-        self.button_astop.on_clicked(self.anim_stop)
-        self.button_aforward.on_clicked(self.anim_forward)
+            self.button_aback.label.set_fontsize(self.fontsize)
+            self.button_astop.label.set_fontsize(self.fontsize)
+            self.button_aforward.label.set_fontsize(self.fontsize)
+            self.button_aback.on_clicked(self.anim_backward)
+            self.button_astop.on_clicked(self.anim_stop)
+            self.button_aforward.on_clicked(self.anim_forward)
 
     def reset_buttons(self):
-        for button in [ self.button_aback, self.button_astop, self.button_aforward ]:
-            button.color = self.animcolor
-        self.refesh()
-
+        if self.animation_controls:
+            for button in [ self.button_aback, self.button_astop, self.button_aforward ]:
+                button.color = self.animcolor
+            self.refesh()
 
     def refesh(self):
         self.axes.figure.canvas.draw()
@@ -369,7 +371,7 @@ class ArrayListAnimation:
 #        self.cbar = plt.colorbar(self.image)
 
     def add_slider(self,  **kwargs ):
-        self.slider = PageSlider( self.slider_axes, self.nFrames )
+        self.slider = PageSlider( self.slider_axes, self.nFrames, dynamic = False )
         self.slider_cid = self.slider.on_changed(self._update)
 
     def _update( self, val ):
