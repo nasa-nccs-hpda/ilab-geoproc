@@ -324,6 +324,7 @@ class ArrayListAnimation:
         self.x_axis_name = self.data[0].dims[ self.x_axis ]
         self.y_axis = kwargs.get( 'y', 0 )
         self.y_axis_name = self.data[0].dims[ self.y_axis ]
+        self.ranges = [ ( data.min(), data.max() ) for data in self.data ]
 
         self.nFrames = len(self.data)
         self.create_cmap( **kwargs )
@@ -360,10 +361,9 @@ class ArrayListAnimation:
 
     def update_plot(self, iFrame: int):
         data: xa.DataArray = self.data[iFrame]
-        vmin, vmax = data.min(), data.max()
         acoord = self.get_anim_coord()
         self.plot_axes.title.set_text( f"{data.name}: {acoord[iFrame]}" )
-        self.image.set_clim(vmin, vmax)
+        self.image.set_clim( *self.ranges[iFrame] )
         self.image.set_data( data[:,:] )
 
     def add_plot(self, **kwargs):
@@ -371,7 +371,7 @@ class ArrayListAnimation:
 #        self.cbar = plt.colorbar(self.image)
 
     def add_slider(self,  **kwargs ):
-        self.slider = PageSlider( self.slider_axes, self.nFrames, dynamic = False )
+        self.slider = PageSlider( self.slider_axes, self.nFrames, dynamic = True )
         self.slider_cid = self.slider.on_changed(self._update)
 
     def _update( self, val ):
