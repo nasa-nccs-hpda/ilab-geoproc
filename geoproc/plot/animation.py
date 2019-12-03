@@ -3,7 +3,6 @@ import matplotlib.patches
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.axes import SubplotBase
 from matplotlib.colors import LinearSegmentedColormap, Normalize
-from matplotlib.collections import QuadMesh
 import matplotlib.pyplot as plt
 from threading import  Thread
 from matplotlib.figure import Figure
@@ -250,18 +249,6 @@ class SliceAnimation:
                 self.cnorm = Normalize(0, len(colors))
                 self.cmap = LinearSegmentedColormap.from_list("custom colors", colors, N=4)
 
-    def create_image1(self, iPlot: int ) -> QuadMesh:
-        data = self.data[iPlot]
-        subplot: SubplotBase = self.getSubplot( iPlot )
-        image: QuadMesh = data.isel(**{self.z_axis_name:0}).plot(ax=subplot)
-        return image
-
-    def create_image2(self, iPlot: int ) -> QuadMesh:
-        data = self.data[iPlot]
-        subplot: SubplotBase = self.getSubplot( iPlot )
-        image: QuadMesh =  subplot.pcolormesh(data.isel(**{self.z_axis_name:0}))
-        return image
-
     def create_image(self, iPlot: int ) -> AxesImage:
         from geoproc.plot.plot import imshow
         data = self.data[iPlot]
@@ -361,17 +348,15 @@ class ArrayListAnimation:
 
     def update_plot(self, iFrame: int):
         data: xa.DataArray = self.data[iFrame]
-        acoord = self.get_anim_coord()
-        self.plot_axes.title.set_text( f"{data.name}: {acoord[iFrame]}" )
+        self.plot_axes.title.set_text( f"{data.name}" )
         self.image.set_clim( *self.ranges[iFrame] )
         self.image.set_data( data[:,:] )
 
     def add_plot(self, **kwargs):
         self.image = self.create_image( )
-#        self.cbar = plt.colorbar(self.image)
 
     def add_slider(self,  **kwargs ):
-        self.slider = PageSlider( self.slider_axes, self.nFrames, dynamic = True )
+        self.slider = PageSlider( self.slider_axes, self.nFrames, dynamic = False )
         self.slider_cid = self.slider.on_changed(self._update)
 
     def _update( self, val ):
@@ -382,6 +367,118 @@ class ArrayListAnimation:
         self.slider.start()
         plt.show()
 
+class PlotComparisons:
+
+    def __init__(self, comparison_data: Dict[str,Dict[int,xa.DataArray]], **kwargs ):
+        self.data: Dict[str,Dict[int,xa.DataArray]] = comparison_data
+        assert self.data is not None, " Input must be either xa.Dataset or List[xa.DataArray]"
+        for data_series in self.data.values():
+            for dvar in data_series.values():
+                assert dvar.ndim == 2, f"This plotter only works with 2 dimensional [y,x] data arrays.  Found {dvar.dims}"
+        self.plot_axes = None
+        self.figure: Figure = None
+        self.images: Dict[str,AxesImage] = {}
+        self.nPlots = len( self.data )
+        self.nFrames = max([max(dSeries.keys()) for dSeries in self.data.values()])
+        self.plot_grid_shape: List[int] = self.getSubplotShape( )  # [ rows, cols ]
+        self.figure, self.plot_axes = plt.subplots( *self.plot_grid_shape )
+        self.figure.suptitle( kwargs.get("title",""), fontsize=14 )
+        self.figure.subplots_adjust(bottom=0.18)
+        self.slider_axes: SubplotBase = self.figure.add_axes([0.1, 0.05, 0.8, 0.04])  # [left, bottom, width, height]
+        self.x_axis = kwargs.get( 'x', 1 )
+        self.y_axis = kwargs.get( 'y', 0 )
+        self.ranges: Dict[str,Dict[int,Tuple[float,float]]] = { seriesId: { frameId: (data.min(), data.max()) for frameId, data in seriesData.items() } for seriesId, seriesData in self.data.items() }
+        self.frames = list(self.data.keys())
+        self.create_cmap( **kwargs )
+        for iPlot in range(self.nPlots):
+            self.add_plot( iPlot, **kwargs )
+        self.add_slider( **kwargs )
+        self._update(0)
+
+    def get_xy_coords(self, seriesId: str ) -> Tuple[ np.ndarray, np.ndarray ]:
+        return self.get_coord( seriesId, self.x_axis ), self.get_coord( seriesId, self.y_axis )
+
+    def get_anim_coord(self, seriesId: str ) -> np.ndarray:
+        return self.get_coord( seriesId, 0 )
+
+    def get_coord(self, seriesId: str, iCoord: int ) -> np.ndarray:
+        dataArray = self.data[ seriesId ][0]
+        return dataArray.coords[ dataArray.dims[iCoord] ].values
+
+    def create_cmap( self, **kwargs ):
+        self.cmap = kwargs.get("cmap")
+        self.cnorm = None
+        if self.cmap is None:
+            colors = kwargs.get("colors")
+            if colors is None:
+                self.cmap = "jet"
+            else:
+                self.cnorm = Normalize(0, len(colors))
+                self.cmap = LinearSegmentedColormap.from_list("custom colors", colors, N=4)
+
+    def getPlotArgs(self, ax, seriesId: str ):
+        x,y = self.get_xy_coords( seriesId )
+        try: xstep = (x[1] - x[0]) / 2.0
+        except IndexError: xstep = 0.1
+        try:  ystep = (y[1] - y[0]) / 2.0
+        except IndexError: ystep = 0.1
+        left, right = x[0] - xstep, x[-1] + xstep
+        bottom, top = y[-1] + ystep, y[0] - ystep
+        defaults = { "interpolation": "nearest" }
+        defaults["origin"] = "upper" if ystep < 0.0 else "lower"
+        if not hasattr( ax, "projection" ): defaults["aspect"] = "auto"
+        if defaults["origin"] == "upper":   defaults["extent"] = [left, right, bottom, top]
+        else:                               defaults["extent"] = [left, right, top, bottom]
+        return defaults
+
+    def create_image(self, seriesId: str, iPlot: int ) -> AxesImage:
+        dataSeries: Dict[int,xa.DataArray] = self.data[seriesId]
+        range = self.ranges[seriesId].get(0)
+        subplot: SubplotBase = self.getSubplot(iPlot)
+        z: xa.DataArray = dataSeries[0]
+        plotArgs = self.getPlotArgs( subplot, seriesId )
+        image: AxesImage = subplot.imshow( z, cmap=self.cmap, norm=self.cnorm, **plotArgs )
+        if range is not None: image.set_clim( *range )
+        image.axes.title.set_text(z.name)
+        plt.colorbar(image, ax=subplot, cmap=self.cmap, norm=self.cnorm)
+        return image
+
+    def getSubplot( self, iPlot: int  ) -> SubplotBase:
+        if self.plot_grid_shape == [1, 1]: return self.plot_axes
+        if self.plot_grid_shape[0] == 1 or self.plot_grid_shape[1] == 1:
+            return self.plot_axes[iPlot]
+        plot_coords = [ iPlot//self.plot_grid_shape[1], iPlot % self.plot_grid_shape[1]  ]
+        return self.plot_axes[ plot_coords[0], plot_coords[1] ]
+
+    def update_plot(self, seriesId: str, iFrame: int ):
+        data: xa.DataArray = self.data[seriesId][iFrame]
+        image = self.images[seriesId]
+        range = self.ranges[seriesId].get(iFrame)
+        if range is not None: image.set_clim( *range )
+        image.axes.title.set_text( f"{data.name}" )
+        image.set_data( data.values )
+
+    def add_plot(self, iPlot: int, **kwargs):
+        seriesId = self.frames[iPlot]
+        self.images[seriesId] = self.create_image( seriesId, iPlot )
+
+    def add_slider(self,  **kwargs ):
+        self.slider = PageSlider( self.slider_axes, self.nFrames, dynamic = False )
+        self.slider_cid = self.slider.on_changed(self._update)
+
+    def _update( self, val ):
+        iFrame = int( self.slider.val )
+        for seriesId in self.data.keys():
+            self.update_plot( seriesId, iFrame )
+
+    def show(self):
+        self.slider.start()
+        plt.show()
+
+    def getSubplotShape(self ) -> List[int]:
+        n1 = math.floor( math.sqrt( self.nPlots ) )
+        n0 = math.ceil( self.nPlots / n1 )
+        return [ n0, n1 ]
 
 if __name__ == "__main__":
     from geoproc.util.configuration import Region

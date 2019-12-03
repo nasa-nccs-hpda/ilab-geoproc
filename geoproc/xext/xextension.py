@@ -1,12 +1,12 @@
 import numpy as np, os
 from osgeo import osr
 import xarray as xr
+from typing import Dict, List, Tuple, Union, Optional
 
 class XExtension(object):
     """  This is the base class for xarray extensions """
 
     StandardAxisNames = { 'x': [ 'x', 'lon' ], 'y': [ 'y', 'lat' ], 't': [ 't', 'time' ] }
-    StandardAxisPositions = {'x': -1, 'y': -2, 't': 0 }
 
     def __init__(self, xarray_obj: xr.DataArray):
         self._obj: xr.DataArray = xarray_obj
@@ -15,21 +15,33 @@ class XExtension(object):
         self.time_coord = self.getCoordName('t')
         self._crs: osr.SpatialReference = self.getSpatialReference()
         self._geotransform = self.getTransform()
-        self._y_inverted = self.ycoords[0] > self.ycoords[-1]
+
+    def set_persistent_attribute(self, name: str, value: str ):
+        self._obj.attrs[ name ] = value
+
+    def get_persistent_attribute(self, name: str ) -> Optional[str]:
+        return self._obj.attrs.get( name )
 
     @property
-    def xcoords(self)-> np.ndarray:
+    def y_inverted(self)-> Optional[bool]:
+        if self.y_coord is None: return None
+        return self.ycoords[0] > self.ycoords[-1]
+
+    @property
+    def xcoords(self)-> Optional[np.ndarray]:
+        if self.x_coord is None: return None
         return self._obj[self.x_coord].values
 
     @property
-    def ycoords(self)-> np.ndarray:
+    def ycoords(self)-> Optional[np.ndarray]:
+        if self.y_coord is None: return None
         return self._obj[self.y_coord].values
 
-    def getCoordName( self, axis: str ) -> str:
+    def getCoordName( self, axis: str ) -> Optional[str]:
         for cname, coord in self._obj.coords.items():
-            if str(cname).lower() in self.StandardAxisNames[axis] or coord.attrs.get("axis") == axis:
+            if (str(cname).lower() in self.StandardAxisNames[axis]) or (coord.attrs.get("axis") == axis) or (axis == cname) or axis in coord.dims:
                 return str(cname)
-        return  self._obj.dims[ self.StandardAxisPositions[axis] ]
+        return None
 
     def getSpatialReference( self ) -> osr.SpatialReference:
         sref = osr.SpatialReference()

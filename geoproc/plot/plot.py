@@ -1,6 +1,7 @@
 import functools
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as pyplot
 
 from xarray.plot.facetgrid import _easy_facetgrid
 from xarray.plot.utils import (
@@ -689,9 +690,11 @@ def _plot2d(plotfunc):
         yplt, ylab_extra = _resolve_intervals_2dplot(yval, plotfunc.__name__)
 
         _ensure_plottable(xplt, yplt)
+        kwargs = locals()
+        zdat =  zval.data
 
         cmap_params, cbar_kwargs = _process_cmap_cbar_kwargs(
-            plotfunc, zval.data, **locals()
+            plotfunc, zdat, **kwargs
         )
 
         if "contour" in plotfunc.__name__:
@@ -716,17 +719,9 @@ def _plot2d(plotfunc):
             )
 
         ax = get_axis(figsize, size, aspect, ax)
-        primitive = plotfunc(
-            xplt,
-            yplt,
-            zval,
-            ax=ax,
-            cmap=cmap_params["cmap"],
-            vmin=cmap_params["vmin"],
-            vmax=cmap_params["vmax"],
-            norm=cmap_params["norm"],
-            **kwargs,
-        )
+        plot_args = { key:value for key,value in kwargs.items() if value is not None }
+        plot_args.update( ax=ax, cmap=cmap_params["cmap"], vmin=cmap_params["vmin"], vmax=cmap_params["vmax"], norm=cmap_params["norm"] )
+        primitive = plotfunc( xplt, yplt, zval, **plot_args )
 
         # Label the plot with metadata
         if add_labels:
@@ -863,13 +858,14 @@ def imshow(x, y, z, ax, **kwargs):
     left, right = x[0] - xstep, x[-1] + xstep
     bottom, top = y[-1] + ystep, y[0] - ystep
 
-    defaults = {"origin": "upper", "interpolation": "nearest"}
+    defaults = { "origin": "upper", "interpolation": "nearest" }
 
     if not hasattr(ax, "projection"):
         # not for cartopy geoaxes
         defaults["aspect"] = "auto"
 
     # Allow user to override these defaults
+
     defaults.update(kwargs)
 
     if defaults["origin"] == "upper":
@@ -890,7 +886,7 @@ def imshow(x, y, z, ax, **kwargs):
             z = z.copy()
         z[np.any(z.mask, axis=-1), -1] = 0
 
-    primitive = ax.imshow(z, **defaults)
+    primitive = pyplot.imshow( z, **defaults )
 
     return primitive
 

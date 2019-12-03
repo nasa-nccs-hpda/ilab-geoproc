@@ -81,8 +81,8 @@ class XGeo(XExtension):
         trans = osr.CoordinateTransformation( self._crs, sref )
         return trans.TransformPoint( x_coord, y_coord )[:2]
 
-    def to_gdal(self):
-        in_array = self._obj.values
+    def to_gdal(self) -> gdal.Dataset:
+        in_array: np.ndarray = self._obj.values
         num_bands = 1
         nodata_value = self._obj.attrs.get('nodatavals',[None])[0]
         gdal_dtype = gdalconst.GDT_Float32
@@ -91,7 +91,7 @@ class XGeo(XExtension):
         if in_array.ndim == 3:  num_bands, y_size, x_size = in_array.shape
         else:                   y_size, x_size = in_array.shape
 
-        dataset = gdal.GetDriverByName('MEM').Create("GdalDataset", x_size, y_size, num_bands, gdal_dtype)
+        dataset: gdal.Dataset = gdal.GetDriverByName('MEM').Create("GdalDataset", x_size, y_size, num_bands, gdal_dtype)
 
         dataset.SetGeoTransform( self._geotransform )
         dataset.SetProjection( proj )
@@ -127,8 +127,8 @@ if __name__ == '__main__':
     dataMgr.setDefaults( product = "1D1OS", download = True, year = 2019, start_day = 200, end_day = 205 )
     files = dataMgr.get_tile(location, download = False)
 
-    arrays = dataMgr.get_array_data(files)
-    data_array = arrays[0]
+    arrays: List[xr.DataArray] = dataMgr.get_array_data(files)
+    data_array: xr.DataArray = arrays[0]
 
     dset: GDALGrid = data_array.xgeo.to_gdalGrid()
 
