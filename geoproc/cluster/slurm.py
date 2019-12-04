@@ -24,7 +24,6 @@ class SlurmProcessManager:
       self.config = serverConfiguration
       self.logger =  ILABLogger.getLogger()
       self.num_wps_requests = 0
-      self.scheduler_address = serverConfiguration.get("scheduler.address",None)
       self.maxworkers = serverConfiguration.get("scheduler.maxworkers", 16 )
       self.queue = serverConfiguration.get( "scheduler.queue", "default" )
       self.submitters = []
@@ -94,9 +93,7 @@ class SlurmProcessManager:
       return metrics
 
   def getDashboardAddress(self):
-      stoks = self.scheduler_address.split(":")
-      host_address = stoks[-2].strip("/")
-      return f"http://{host_address}:8787"
+      return f"http://127.0.0.1:8787"
 
   def getCounts(self) -> Dict:
       profile_address = f"{self.getDashboardAddress()}/json/counts.json"
