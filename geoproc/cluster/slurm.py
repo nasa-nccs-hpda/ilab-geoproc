@@ -85,11 +85,11 @@ class SlurmProcessManager:
 
   def getWorkerMetrics(self):
       metrics = {}
-      wkeys = [ 'ncores', 'memory_limit', 'last_seen', 'metrics' ]
+#      wkeys = [ 'ncores', 'memory_limit', 'last_seen', 'metrics' ]
       scheduler_info = self.client.scheduler_info()
       workers: Dict = scheduler_info.get( "workers", {} )
       for iW, worker in enumerate( workers.values() ):
-          metrics[f"W{iW}"] = { wkey: worker[wkey] for wkey in wkeys }
+          metrics[f"W{iW}"] = worker # { wkey: worker[wkey] for wkey in wkeys }
       return metrics
 
   def getDashboardAddress(self):
