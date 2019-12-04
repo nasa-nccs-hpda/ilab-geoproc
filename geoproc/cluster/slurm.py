@@ -49,7 +49,7 @@ class SlurmProcessManager:
 
   def getCWTMetrics(self) -> Dict:
       metrics_data = { key:{} for key in ['user_jobs_queued','user_jobs_running','wps_requests','cpu_ave','cpu_count','memory_usage','memory_available']}
-      metrics = self.getProfileData()
+      metrics = { "counts": self.getCounts(), "workers": self.getWorkerMetrics() }
       counts = metrics["counts"]
       workers = metrics["workers"]
       for key in ['tasks','processing','released','memory','saturated','waiting','waiting_data','unrunnable']: metrics_data['user_jobs_running'][key] = counts[key]
@@ -68,7 +68,7 @@ class SlurmProcessManager:
       isIdle = False
       self.logger.info(f" ** TRACKING METRICS ** ")
       while self.active:
-          metrics = self.getProfileData()
+          metrics = { "counts": self.getCounts(), "workers": self.getWorkerMetrics() }
           counts = metrics["counts"]
           if counts['processing'] == 0:
               if not isIdle:
@@ -111,13 +111,6 @@ class SlurmProcessManager:
       if "processing" in mtypes:  metrics["processing"] = self.client.processing()
       if "profile" in mtypes:     metrics["profile"]    = self.client.profile()
       return metrics
-
-  def getProfileData( self, mtype: str = "" ) -> Dict:
-      try:
-        return { "counts": self.getCounts(), "workers": self.getWorkerMetrics() }
-      except Exception as err:
-          self.logger.error( "Error in getProfileData")
-          self.logger.error(traceback.format_exc())
 
   def term(self):
       self.active = False
