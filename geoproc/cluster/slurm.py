@@ -3,26 +3,47 @@ import traceback, time, logging, xml, socket, abc, dask, threading, requests, js
 from dask.distributed import Client, Future, LocalCluster
 from dask_jobqueue import SLURMCluster
 from geoproc.util.logging import ILABLogger
-import random, string, os, queue, datetime, atexit, multiprocessing, errno, uuid
+import random, string, os, queue, datetime, atexit, multiprocessing, errno, uuid, abc
 from threading import Thread
 import xarray as xa
 
-class SlurmProcessManager:
-  manager: "SlurmProcessManager" = None
+class ClusterManager:
 
-  @classmethod
-  def getManager( cls ) -> Optional["SlurmProcessManager"]:
-      return cls.manager
+    def __init__(self, serverConfiguration: Dict[str,Any]):
+        self.type = serverConfiguration.get('type','local')
+        self.logger = ILABLogger.getLogger()
+        self.mgr = None
+        if self.type == "slurm":
+            self.mgr = SlurmClusterManager( serverConfiguration )
+        self.logger.info( f"Using {self.type} Cluster Manager for Dask/xarray" )
 
-  @classmethod
-  def initManager( cls, serverConfiguration: Dict[str,str] ) -> "SlurmProcessManager":
-      if cls.manager is None:
-          cls.manager = SlurmProcessManager(serverConfiguration)
-      return cls.manager
+    def __enter__(self):
+        return self.mgr
 
-  def __init__( self, serverConfiguration: Dict[str,str] ):
-      self.config = serverConfiguration
-      self.logger =  ILABLogger.getLogger()
+    def __exit__(self):
+        if self.mgr is not None:
+            self.mgr.term()
+
+class ClusterManagerBase:
+    __metaclass__ = abc.ABCMeta
+
+    def __init__(self, serverConfiguration: Dict[str, Any]):
+        self.config = serverConfiguration
+        self.logger = ILABLogger.getLogger()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self):
+        self.term()
+
+    @abc.abstractmethod
+    def term(self): pass
+
+class SlurmClusterManager(ClusterManagerBase):
+
+  def __init__( self, serverConfiguration: Dict[str,Any] ):
+      ClusterManagerBase.__init__( self, serverConfiguration )
       self.num_wps_requests = 0
       self.maxworkers = serverConfiguration.get("scheduler.maxworkers", 16 )
       self.queue = serverConfiguration.get( "scheduler.queue", "default" )
@@ -39,12 +60,6 @@ class SlurmProcessManager:
       if log_metrics:
         self.metricsThread =  Thread( target=self.trackMetrics )
         self.metricsThread.start()
-
-  def __enter__(self):
-      return self
-
-  def __exit__(self):
-      self.term()
 
   def getSlurmCluster( self, queue: str ):
       self.logger.info( f"Initializing Slurm cluster using queue {queue}" )
@@ -120,4 +135,22 @@ class SlurmProcessManager:
 
   def term(self):
       self.active = False
+      time.sleep(0.1)
       self.client.close()
+
+
+class PersistentSlurmClusterManager(SlurmClusterManager):
+  manager: "PersistentSlurmClusterManager" = None
+
+  @classmethod
+  def getManager( cls ) -> Optional["PersistentSlurmClusterManager"]:
+      return cls.manager
+
+  @classmethod
+  def initManager( cls, serverConfiguration: Dict[str,str] ) -> "PersistentSlurmClusterManager":
+      if cls.manager is None:
+          cls.manager = PersistentSlurmClusterManager(serverConfiguration)
+      return cls.manager
+
+  def __init__( self, serverConfiguration: Dict[str,str] ):
+      SlurmClusterManager.__init__( self, serverConfiguration )
