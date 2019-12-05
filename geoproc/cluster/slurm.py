@@ -40,6 +40,12 @@ class SlurmProcessManager:
         self.metricsThread =  Thread( target=self.trackMetrics )
         self.metricsThread.start()
 
+  def __enter__(self):
+      return self
+
+  def __exit__(self):
+      self.term()
+
   def getSlurmCluster( self, queue: str ):
       self.logger.info( f"Initializing Slurm cluster using queue {queue}" )
       cluster =  self.slurm_clusters.setdefault( queue, SLURMCluster() if queue == "default" else SLURMCluster( queue=queue ) )
