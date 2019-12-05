@@ -7,23 +7,6 @@ import random, string, os, queue, datetime, atexit, multiprocessing, errno, uuid
 from threading import Thread
 import xarray as xa
 
-class ClusterManager:
-
-    def __init__(self, serverConfiguration: Dict[str,Any]):
-        self.type = serverConfiguration.get('type','local')
-        self.logger = ILABLogger.getLogger()
-        self.mgr = None
-        if self.type == "slurm":
-            self.mgr = SlurmClusterManager( serverConfiguration )
-        self.logger.info( f"Using {self.type} Cluster Manager for Dask/xarray" )
-
-    def __enter__(self):
-        return self.mgr
-
-    def __exit__(self):
-        if self.mgr is not None:
-            self.mgr.term()
-
 class ClusterManagerBase:
     __metaclass__ = abc.ABCMeta
 
@@ -34,11 +17,27 @@ class ClusterManagerBase:
     def __enter__(self):
         return self
 
-    def __exit__(self):
+    def __exit__(self, exc_type, exc_value, tb):
+        if exc_type is not None:
+            traceback.print_exception(exc_type, exc_value, tb)
         self.term()
 
     @abc.abstractmethod
     def term(self): pass
+
+class ClusterManager(ClusterManagerBase):
+
+    def __init__(self, serverConfiguration: Dict[str,Any]):
+        ClusterManagerBase.__init__(self, serverConfiguration)
+        self.type = serverConfiguration.get('type','local')
+        self.mgr = None
+        if self.type == "slurm":
+            self.mgr = SlurmClusterManager( serverConfiguration )
+        self.logger.info( f"Using {self.type} Cluster Manager for Dask/xarray" )
+
+    def term(self):
+        if self.mgr is not None:
+            self.mgr.term()
 
 class SlurmClusterManager(ClusterManagerBase):
 
