@@ -29,4 +29,4 @@ if __name__ == '__main__':
 
     cluster_parameters = {'type': 'local'}
     with ClusterManager( cluster_parameters ) as clusterMgr:
-        print("TEST")
+        print("TEST1")
