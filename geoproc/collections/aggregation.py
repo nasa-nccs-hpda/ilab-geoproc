@@ -5,7 +5,8 @@ import numpy as np
 from netCDF4 import MFDataset, Variable
 from typing import List, Dict, Any, Sequence, BinaryIO, TextIO, ValuesView, Optional, Tuple
 from edas.process.source import VID
-from edas.config import EdasEnv
+from geoproc.util.configuration import ILABEnv
+from geoproc.util.logging import ILABLogger
 import defusedxml.ElementTree as ET
 from edas.util.logging import EDASLogger
 
@@ -16,39 +17,6 @@ def parse_dict( dict_spec ):
     for elem in dict_spec.split(","):
         elem_toks = elem.split(":")
         result[ elem_toks[0].strip() ] = elem_toks[1].strip()
-
-class Archive:
-
-
-    cacheDir = EdasEnv.TRANSIENTS_DIR
-    baseDir = os.path.join( cacheDir, "results" )
-
-    @classmethod
-    def getProjectPath( cls, project: str ):
-        assert project, "Missing project parameter!"
-        path = os.path.join( Archive.baseDir, project )
-        os.makedirs( path, mode=0o777, exist_ok=True )
-        return path
-
-    @classmethod
-    def getExperimentPath( cls, project: str, experiment: str ):
-        assert project, "Missing project parameter!"
-        assert experiment, "Missing experiment parameter!"
-        path = os.path.join( Archive.baseDir, project, experiment )
-        os.makedirs( path, mode=0o777, exist_ok=True )
-        return path
-
-    @classmethod
-    def getFilePath(cls, project: str, experiment: str, id: str):
-        expPath = cls.getExperimentPath( project, experiment )
-        assert experiment, "Missing experiment parameter!"
-        return os.path.join( expPath, id + ".nc")
-
-    @classmethod
-    def getLogDir( cls ):
-        path = os.path.join( Archive.baseDir, "logs" )
-        os.makedirs( path, mode=0o777, exist_ok=True )
-        return path
 
 class File:
 
@@ -176,7 +144,7 @@ class Aggregation:
         return ( nchunks, fileSize )
 
     def _parseAggFile(self):
-        assert os.path.isfile(self.spec), "Unknown Aggregation: " + os.path.basename(self.spec)
+        assert os.path.isfile(self.spec), "Unknown Aggregation: " + self.spec
         self.logger.info( "Parsing Agg file: " + self.spec )
         try:
             with open(self.spec, "r") as file:
@@ -249,11 +217,3 @@ class Aggregation:
     def getDataset( self ) -> MFDataset:
         return MFDataset( self.pathList() )
 
-
-if __name__ == "__main__":
-# AggProcessing.changeBasePaths( "/dass/adm/edas/cache/collection/agg",
-#                                "/dass/dassnsd/data01/sys/edas/cache/collection/agg",
-#                                { "/dass/pubrepo": "/dass/dassnsd/data01/cldra/data/pubrepo" }  )
-#    print( str( Collection.getCollectionsList() ) )
-    c: Collection = Collection.new( "cip_cfsr_mon_1980-1995" )
-    print( c.getVariableSpec("tas") )

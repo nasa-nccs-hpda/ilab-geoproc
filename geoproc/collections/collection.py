@@ -1,17 +1,21 @@
 import os
-
+from geoproc.util.configuration import ILABEnv
+from geoproc.util.logging import ILABLogger
+from datetime import datetime, timezone
+from netCDF4 import MFDataset, Variable
+from typing import List, Dict, Any, Sequence, BinaryIO, TextIO, ValuesView, Optional, Tuple
+from edas.process.source import VID
+from geoproc.collections.aggregation import Aggregation, File
 
 class Collection:
 
-
-    cacheDir = os.path.expanduser( EdasEnv.COLLECTIONS_DIR )
-    baseDir = os.path.join( cacheDir, "collections", "agg" )
+    collDir = os.path.expanduser( ILABEnv.COLLECTIONS )
 
     @classmethod
     def getCollectionsList(cls):
         collList = []
-        for f in os.listdir(cls.baseDir):
-            if( os.path.isfile( os.path.join(cls.baseDir, f ) ) and f.endswith(".csv") ):
+        for f in os.listdir(cls.collDir):
+            if( os.path.isfile(os.path.join(cls.collDir, f)) and f.endswith(".csv")):
                 collection_name = f[0:-4]
                 collection = Collection.new( collection_name )
                 aggSpecs = [ '<variable name="{}" agg="{}"/>'.format( vName, aggName ) for vName,aggName in collection.aggs.items( )]
@@ -20,11 +24,11 @@ class Collection:
 
     @classmethod
     def new(cls, name: str ):
-        spec_file = os.path.join( cls.baseDir, name + ".csv" )
+        spec_file = os.path.join(cls.collDir, name + ".csv")
         return Collection(name, spec_file)
 
     def __init__(self, _name, _spec_file ):
-        self.logger = EDASLogger.getLogger()
+        self.logger = ILABLogger.getLogger()
         self.name = _name
         self.spec = os.path.expanduser( _spec_file )
         self.aggs = {}
@@ -33,7 +37,7 @@ class Collection:
 
     def _parseSpecFile(self):
         self.logger.info( f"Retreiving spec for collection {self.name} from spec file {self.spec}")
-        assert os.path.isfile(self.spec), "Unknown Collection: " + self.spec + ", Collections dir = " + self.baseDir
+        assert os.path.isfile(self.spec), "Unknown Collection: " + self.spec + ", Collections dir = " + self.collDir
         with open( self.spec, "r" ) as file:
             for line in file.readlines():
                 if not line: break
@@ -48,7 +52,7 @@ class Collection:
         return self.aggs.get( varName )
 
     def getAggregation( self, aggId: str ) -> "Aggregation":
-        agg_file = os.path.join( Collection.baseDir, aggId + ".ag1")
+        agg_file = os.path.join(Collection.collDir, aggId + ".ag1")
         return Aggregation( self.name, agg_file )
 
     def getVariableSpec( self, varName: str ):

@@ -12,6 +12,7 @@ from typing import Dict, List, Tuple, Union
 import os, time, sys
 import xarray as xr
 import numpy as np
+from glob import glob
 from geoproc.surfaceMapping.lakes import WaterMapGenerator
 from geoproc.data.mwp import MWPDataManager
 from geoproc.data.shapefiles import ShapefileManager
@@ -20,6 +21,7 @@ from geoproc.data.grid import GDALGrid
 import os
 
 SHAPEFILE = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/shp/MEASURESLAKESSHAPES.shp"
+DEMs = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/DEM/*.tif"
 locations = [ "120W050N", "100W040N" ]
 products = [ "1D1OS", "3D3OT" ]
 DATA_DIR = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt"

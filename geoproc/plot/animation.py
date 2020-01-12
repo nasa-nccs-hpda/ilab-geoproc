@@ -340,11 +340,23 @@ class ArrayListAnimation:
                 self.cmap = LinearSegmentedColormap.from_list("custom colors", colors, N=4)
 
     def create_image(self ) -> AxesImage:
-        from geoproc.plot.plot import imshow
         z =  self.data[ 0 ]   # .transpose()
-        image: AxesImage = imshow( z, ax=self.plot_axes, cmap=self.cmap, norm=self.cnorm )
+        image: AxesImage = self.plot_axes.imshow( z, cmap=self.cmap, norm=self.cnorm )
         self.plot_axes.title.set_text( z.name )
+        plt.colorbar(image, ax=self.plot_axes, cmap=self.cmap, norm=self.cnorm)
         return image
+
+    # def create_image1(self, ) -> AxesImage:
+    #     dataSeries: Dict[int,xa.DataArray] = self.data[seriesId]
+    #     range = self.ranges[seriesId].get(0)
+    #     subplot: SubplotBase = self.getSubplot(iPlot)
+    #     z: xa.DataArray = dataSeries[0]
+    #     plotArgs = self.getPlotArgs( subplot, seriesId )
+    #     image: AxesImage = self.figure.imshow( z, cmap=self.cmap, norm=self.cnorm, **plotArgs )
+    #     if range is not None: image.set_clim( *range )
+    #     image.axes.title.set_text(z.name)
+    #     plt.colorbar(image, ax=subplot, cmap=self.cmap, norm=self.cnorm)
+    #     return image
 
     def update_plot(self, iFrame: int):
         data: xa.DataArray = self.data[iFrame]

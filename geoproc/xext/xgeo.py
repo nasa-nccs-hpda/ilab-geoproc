@@ -47,7 +47,7 @@ class XGeo(XExtension):
 
     def crop(self, minx: float, miny: float, maxx: float, maxy: float, buffer: float = 0 ) -> xr.DataArray:
         xbnds = [ minx - buffer, maxx + buffer ]
-        ybnds = [ maxy + buffer, miny - buffer ] if self._y_inverted else  [ miny - buffer, maxy + buffer ]
+        ybnds = [ maxy + buffer, miny - buffer ] # if self._y_inverted else  [ miny - buffer, maxy + buffer ]
         args = { self.x_coord: slice(*xbnds), self.y_coord: slice(*ybnds)  }
         return self._obj.sel( args )
 
@@ -67,6 +67,15 @@ class XGeo(XExtension):
             gbnds1 = self.project_coords( bnds[2], bnds[3], sref )
             return gbnds0 + gbnds1
         return bnds
+
+    def to_utm( self, resolution: Tuple[float,float], **kwargs ) -> xr.DataArray:
+        utm_sref: osr.SpatialReference = kwargs.get( 'sref', self.getUTMProj() )
+        gdalWaterMask: GDALGrid = self.to_gdalGrid()
+        utmGdalWaterMask = gdalWaterMask.reproject( utm_sref, resolution )
+        result =  utmGdalWaterMask.xarray( f"{self._obj.name}-utm" )
+        result.attrs['SpatialReference'] = utm_sref
+        result.attrs['resolution'] = resolution
+        return result
 
     @property
     def geographic_sref(self):
