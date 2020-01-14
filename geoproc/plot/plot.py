@@ -886,7 +886,8 @@ def imshow(x, y, z, ax, **kwargs):
             z = z.copy()
         z[np.any(z.mask, axis=-1), -1] = 0
 
-    primitive = pyplot.imshow( z, **defaults )
+    darray = defaults.pop('darray')
+    primitive = pyplot.imshow( z ) # , **defaults )
 
     return primitive
 

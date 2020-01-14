@@ -4,7 +4,7 @@ from geoproc.xext.xextension import XExtension
 from geoproc.plot.animation import SliceAnimation
 
 @xr.register_dataarray_accessor('xplot')
-class XGeo(XExtension):
+class XPlot(XExtension):
     """  This is an extension for xarray DataArrays to provide an interface to matplotlib capabilities """
 
     def __init__(self, xarray_obj: xr.DataArray):
@@ -15,7 +15,7 @@ class XGeo(XExtension):
         animation.show()
 
 @xr.register_dataset_accessor('xplot')
-class XGeoDS:
+class XPlotDS:
     """  This is an extension for xarray Datasets to provide an interface to matplotlib capabilities """
 
     def __init__( self, dset: xr.Dataset ):

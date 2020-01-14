@@ -90,6 +90,10 @@ class XGeo(XExtension):
         trans = osr.CoordinateTransformation( self._crs, sref )
         return trans.TransformPoint( x_coord, y_coord )[:2]
 
+    def resample_to_target(self, target: xr.DataArray, dims_map: Dict[str,str]) -> xr.DataArray:
+        dim_args = { dim0: target[dim1] for dim0,dim1 in dims_map.items() }
+        return self._obj.interp(**dim_args)
+
     def to_gdal(self) -> gdal.Dataset:
         in_array: np.ndarray = self._obj.values
         num_bands = 1

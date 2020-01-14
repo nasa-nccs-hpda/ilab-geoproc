@@ -42,42 +42,54 @@ class TilePlotter(ConfigurableObject):
 
 class ArrayAnimation(ConfigurableObject):
 
-    def __init__(self, **kwargs ):
+    def __init__( self, **kwargs ):
         ConfigurableObject.__init__( self, **kwargs )
 
-    def create_file_animation(self,  files: List[str], savePath: str = None, overwrite = False ) -> animation.TimedAnimation:
+    def create_file_animation( self,  files: List[str], savePath: str = None, **kwargs ) -> animation.TimedAnimation:
         from geoproc.xext.xgeo import XGeo
         bbox: Region = self.getParameter("bbox")
         data_arrays: List[xr.DataArray] = XGeo.loadRasterFiles(files, region=bbox)
-        return self.create_animation( data_arrays, savePath, overwrite )
+        return self.create_animation( data_arrays, savePath, **kwargs )
 
-    def create_array_animation(self,  data_array: xr.DataArray, savePath: str = None, overwrite = False ) -> animation.TimedAnimation:
+    def create_array_animation(self,  data_array: xr.DataArray, savePath: str = None, **kwargs ) -> animation.TimedAnimation:
         data_arrays: List[xr.DataArray] = [  data_array[iT] for iT in range(data_array.shape[0]) ]
-        return self.create_animation( data_arrays, savePath, overwrite )
+        return self.create_animation( data_arrays, savePath, **kwargs )
 
-    def create_animation( self, data_arrays: List[xr.DataArray], savePath: str = None, overwrite = False ) -> animation.TimedAnimation:
+    def create_animation( self, data_arrays: List[xr.DataArray], savePath: str = None, **kwargs ) -> animation.TimedAnimation:
         images = []
+        overwrite = kwargs.get('overwrite', False )
         t0 = time.time()
-        colors = [(0.7, 0.7, 0.7), (0.05, 0.4, 0.2), (0, 0, 1), (1, 1, 0)]   # (0.15, 0.3, 0.5)
-        norm = Normalize(0,len(colors))
-        cm = LinearSegmentedColormap.from_list( "lake-map", colors, N=4 )
+        color_map = kwargs.get( 'cmap' )
+        if color_map is None:
+            colors = [(0.7, 0.7, 0.7), (0.05, 0.4, 0.2), (0, 0, 1), (1, 1, 0)]  # (0.15, 0.3, 0.5)
+            norm = Normalize(0, len(colors))
+            color_map = LinearSegmentedColormap.from_list( "lake-map", colors, N=4 )
+        else:
+            range = kwargs.get( 'range' )
+            norm = Normalize(*range) if range else None
         fps = self.getParameter( "fps", 1 )
         roi: Region = self.getParameter("roi")
         print("\n Executing create_array_animation ")
         figure, axes = plt.subplots() if roi is None else plt.subplots(1,2)
+        overlays = kwargs.get('overlays', {})
 
         if roi is  None:
             axes.set_yticklabels([]); axes.set_xticklabels([])
             for iF, da in enumerate(data_arrays):
-                im: Image = axes.imshow( da.values, animated=True, cmap=cm, norm=norm )
+                im: Image = axes.imshow( da.values, animated=True, cmap=color_map, norm=norm )
+                for color, overlay in overlays.items():
+                    overlay.plot(ax=axes, color=color, linewidth=2)
                 t = axes.annotate( f"{da.name}[{iF}]", (0,0) )
                 images.append([im,t])
         else:
             for axis in axes:
                 axis.set_yticklabels([]); axis.set_xticklabels([])
             for iF, da in enumerate(data_arrays):
-                im0: Image = axes[0].imshow( da.values, animated=True, cmap=cm, norm=norm  )
-                im1: Image = axes[1].imshow( da[ roi.origin[0]:roi.bounds[0], roi.origin[1]:roi.bounds[1] ], animated=True, cmap=cm, norm=norm )
+                im0: Image = axes[0].imshow( da.values, animated=True, cmap=color_map, norm=norm  )
+                im1: Image = axes[1].imshow( da[ roi.origin[0]:roi.bounds[0], roi.origin[1]:roi.bounds[1] ], animated=True, cmap=color_map, norm=norm )
+
+                for color, overlay in overlays.items():
+                    overlay.plot(ax=axes[0], color=color, linewidth=2)
                 t = axes.annotate( f"{da.name}[{iF}]", ( 0,0) )
                 images.append( [im0,im1,t] )
 

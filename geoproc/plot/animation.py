@@ -204,15 +204,15 @@ class SliceAnimation:
         self.figure.suptitle( kwargs.get("title",""), fontsize=14 )
         self.figure.subplots_adjust(bottom=0.18)
         self.slider_axes: SubplotBase = self.figure.add_axes([0.1, 0.05, 0.8, 0.04])  # [left, bottom, width, height]
-        self.z_axis = kwargs.get('z', 0)
+        self.z_axis = kwargs.pop('z', 0)
         self.z_axis_name = self.data[0].dims[ self.z_axis ]
-        self.x_axis = kwargs.get( 'x', 2 )
+        self.x_axis = kwargs.pop( 'x', 2 )
         self.x_axis_name = self.data[0].dims[ self.x_axis ]
-        self.y_axis = kwargs.get( 'y', 1 )
+        self.y_axis = kwargs.pop( 'y', 1 )
         self.y_axis_name = self.data[0].dims[ self.y_axis ]
 
         self.nFrames = self.data[0].shape[0]
-        self.create_cmap( **kwargs )
+        self.create_cmap( kwargs )
         self.add_plots( **kwargs )
         self.add_slider( **kwargs )
         self._update(0)
@@ -238,25 +238,27 @@ class SliceAnimation:
         plot_coords = [ iPlot//self.plot_grid_shape[1], iPlot % self.plot_grid_shape[1]  ]
         return self.plot_axes[ plot_coords[0], plot_coords[1] ]
 
-    def create_cmap( self, **kwargs ):
-        self.cmap = kwargs.get("cmap")
-        self.cnorm = None
+    def create_cmap( self, kwargs ):
+        self.cmap = kwargs.pop("cmap")
+        range = kwargs.pop("range")
+        self.cnorm = Normalize(*range) if range else None
         if self.cmap is None:
-            colors = kwargs.get("colors")
+            colors = kwargs.pop("colors")
             if colors is None:
                 self.cmap = "jet"
             else:
                 self.cnorm = Normalize(0, len(colors))
                 self.cmap = LinearSegmentedColormap.from_list("custom colors", colors, N=4)
 
-    def create_image(self, iPlot: int ) -> AxesImage:
-        from geoproc.plot.plot import imshow
-        data = self.data[iPlot]
+    def create_image(self, iPlot: int, **kwargs ) -> AxesImage:
+        data: xa.DataArray = self.data[iPlot]
         subplot: SubplotBase = self.getSubplot( iPlot )
-#        x, y = self.get_xy_coords( iPlot )
-        z =  data[ 0, :, : ]   # .transpose()
-        image: AxesImage = imshow( z, ax=subplot, cmap=self.cmap, norm=self.cnorm )
+        z: xa.DataArray =  data[ 0, :, : ]   # .transpose()
+        image = z.plot.imshow( cmap=self.cmap, norm=self.cnorm, ax=subplot )
         subplot.title.set_text( data.name )
+        overlays = kwargs.get( "overlays" )
+        for color, overlay in overlays.items():
+            overlay.plot( ax=subplot, color=color, linewidth=2 )
         # x_coord, y_coord = self.get_xy_coords( iPlot )
         # dx2, dy2 = x_coord[1] - x_coord[0], y_coord[0] - y_coord[1]
         # image.set_extent( [ x_coord[0] - dx2,  x_coord[-1] + dx2,  y_coord[-1] - dy2,  y_coord[0] + dy2 ] )
@@ -273,7 +275,7 @@ class SliceAnimation:
 
     def add_plots(self, **kwargs ):
         for iPlot in range(self.nPlots):
-            self.images[iPlot] = self.create_image( iPlot )
+            self.images[iPlot] = self.create_image( iPlot, **kwargs )
 #        divider = make_axes_locatable(self.plot_axes)
 #        cax = divider.append_axes('right', size='5%', pad=0.05)
 #        self.figure.colorbar( self.images[self.nPlots-1], cax=cax, orientation='vertical')
