@@ -13,6 +13,8 @@ from geoproc.data.shapefiles import ShapefileManager
 from geoproc.xext.xplot import XPlot
 import os
 
+colors3 = [ (0.2, 0.0, 0.0), (0.2, 1, 0), (0, 0, 1) ]
+colors4 = [ (0.2, 0.0, 0.0), (0, 1, 0), (0, 0, 1), (1, 1, 0) ]
 SHAPEFILE = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/saltLake/GreatSalt.shp"
 DEMs = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/DEM/*.tif"
 locations = [ "120W050N", "100W040N" ]
@@ -31,8 +33,9 @@ threshold = 0.5
 binSize = 8
 LakeIndex = 6
 resolution = (250,250)
-time_range = [0,360] # [200,216] #
+time_range = [0,365] # [200,216] #
 #    subset = [500,100]
+view_data = False
 subset = None
 animate = True
 plot_dem = True
@@ -44,20 +47,23 @@ dataMgr.setDefaults(product=product, download=download, year=year, start_day=tim
 file_paths = dataMgr.get_tile(location)
 
 dem_arrays: List[xr.DataArray] = dataMgr.get_array_data( glob( DEMs ) )
-xc=dem_arrays[0].coords['x']
-yc=dem_arrays[0].coords['y']
 dem_array: xr.DataArray = dem_arrays[0]
+xc=dem_array.coords['x']
+yc=dem_array.coords['y']
 
 waterMapGenerator = WaterMapGenerator()
 data_array: xr.Dataset = waterMapGenerator.createDataset(file_paths)
 cropped_data = data_array.xgeo.crop( xc[0], yc[-1], xc[-1], yc[0] )
 
-masking_results = waterMapGenerator.get_water_masks(cropped_data, binSize, threshold, minH20)
-water_masks = masking_results["mask"]
+if view_data:
+ #   dem_array.plot.imshow( )
+    cropped_data.xplot.animate( overlays=dict(black=lake_boundary), colors=colors4 )
 
-overlaid_dem_arrays = []
-resampled_dem_array: xr.DataArray = dem_array.xgeo.resample_to_target( water_masks[0], dict( x='x', y='y' ) ) - 1275
-overlaid_dem_array = xr.where( water_masks == 1, resampled_dem_array, water_masks )
+else:
 
-overlaid_dem_array.xplot.animate(overlays=dict(black=lake_boundary), cmap="jet", range=(0, 30))
+    masking_results = waterMapGenerator.get_water_masks(cropped_data, binSize, threshold, minH20)
+    water_masks = masking_results["mask"]
+    slice_match_scores, overlap_maps = waterMapGenerator.get_slice_match_scores( water_masks, 30 )
+
+    overlap_maps.xplot.animate( overlays=dict(black=lake_boundary), colors=colors4, bars=dict( red=slice_match_scores ) )
 

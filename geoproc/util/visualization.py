@@ -58,10 +58,11 @@ class ArrayAnimation(ConfigurableObject):
     def create_animation( self, data_arrays: List[xr.DataArray], savePath: str = None, **kwargs ) -> animation.TimedAnimation:
         images = []
         overwrite = kwargs.get('overwrite', False )
+        display = kwargs.get('display', True)
         t0 = time.time()
         color_map = kwargs.get( 'cmap' )
         if color_map is None:
-            colors = [(0.7, 0.7, 0.7), (0.05, 0.4, 0.2), (0, 0, 1), (1, 1, 0)]  # (0.15, 0.3, 0.5)
+            colors = [ (0.0, 0.0, 0.1), (0.05, 0.7, 0.2), (0, 0, 1), (1, 1, 0) ]  # (0.15, 0.3, 0.5)
             norm = Normalize(0, len(colors))
             color_map = LinearSegmentedColormap.from_list( "lake-map", colors, N=4 )
         else:
@@ -105,7 +106,7 @@ class ArrayAnimation(ConfigurableObject):
             else:
                 print( f" Animation file already exists at '{savePath}'', set 'overwrite = True'' if you wish to overwrite it." )
         print(f" Completed create_array_animation in {time.time()-t0:.3f} seconds" )
-        plt.show()
+        if display: plt.show()
         return anim
 
     def getDataSubset( self, data_arrays: List[xr.DataArray], frameIndex: int, bin_size: 8, roi: Region ):

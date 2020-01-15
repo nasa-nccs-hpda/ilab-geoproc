@@ -2,7 +2,7 @@ import matplotlib.widgets
 import matplotlib.patches
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.axes import SubplotBase
-from matplotlib.colors import LinearSegmentedColormap, Normalize
+from matplotlib.colors import LinearSegmentedColormap, Normalize, ListedColormap
 import matplotlib.pyplot as plt
 from threading import  Thread
 from matplotlib.figure import Figure
@@ -239,16 +239,15 @@ class SliceAnimation:
         return self.plot_axes[ plot_coords[0], plot_coords[1] ]
 
     def create_cmap( self, kwargs ):
-        self.cmap = kwargs.pop("cmap")
-        range = kwargs.pop("range")
+        self.cmap = kwargs.pop("cmap",None)
+        range = kwargs.pop("range",None)
         self.cnorm = Normalize(*range) if range else None
         if self.cmap is None:
-            colors = kwargs.pop("colors")
+            colors = kwargs.pop("colors",None)
             if colors is None:
                 self.cmap = "jet"
             else:
-                self.cnorm = Normalize(0, len(colors))
-                self.cmap = LinearSegmentedColormap.from_list("custom colors", colors, N=4)
+                self.cmap = ListedColormap( colors )
 
     def create_image(self, iPlot: int, **kwargs ) -> AxesImage:
         data: xa.DataArray = self.data[iPlot]
@@ -256,9 +255,12 @@ class SliceAnimation:
         z: xa.DataArray =  data[ 0, :, : ]   # .transpose()
         image = z.plot.imshow( cmap=self.cmap, norm=self.cnorm, ax=subplot )
         subplot.title.set_text( data.name )
-        overlays = kwargs.get( "overlays" )
+        overlays = kwargs.get( "overlays", [] )
         for color, overlay in overlays.items():
             overlay.plot( ax=subplot, color=color, linewidth=2 )
+        bars = kwargs.get("bars", [])
+        bar_values: xa.DataArray = xa.DataArray( list( [ values[iPlot] ] for color, values in bars.items() ) )
+        bar_values.plot.hist( ax=subplot )
         # x_coord, y_coord = self.get_xy_coords( iPlot )
         # dx2, dy2 = x_coord[1] - x_coord[0], y_coord[0] - y_coord[1]
         # image.set_extent( [ x_coord[0] - dx2,  x_coord[-1] + dx2,  y_coord[-1] - dy2,  y_coord[0] + dy2 ] )
@@ -269,9 +271,10 @@ class SliceAnimation:
             subplot: SubplotBase = self.getSubplot(iPlot)
             data = self.data[iPlot]
             self.images[iPlot].set_data( data[iFrame,:,:] )
-#            self.images[iPlot].set_array( data[iFrame,:,:].values.ravel() )
             acoord = self.get_anim_coord( iPlot )
-            subplot.title.set_text( f"{data.name}: {acoord[iFrame]}" )
+            frame_title = data.name if data.name else f"Frame-{iFrame}"
+            cval = acoord[iFrame]
+            subplot.title.set_text( f"{frame_title}: {cval}" )
 
     def add_plots(self, **kwargs ):
         for iPlot in range(self.nPlots):

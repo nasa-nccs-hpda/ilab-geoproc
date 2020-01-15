@@ -37,8 +37,8 @@ class MWPDataManager(ConfigurableObject):
         product =   self.getParameter( "product",   **kwargs )
         location_dir = self.get_location_dir( location )
         files = []
-        for iFile in range(start_day,end_day+1):
-            target_file = f"MWP_{year}{iFile}_{location}_{product}.tif"
+        for iFile in range(start_day+1,end_day+2):
+            target_file = f"MWP_{year}{iFile:03}_{location}_{product}.tif"
             target_file_path = os.path.join( location_dir, target_file )
             if not os.path.exists( target_file_path ):
                 if download:
@@ -87,7 +87,8 @@ class MWPDataManager(ConfigurableObject):
         return [strList[x:x + seg_length] for x in range(0, len(strList), seg_length)]
 
     def download_tiles(self, nProcesses: int = 8 ):
-        locations = dataMgr.get_global_locations()
+        location = self.parms.get( 'location' )
+        locations = dataMgr.get_global_locations( ) if location is None else [ location ]
         with Pool(nProcesses) as p:
             p.map(dataMgr.get_tile, locations, nProcesses)
 
@@ -96,7 +97,7 @@ if __name__ == '__main__':
         print( "Usage: >> python -m geoproc.data.mwp <dataDirectory>\n       Downloads all MWP tiles to the data directory")
     else:
         dataMgr = MWPDataManager( sys.argv[1], "https://floodmap.modaps.eosdis.nasa.gov/Products" )
-        dataMgr.setDefaults( product = "1D1OS", download = True, year = 2010, start_day = 1, end_day = 365 )
+        dataMgr.setDefaults( product = "1D1OS", download = True, year = 2018, start_day = 1, end_day = 365, location='120W050N' )
         dataMgr.download_tiles( 10 )
         dataMgr.remove_empty_directories(10)
 
