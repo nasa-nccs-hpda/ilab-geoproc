@@ -1,6 +1,7 @@
 import matplotlib.widgets
 import matplotlib.patches
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from matplotlib.lines import Line2D
 from matplotlib.axes import SubplotBase
 from matplotlib.colors import LinearSegmentedColormap, Normalize, ListedColormap
 import matplotlib.pyplot as plt
@@ -199,11 +200,9 @@ class SliceAnimation:
         self.figure: Figure = None
         self.images: Dict[int,AxesImage] = {}
         self.nPlots = len(self.data)
-        self.plot_grid_shape: List[int] = self.getSubplotShape( )  # [ rows, cols ]
-        self.figure, self.plot_axes = plt.subplots( *self.plot_grid_shape )
-        self.figure.suptitle( kwargs.get("title",""), fontsize=14 )
-        self.figure.subplots_adjust(bottom=0.18)
-        self.slider_axes: SubplotBase = self.figure.add_axes([0.1, 0.05, 0.8, 0.04])  # [left, bottom, width, height]
+        self.metrics: Dict = kwargs.get("metrics", {})
+        self.frame_marker: Line2D = None
+        self.setup_plots(**kwargs)
         self.z_axis = kwargs.pop('z', 0)
         self.z_axis_name = self.data[0].dims[ self.z_axis ]
         self.x_axis = kwargs.pop( 'x', 2 )
@@ -217,6 +216,20 @@ class SliceAnimation:
         self.add_slider( **kwargs )
         self._update(0)
 
+    def setup_plots( self, **kwargs ):
+        self.plot_grid_shape: List[int] = self.getSubplotShape( len(self.metrics)>0 )  # [ rows, cols ]
+        if self.nPlots == 1 and len( self.metrics ) > 0:
+            self.plot_axes = np.arange(2)
+            self.figure = plt.figure(constrained_layout=True)
+            gs = self.figure.add_gridspec(1, 3)
+            self.plot_axes = np.array( [ self.figure.add_subplot( gs[0, :-1] ), self.figure.add_subplot( gs[0,  -1] ) ] )
+        else:
+            self.figure, self.plot_axes = plt.subplots( *self.plot_grid_shape )
+
+        self.figure.subplots_adjust(bottom=0.12) # 0.18)
+        self.figure.suptitle( kwargs.get("title",""), fontsize=14 )
+        self.slider_axes: SubplotBase = self.figure.add_axes([0.1, 0.05, 0.8, 0.04])  # [left, bottom, width, height]
+
     def get_xy_coords(self, iPlot: int ) -> Tuple[ np.ndarray, np.ndarray ]:
         return self.get_coord( iPlot, self.x_axis ), self.get_coord( iPlot, self.y_axis )
 
@@ -227,14 +240,15 @@ class SliceAnimation:
         data = self.data[iPlot]
         return data.coords[ data.dims[iCoord] ].values
 
-    def getSubplotShape(self ) -> List[int]:
-        ncols = math.floor( math.sqrt( self.nPlots ) )
-        nrows = math.ceil( self.nPlots / ncols )
+    def getSubplotShape(self, has_diagnostics: bool  ) -> List[int]:
+        nCells = self.nPlots+1 if has_diagnostics else self.nPlots
+        nrows = math.floor( math.sqrt( nCells ) )
+        ncols = math.ceil( nCells / nrows )
         return [ nrows, ncols ]
 
     def getSubplot( self, iPlot: int  ) -> SubplotBase:
         if self.plot_grid_shape == [1, 1]: return self.plot_axes
-        if self.plot_grid_shape[0] == 1: return self.plot_axes[iPlot]
+        if len(self.plot_axes.shape) == 1: return self.plot_axes[iPlot]
         plot_coords = [ iPlot//self.plot_grid_shape[1], iPlot % self.plot_grid_shape[1]  ]
         return self.plot_axes[ plot_coords[0], plot_coords[1] ]
 
@@ -249,6 +263,17 @@ class SliceAnimation:
             else:
                 self.cmap = ListedColormap( colors )
 
+    def update_diagnostics( self, iFrame: int ):
+        if len( self.metrics ):
+#            axis: AxesSubplot = self.plot_axes[-1]
+            axis = self.plot_axes[-1]
+            x = [iFrame, iFrame]
+            y = [ axis.dataLim.y0, axis.dataLim.y1 ]
+            if self.frame_marker == None:
+                self.frame_marker, = axis.plot( x, y, color="yellow", lw=3 )
+            else:
+                self.frame_marker.set_data( x, y )
+
     def create_image(self, iPlot: int, **kwargs ) -> AxesImage:
         data: xa.DataArray = self.data[iPlot]
         subplot: SubplotBase = self.getSubplot( iPlot )
@@ -258,9 +283,21 @@ class SliceAnimation:
         overlays = kwargs.get( "overlays", [] )
         for color, overlay in overlays.items():
             overlay.plot( ax=subplot, color=color, linewidth=2 )
-        bars = kwargs.get("bars", [])
-        bar_values: xa.DataArray = xa.DataArray( list( [ values[iPlot] ] for color, values in bars.items() ) )
-        bar_values.plot.hist( ax=subplot )
+
+        if len( self.metrics ):
+            axis = self.plot_axes[-1]
+            for color, values in self.metrics.items():
+                x = range( len(values) )
+                axis.plot( x, values, color=color )
+
+            # bar_data = list( values[iPlot] for color, values in self.metrics.items() )
+            # bar_names = list( values.name for color, values in self.metrics.items() )
+            # vrange = ( 0, max( [ x.max().values.tolist() for x in self.metrics.values() ] ) )
+            # axis.set_yticklabels([]); axis.set_xticklabels([])
+            # y = range(len(bar_data))
+            # print( f"Plotting hbars with widths {bar_data} and heights {y}")
+            # axis.barh( y, bar_data, animated=True )
+
         # x_coord, y_coord = self.get_xy_coords( iPlot )
         # dx2, dy2 = x_coord[1] - x_coord[0], y_coord[0] - y_coord[1]
         # image.set_extent( [ x_coord[0] - dx2,  x_coord[-1] + dx2,  y_coord[-1] - dy2,  y_coord[0] + dy2 ] )
@@ -275,6 +312,7 @@ class SliceAnimation:
             frame_title = data.name if data.name else f"Frame-{iFrame}"
             cval = acoord[iFrame]
             subplot.title.set_text( f"{frame_title}: {cval}" )
+        self.update_diagnostics( iFrame )
 
     def add_plots(self, **kwargs ):
         for iPlot in range(self.nPlots):

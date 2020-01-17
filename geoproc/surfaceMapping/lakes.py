@@ -11,22 +11,31 @@ class WaterMapGenerator(ConfigurableObject):
     def __init__(self, **kwargs ):
         ConfigurableObject.__init__( self, **kwargs )
 
-    def calculate_mask_overlap(self, water_mask0: xr.DataArray, water_mask1: xr.DataArray, overlap_class: int ):
-        mask0 = ( water_mask0 == overlap_class )
-        mask1 = ( water_mask1 == overlap_class )
-        return mask0.dot( mask1 )
-
     def get_slice_match_scores(self, water_masks: xr.DataArray, current_slice: int, **kwargs ):
         overlap_class = kwargs.get('overlap_class',2)
-        compute_overlap_maps = kwargs.get( 'overlap_maps', True )
-        mask0 =  xr.where( water_masks == overlap_class, 1, 0 )
-        mask1 = mask0[current_slice]
-        match_scores = mask0.dot( mask1, dims=['x', 'y'] )
-        overlap_maps = None
-        if compute_overlap_maps:
-            matches = mask0 == mask1
-            overlap_maps = water_masks.where( matches, 3 )
-        return match_scores-match_scores.min(), overlap_maps
+
+        full_water_mask: xr.DataArray =  water_masks == overlap_class
+        slice_water_mask = full_water_mask[current_slice]
+
+        full_valid_mask: xr.DataArray =  water_masks > 0
+        slice_valid_mask = full_valid_mask[current_slice]
+        valid_area = np.logical_and( full_valid_mask, slice_valid_mask )
+
+        matches = full_water_mask == slice_water_mask
+        valid_matches = matches.where( valid_area, False )
+        match_count = valid_matches.sum( dim=["x","y"])
+
+        mismatches = np.logical_not( matches )
+        valid_mismatches = mismatches.where(valid_area, False)
+        mismatch_count = valid_mismatches.sum(dim=["x", "y"])
+
+        match_score: xr.DataArray = match_count - mismatch_count
+        match_score = match_score - match_score.median()
+        match_score = match_score.where( match_score > 0, 0 )
+        match_score.name = "Match Score"
+
+        overlap_maps = water_masks.where( np.logical_not(valid_mismatches), 3  )
+        return match_score, overlap_maps
 
     def get_water_mask(self, inputs: Union[ xr.DataArray, List[xr.DataArray] ], threshold = 0.5, min_h20 = 1 )-> xr.Dataset:
         da: xr.DataArray = self.time_merge(inputs) if isinstance(inputs, list) else inputs

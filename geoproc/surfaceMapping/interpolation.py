@@ -62,8 +62,10 @@ if view_data:
 else:
 
     masking_results = waterMapGenerator.get_water_masks(cropped_data, binSize, threshold, minH20)
-    water_masks = masking_results["mask"]
+    water_masks: xr.DataArray = masking_results["mask"]
+    water_masks[0].xgeo.to_tif( f"{DATA_DIR}/SampleWaterMask-SaltLake.tif" )
     slice_match_scores, overlap_maps = waterMapGenerator.get_slice_match_scores( water_masks, 30 )
+    print( slice_match_scores )
 
-    overlap_maps.xplot.animate( overlays=dict(black=lake_boundary), colors=colors4, bars=dict( red=slice_match_scores ) )
+    overlap_maps.xplot.animate( overlays=dict(red=lake_boundary), colors=colors4, metrics=dict( red=slice_match_scores ) )
 
