@@ -1,6 +1,8 @@
 import xarray as xr
 from  xarray.core.groupby import DatasetGroupBy
 import numpy as np
+from shapely.geometry import MultiLineString
+import geopandas as gpd
 from geoproc.util.configuration import ConfigurableObject, Region
 from typing import List, Union, Tuple
 import os, time
@@ -11,7 +13,7 @@ class WaterMapGenerator(ConfigurableObject):
     def __init__(self, **kwargs ):
         ConfigurableObject.__init__( self, **kwargs )
 
-    def get_slice_match_scores(self, water_masks: xr.DataArray, current_slice: int, **kwargs ):
+    def get_slice_match_scores(self, water_masks: xr.DataArray, current_slice: int, boundary_shape: gpd.GeoSeries = None, **kwargs ):
         overlap_class = kwargs.get('overlap_class',2)
 
         full_water_mask: xr.DataArray =  water_masks == overlap_class

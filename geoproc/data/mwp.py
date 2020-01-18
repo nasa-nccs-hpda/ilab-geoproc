@@ -37,7 +37,7 @@ class MWPDataManager(ConfigurableObject):
         product =   self.getParameter( "product",   **kwargs )
         location_dir = self.get_location_dir( location )
         files = []
-        for iFile in range(start_day+1,end_day+2):
+        for iFile in range(start_day+1,end_day+1):
             target_file = f"MWP_{year}{iFile:03}_{location}_{product}.tif"
             target_file_path = os.path.join( location_dir, target_file )
             if not os.path.exists( target_file_path ):

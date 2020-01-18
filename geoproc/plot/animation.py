@@ -220,7 +220,7 @@ class SliceAnimation:
         self.plot_grid_shape: List[int] = self.getSubplotShape( len(self.metrics)>0 )  # [ rows, cols ]
         if self.nPlots == 1 and len( self.metrics ) > 0:
             self.plot_axes = np.arange(2)
-            self.figure = plt.figure(constrained_layout=True)
+            self.figure = plt.figure()
             gs = self.figure.add_gridspec(1, 3)
             self.plot_axes = np.array( [ self.figure.add_subplot( gs[0, :-1] ), self.figure.add_subplot( gs[0,  -1] ) ] )
         else:
@@ -286,21 +286,13 @@ class SliceAnimation:
 
         if len( self.metrics ):
             axis = self.plot_axes[-1]
+            axis.title.set_text("Metrics")
             for color, values in self.metrics.items():
                 x = range( len(values) )
-                axis.plot( x, values, color=color )
+                line, = axis.plot( x, values, color=color )
+                line.set_label(values.name)
+            axis.legend()
 
-            # bar_data = list( values[iPlot] for color, values in self.metrics.items() )
-            # bar_names = list( values.name for color, values in self.metrics.items() )
-            # vrange = ( 0, max( [ x.max().values.tolist() for x in self.metrics.values() ] ) )
-            # axis.set_yticklabels([]); axis.set_xticklabels([])
-            # y = range(len(bar_data))
-            # print( f"Plotting hbars with widths {bar_data} and heights {y}")
-            # axis.barh( y, bar_data, animated=True )
-
-        # x_coord, y_coord = self.get_xy_coords( iPlot )
-        # dx2, dy2 = x_coord[1] - x_coord[0], y_coord[0] - y_coord[1]
-        # image.set_extent( [ x_coord[0] - dx2,  x_coord[-1] + dx2,  y_coord[-1] - dy2,  y_coord[0] + dy2 ] )
         return image
 
     def update_plots(self, iFrame: int ):

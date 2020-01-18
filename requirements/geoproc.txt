@@ -7,5 +7,7 @@ geopandas
 descartes
 shapely
 regionmask
+rioxarray
+rasterio
 
 
