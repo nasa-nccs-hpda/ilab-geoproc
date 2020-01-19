@@ -7,6 +7,10 @@ import logging, os
 from typing import Sequence, List, Dict, Mapping, Optional
 from geoproc.util.logging import ILABLogger
 
+def argfilter( args: Dict, **kwargs ) -> Dict:
+    return { key: args.get(key,value) for key,value in kwargs.items() }
+
+
 class ConfigurableObject:
 
     def __init__(self, **kwargs):

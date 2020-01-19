@@ -14,6 +14,11 @@ from typing import List, Union, Dict, Callable, Tuple
 import time, math, atexit
 from enum import Enum
 
+def pad_list( list_values: List, padval ) -> List:
+    padded_list = []
+    for lval in list_values: padded_list = padded_list + [ padval, lval ]
+    return padded_list + [ padval ]
+
 class ADirection(Enum):
     BACKWARD = -1
     STOP = 0
@@ -197,6 +202,7 @@ class SliceAnimation:
         self.data: List[xa.DataArray] = data_arrays if isinstance(data_arrays, list) else [ data_arrays ]
         assert self.data[0].ndim == 3, f"This plotter only works with 3 dimensional [t,y,x] data arrays.  Found {self.data[0].dims}"
         self.plot_axes = None
+        self.color_keys = None
         self.figure: Figure = None
         self.images: Dict[int,AxesImage] = {}
         self.nPlots = len(self.data)
@@ -261,7 +267,11 @@ class SliceAnimation:
             if colors is None:
                 self.cmap = "jet"
             else:
-                self.cmap = ListedColormap( colors )
+                from collections import OrderedDict
+                assert isinstance( colors, OrderedDict ), "'colors' parameter should be an instance of OrderedDict"
+                self.cmap: ListedColormap = ListedColormap( list( colors.values() ) )
+                self.cmap.
+                self.color_keys = list(colors.keys())
 
     def update_diagnostics( self, iFrame: int ):
         if len( self.metrics ):
@@ -278,12 +288,18 @@ class SliceAnimation:
         data: xa.DataArray = self.data[iPlot]
         subplot: SubplotBase = self.getSubplot( iPlot )
         z: xa.DataArray =  data[ 0, :, : ]   # .transpose()
-        image = z.plot.imshow( cmap=self.cmap, norm=self.cnorm, ax=subplot )
+        image: AxesImage = z.plot.imshow( cmap=self.cmap, norm=self.cnorm, ax=subplot )
         subplot.title.set_text( data.name )
         overlays = kwargs.get( "overlays", [] )
         for color, overlay in overlays.items():
             overlay.plot( ax=subplot, color=color, linewidth=2 )
+        if self.color_keys is not None:
+            dc = (float(image.colorbar.vmax) - image.colorbar.vmin)/len(self.color_keys)
+            image.colorbar.set_ticks( np.arange( dc/2, image.colorbar.vmax, dc ) )
+            image.colorbar.set_ticklabels( self.color_keys  )
+        return image
 
+    def create_metrics_plot(self):
         if len( self.metrics ):
             axis = self.plot_axes[-1]
             axis.title.set_text("Metrics")
@@ -293,8 +309,6 @@ class SliceAnimation:
                 line.set_label(values.name)
             axis.legend()
 
-        return image
-
     def update_plots(self, iFrame: int ):
         for iPlot in range(self.nPlots):
             subplot: SubplotBase = self.getSubplot(iPlot)
@@ -303,12 +317,14 @@ class SliceAnimation:
             acoord = self.get_anim_coord( iPlot )
             frame_title = data.name if data.name else f"Frame-{iFrame}"
             cval = acoord[iFrame]
-            subplot.title.set_text( f"{frame_title}: {cval}" )
+            subplot.title.set_text( f"Frame {iFrame}: {frame_title} {cval}" )
         self.update_diagnostics( iFrame )
 
     def add_plots(self, **kwargs ):
         for iPlot in range(self.nPlots):
             self.images[iPlot] = self.create_image( iPlot, **kwargs )
+        self.create_metrics_plot()
+
 #        divider = make_axes_locatable(self.plot_axes)
 #        cax = divider.append_axes('right', size='5%', pad=0.05)
 #        self.figure.colorbar( self.images[self.nPlots-1], cax=cax, orientation='vertical')

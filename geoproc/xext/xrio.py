@@ -5,6 +5,7 @@ from geoproc.xext.xextension import XExtension
 from geopandas import GeoDataFrame
 import os, warnings
 from shapely.geometry import box, mapping
+from geoproc.util.configuration import argfilter
 import rioxarray
 
 
@@ -18,12 +19,15 @@ class XRio(XExtension):
     @classmethod
     def open( cls, filename, **kwargs ):
         mask: GeoDataFrame = kwargs.pop("mask", None )
-        result = rioxarray.open_rasterio( filename, **kwargs )
+        oargs = argfilter( kwargs, parse_coordinates = None, chunks = None, cache = None, lock = None )
+        result = rioxarray.open_rasterio( filename, **oargs )
         if mask is None: return result
         return result.xrio.clip( mask, **kwargs )
 
     def clip(self, geodf: GeoDataFrame, **kwargs ):
-        return self._obj.rio.clip( geodf.geometry.apply(mapping), geodf.crs, **kwargs )
+        cargs = argfilter( kwargs, all_touched = True, drop = True )
+        result = self._obj.rio.clip( geodf.geometry.apply(mapping), geodf.crs, **cargs )
+        return result
 
     @classmethod
     def load( cls, filePaths: Union[ str, List[str] ], **kwargs ) -> Union[ List[xr.DataArray], xr.DataArray ]:

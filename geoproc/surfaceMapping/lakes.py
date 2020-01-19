@@ -13,8 +13,10 @@ class WaterMapGenerator(ConfigurableObject):
     def __init__(self, **kwargs ):
         ConfigurableObject.__init__( self, **kwargs )
 
-    def get_slice_match_scores(self, water_masks: xr.DataArray, current_slice: int, boundary_shape: gpd.GeoSeries = None, **kwargs ):
+
+    def get_slice_match_scores(self, water_masks: xr.DataArray, current_slice: int, **kwargs ):
         overlap_class = kwargs.get('overlap_class',2)
+        mismatch_weight = kwargs.get('mismatch_weight',5)
 
         full_water_mask: xr.DataArray =  water_masks == overlap_class
         slice_water_mask = full_water_mask[current_slice]
@@ -26,20 +28,21 @@ class WaterMapGenerator(ConfigurableObject):
         matches = full_water_mask == slice_water_mask
         valid_matches = matches.where( valid_area, False )
         match_count = valid_matches.sum( dim=["x","y"])
+        match_count.name = "Overlap"
 
         mismatches = np.logical_not( matches )
         valid_mismatches = mismatches.where(valid_area, False)
-        mismatch_count = valid_mismatches.sum(dim=["x", "y"])
+        mismatch_count = valid_mismatches.sum(dim=["x", "y"]) * mismatch_weight
+        mismatch_count.name = "Mismatch"
+        mismatch_count = mismatch_count.where( match_count > mismatch_count, match_count )
 
         match_score: xr.DataArray = match_count - mismatch_count
-        match_score = match_score - match_score.median()
-        match_score = match_score.where( match_score > 0, 0 )
-        match_score.name = "Match Score"
+        match_score.name = "Similarity"
 
         overlap_maps = water_masks.where( np.logical_not(valid_mismatches), 3  )
-        return match_score, overlap_maps
+        return match_score, match_count, mismatch_count, overlap_maps
 
-    def get_water_mask(self, inputs: Union[ xr.DataArray, List[xr.DataArray] ], threshold = 0.5, min_h20 = 1 )-> xr.Dataset:
+    def get_water_mask(self, inputs: Union[ xr.DataArray, List[xr.DataArray] ], threshold = 0.5 )-> xr.Dataset:
         da: xr.DataArray = self.time_merge(inputs) if isinstance(inputs, list) else inputs
         binSize = da.shape[0]
         land = ( da == 1 ).sum( axis=0 )
@@ -53,12 +56,12 @@ class WaterMapGenerator(ConfigurableObject):
         result =  xr.where( water_mask, 2, xr.where( land, 1, 0 ) )
         return xr.Dataset( { "mask": result,  "reliability": reliability } )
 
-    def get_water_masks(self, data_array: xr.DataArray, binSize: int, threshold = 0.5, min_h20 = 1  ) -> xr.Dataset:
+    def get_water_masks(self, data_array: xr.DataArray, binSize: int, threshold = 0.5  ) -> xr.Dataset:
         print("\n Executing get_water_masks ")
         t0 = time.time()
         time_bins = np.array( range( 0, data_array.shape[0]+1, binSize ) )
         grouped_data: DatasetGroupBy = data_array.groupby_bins( 'time', time_bins, right = False )
-        results:  xr.Dataset = grouped_data.apply( self.get_water_mask, threshold = threshold, min_h20 = min_h20 )
+        results:  xr.Dataset = grouped_data.apply( self.get_water_mask, threshold = threshold )
         print( f" Completed get_water_masks in {time.time()-t0:.3f} seconds" )
         for result in results.values(): self.transferMetadata( data_array, result )
         return results
