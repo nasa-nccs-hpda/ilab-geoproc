@@ -4,7 +4,6 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.lines import Line2D
 from matplotlib.axes import Axes
 from matplotlib.colors import LinearSegmentedColormap, Normalize, ListedColormap
-from matplotlib.colorbar import Colorbar
 import matplotlib.pyplot as plt
 from threading import  Thread
 from matplotlib.figure import Figure
@@ -236,8 +235,8 @@ class SliceAnimation:
         if self.nPlots == 1 and len( self.metrics ) > 0:
             self.plot_axes = np.arange(2)
             self.figure = plt.figure()
-            gs = self.figure.add_gridspec(1, 3)
-            self.plot_axes = np.array( [ self.figure.add_subplot( gs[0, :-1] ), self.figure.add_subplot( gs[0,  -1] ) ] )
+            gs = self.figure.add_gridspec(2, 3)
+            self.plot_axes = np.array( [ self.figure.add_subplot( gs[:, :-1] ), self.figure.add_subplot( gs[:,  -1] ) ] )
         else:
             self.figure, self.plot_axes = plt.subplots( *self.plot_grid_shape )
 
@@ -305,7 +304,6 @@ class SliceAnimation:
             overlay.plot( ax=subplot, color=color, linewidth=2 )
         return image
 
-
     def create_metrics_plot(self):
         if len( self.metrics ):
             axis = self.plot_axes[-1]
@@ -332,10 +330,6 @@ class SliceAnimation:
             self.images[iPlot] = self.create_image( iPlot, **kwargs )
         self.create_metrics_plot()
 
-#        divider = make_axes_locatable(self.plot_axes)
-#        cax = divider.append_axes('right', size='5%', pad=0.05)
-#        self.figure.colorbar( self.images[self.nPlots-1], cax=cax, orientation='vertical')
-
     def add_slider(self,  **kwargs ):
         self.slider = PageSlider( self.slider_axes, self.nFrames )
         self.slider_cid = self.slider.on_changed(self._update)
@@ -343,8 +337,6 @@ class SliceAnimation:
     def _update( self, val ):
         i = int( self.slider.val )
         self.update_plots(i)
-
-#        self.plot_axes.title.set_text( f"Frame {i+1}: {self.anim_coord[i]}" )
 
     def show(self):
         self.slider.start()

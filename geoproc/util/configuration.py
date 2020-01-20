@@ -63,7 +63,7 @@ class ConfigurableObject:
         frame_indices = range( len(data_arrays) )
         frame_names = [da.name for da in data_arrays]
         merge_coord = pd.Index( frame_indices, name="time" )
-        result =  xr.concat( objs=data_arrays, dim=merge_coord )
+        result: xr.DataArray =  xr.concat( objs=data_arrays, dim=merge_coord )
         return result # .assign_coords( {'frames': frame_names } )
 
 class Region:

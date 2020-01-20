@@ -1,8 +1,6 @@
 import xarray as xr
 from  xarray.core.groupby import DatasetGroupBy
 import numpy as np
-from shapely.geometry import MultiLineString
-import geopandas as gpd
 from geoproc.util.configuration import ConfigurableObject, Region
 from typing import List, Union, Tuple
 import os, time
@@ -13,10 +11,9 @@ class WaterMapGenerator(ConfigurableObject):
     def __init__(self, **kwargs ):
         ConfigurableObject.__init__( self, **kwargs )
 
-
-    def get_slice_match_scores(self, water_masks: xr.DataArray, current_slice: int, **kwargs ):
+    def get_slice_matches( self, water_masks: xr.DataArray, current_slice: int, **kwargs ):
         overlap_class = kwargs.get('overlap_class',2)
-        mismatch_weight = kwargs.get('mismatch_weight',5)
+        mismatch_weight = kwargs.get('mismatch_weight',2)
 
         full_water_mask: xr.DataArray =  water_masks == overlap_class
         slice_water_mask = full_water_mask[current_slice]
@@ -38,13 +35,22 @@ class WaterMapGenerator(ConfigurableObject):
 
         match_score: xr.DataArray = match_count - mismatch_count
         match_score.name = "Similarity"
+        matching_slice = self.get_matching_slice( water_masks, match_score, current_slice )
 
         overlap_maps = water_masks.where( np.logical_not(valid_mismatches), 3  )
-        return match_score, match_count, mismatch_count, overlap_maps
+        return dict( match_score=match_score, match_count=match_count, mismatch_count=mismatch_count, overlap_maps=overlap_maps )
+
+    def get_matching_slice(self, water_masks: xr.DataArray, match_score: xr.DataArray, current_slice: int ):
+        scores: np.ndarray = match_score.values.copy( )
+        scores[ current_slice ] = 0
+        matching_slice = water_masks[ scores.argmax() ]
+        return matching_slice
 
     def get_water_mask(self, inputs: Union[ xr.DataArray, List[xr.DataArray] ], threshold = 0.5 )-> xr.Dataset:
         da: xr.DataArray = self.time_merge(inputs) if isinstance(inputs, list) else inputs
         binSize = da.shape[0]
+        mask_value = da.attrs.get( 'mask_value', 255 )
+        masked = ( da == mask_value )
         land = ( da == 1 ).sum( axis=0 )
         perm_water = ( da == 2 ).sum( axis=0 )
         fld_water = ( da == 3 ).sum( axis=0 )
@@ -53,7 +59,7 @@ class WaterMapGenerator(ConfigurableObject):
         reliability = visible / float(binSize)
         prob_h20 = water / visible
         water_mask = prob_h20 >= threshold
-        result =  xr.where( water_mask, 2, xr.where( land, 1, 0 ) )
+        result =  xr.where( masked, mask_value, xr.where( water_mask, 2, xr.where( land, 1, 0 ) ) )
         return xr.Dataset( { "mask": result,  "reliability": reliability } )
 
     def get_water_masks(self, data_array: xr.DataArray, binSize: int, threshold = 0.5  ) -> xr.Dataset:
