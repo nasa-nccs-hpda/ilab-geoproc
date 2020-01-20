@@ -4,7 +4,6 @@ from typing import Dict, List, Tuple, Union
 import os, time, sys
 import xarray as xr
 from glob import glob
-from collections import OrderedDict as odict
 from geoproc.surfaceMapping.lakes import WaterMapGenerator
 from geoproc.data.mwp import MWPDataManager
 from geoproc.data.shapefiles import ShapefileManager
@@ -12,7 +11,10 @@ from geoproc.xext.xrio import XRio
 from geoproc.xext.xplot import XPlot
 import os
 
-colors4 = odict( nodata=(0.2, 0.0, 0.0), land=(0, 1, 0), pwater=(0, 0, 1), flood=(1, 1, 0) )
+colors4 = [ (0, 'nodata', (0.2, 0, 0)),
+            (1, 'land',   (0, 1, 0)),
+            (2, 'pwater', (0, 0, 1)),
+            (3, 'flood',  (1, 1, 0)) ]
 SHAPEFILE = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/saltLake/GreatSalt.shp"
 DEMs = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/DEM/*.tif"
 locations = [ "120W050N", "100W040N" ]
@@ -28,9 +30,9 @@ shpManager = ShapefileManager()
 locPoint: Point = shpManager.parseLocation(location)
 threshold = 0.5
 binSize = 8
-matchSliceIndex = 0
+matchSliceIndex = 1
 resolution = (250,250)
-time_range = [0,365] # [200,216] #
+time_range = [0, 80] # [200,216] #
 view_data = False
 subset = None
 animate = True
@@ -51,15 +53,14 @@ waterMapGenerator = WaterMapGenerator()
 cropped_data: xr.DataArray = XRio.load( file_paths, mask = lake_mask, band=0 )
 
 if view_data:
- #   dem_array.plot.imshow( )
     cropped_data.xplot.animate( overlays=dict(red=lake_mask.boundary), colors=colors4 )
 
 else:
-
     masking_results = waterMapGenerator.get_water_masks( cropped_data, binSize, threshold )
     water_masks: xr.DataArray = masking_results["mask"]
+#    water_masks.xplot.frame_array()
 
     match_score, match_count, mismatch_count, overlap_maps = waterMapGenerator.get_slice_match_scores( water_masks, matchSliceIndex )
 
-    overlap_maps.xplot.animate( overlays=dict(red=lake_mask.boundary), colors=colors4, metrics=dict( blue=match_score, green=match_count, red=mismatch_count ) )
+    water_masks.xplot.animate( overlays=dict(red=lake_mask.boundary), colors=colors4, metrics=dict( blue=match_score, green=match_count, red=mismatch_count ) )
 

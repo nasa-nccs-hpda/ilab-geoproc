@@ -1,7 +1,9 @@
 import xarray as xr, regionmask, utm
 from typing import List, Union, Tuple
+from matplotlib import pyplot as plt
 from geoproc.xext.xextension import XExtension
 from geoproc.plot.animation import SliceAnimation
+from matplotlib.colors import LinearSegmentedColormap, Normalize
 
 @xr.register_dataarray_accessor('xplot')
 class XPlot(XExtension):
@@ -13,6 +15,17 @@ class XPlot(XExtension):
     def animate(self, **kwargs ):
         animation = SliceAnimation( self._obj, **kwargs )
         animation.show()
+
+    def frame_array(self, nrows=3, ncols = 3, cmap="jet", vrange = None ):
+        figure, axes = plt.subplots( nrows, ncols )
+        if vrange is None: vrange = ( self._obj[0].min(), self._obj[0].max() )
+        norm = Normalize(vrange[0], vrange[1])
+        for ir in range(nrows):
+            for ic in range(ncols):
+                iF = ic + ir* ncols
+                axes[ir,ic].imshow( self._obj[iF].values, cmap=cmap, norm=norm )
+        plt.suptitle( self._obj.name )
+        plt.show()
 
 @xr.register_dataset_accessor('xplot')
 class XPlotDS:
@@ -37,9 +50,7 @@ class XPlotDS:
 
 if __name__ == "__main__":
     from geoproc.util.configuration import Region
-    from matplotlib import pyplot as plt
     from geoproc.data.mwp import MWPDataManager
-    from matplotlib.colors import LinearSegmentedColormap, Normalize
 
     colors = [ (0, 0, 0), (0, 1, 0), (0, 0, 1), (1, 1, 0) ]
     locations = [ "120W050N", "100W040N" ]

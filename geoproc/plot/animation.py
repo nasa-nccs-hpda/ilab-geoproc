@@ -2,22 +2,28 @@ import matplotlib.widgets
 import matplotlib.patches
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.lines import Line2D
-from matplotlib.axes import SubplotBase
+from matplotlib.axes import Axes
 from matplotlib.colors import LinearSegmentedColormap, Normalize, ListedColormap
+from matplotlib.colorbar import Colorbar
 import matplotlib.pyplot as plt
 from threading import  Thread
 from matplotlib.figure import Figure
 from matplotlib.image import AxesImage
+import matplotlib as mpl
 import xarray as xa
 import numpy as np
 from typing import List, Union, Dict, Callable, Tuple
 import time, math, atexit
 from enum import Enum
 
-def pad_list( list_values: List, padval ) -> List:
-    padded_list = []
-    for lval in list_values: padded_list = padded_list + [ padval, lval ]
-    return padded_list + [ padval ]
+def get_color_bounds( color_values: List[float] ) -> List[float]:
+    color_bounds = []
+    for iC, cval in enumerate( color_values ):
+        if iC == 0: color_bounds.append( cval - 0.5 )
+        else: color_bounds.append( (cval + color_values[iC-1])/2.0 )
+    color_bounds.append( color_values[-1] + 0.5 )
+    return color_bounds
+
 
 class ADirection(Enum):
     BACKWARD = -1
@@ -55,7 +61,7 @@ class EventSource(Thread):
 
 class PageSlider(matplotlib.widgets.Slider):
 
-    def __init__(self, ax: SubplotBase, numpages = 10, valinit=0, valfmt='%1d', **kwargs ):
+    def __init__(self, ax: Axes, numpages = 10, valinit=0, valfmt='%1d', **kwargs ):
         self.facecolor=kwargs.get('facecolor',"yellow")
         self.activecolor = kwargs.pop('activecolor',"blue" )
         self.stepcolor = kwargs.pop('stepcolor', "#ff6f6f" )
@@ -202,7 +208,10 @@ class SliceAnimation:
         self.data: List[xa.DataArray] = data_arrays if isinstance(data_arrays, list) else [ data_arrays ]
         assert self.data[0].ndim == 3, f"This plotter only works with 3 dimensional [t,y,x] data arrays.  Found {self.data[0].dims}"
         self.plot_axes = None
-        self.color_keys = None
+        self.cbar_args = None
+        self.cmap = None
+        self.color_tick_labels = None
+        self.norm = None
         self.figure: Figure = None
         self.images: Dict[int,AxesImage] = {}
         self.nPlots = len(self.data)
@@ -234,7 +243,7 @@ class SliceAnimation:
 
         self.figure.subplots_adjust(bottom=0.12) # 0.18)
         self.figure.suptitle( kwargs.get("title",""), fontsize=14 )
-        self.slider_axes: SubplotBase = self.figure.add_axes([0.1, 0.05, 0.8, 0.04])  # [left, bottom, width, height]
+        self.slider_axes: Axes = self.figure.add_axes([0.1, 0.05, 0.8, 0.04])  # [left, bottom, width, height]
 
     def get_xy_coords(self, iPlot: int ) -> Tuple[ np.ndarray, np.ndarray ]:
         return self.get_coord( iPlot, self.x_axis ), self.get_coord( iPlot, self.y_axis )
@@ -252,31 +261,31 @@ class SliceAnimation:
         ncols = math.ceil( nCells / nrows )
         return [ nrows, ncols ]
 
-    def getSubplot( self, iPlot: int  ) -> SubplotBase:
+    def getSubplot( self, iPlot: int  ) -> Axes:
         if self.plot_grid_shape == [1, 1]: return self.plot_axes
         if len(self.plot_axes.shape) == 1: return self.plot_axes[iPlot]
         plot_coords = [ iPlot//self.plot_grid_shape[1], iPlot % self.plot_grid_shape[1]  ]
         return self.plot_axes[ plot_coords[0], plot_coords[1] ]
 
     def create_cmap( self, kwargs ):
-        self.cmap = kwargs.pop("cmap",None)
         range = kwargs.pop("range",None)
-        self.cnorm = Normalize(*range) if range else None
         if self.cmap is None:
             colors = kwargs.pop("colors",None)
             if colors is None:
-                self.cmap = "jet"
+                self.cmap = kwargs.pop("cmap","jet")
+                self.norm = Normalize(*range) if range else None
             else:
-                from collections import OrderedDict
-                assert isinstance( colors, OrderedDict ), "'colors' parameter should be an instance of OrderedDict"
-                self.cmap: ListedColormap = ListedColormap( list( colors.values() ) )
-                self.cmap.
-                self.color_keys = list(colors.keys())
+                rgbs = [ cval[2] for cval in colors ]
+                self.cmap: ListedColormap = ListedColormap( rgbs )
+                self.color_tick_labels = [ cval[1] for cval in colors ]
+                color_values = [ float(cval[0]) for cval in colors]
+                color_bounds = get_color_bounds(color_values)
+                self.norm = mpl.colors.BoundaryNorm( color_bounds, len( colors )  )
+                self.cbar_args = dict( cmap=self.cmap, norm=self.norm, boundaries=color_bounds, ticks=color_values, spacing='proportional',  orientation='vertical')
 
     def update_diagnostics( self, iFrame: int ):
         if len( self.metrics ):
-#            axis: AxesSubplot = self.plot_axes[-1]
-            axis = self.plot_axes[-1]
+            axis: Axes = self.plot_axes[-1]
             x = [iFrame, iFrame]
             y = [ axis.dataLim.y0, axis.dataLim.y1 ]
             if self.frame_marker == None:
@@ -286,18 +295,16 @@ class SliceAnimation:
 
     def create_image(self, iPlot: int, **kwargs ) -> AxesImage:
         data: xa.DataArray = self.data[iPlot]
-        subplot: SubplotBase = self.getSubplot( iPlot )
+        subplot: Axes = self.getSubplot( iPlot )
         z: xa.DataArray =  data[ 0, :, : ]   # .transpose()
-        image: AxesImage = z.plot.imshow( cmap=self.cmap, norm=self.cnorm, ax=subplot )
+        image: AxesImage = z.plot.imshow( cmap=self.cmap, norm=self.norm, ax=subplot, cbar_kwargs=self.cbar_args )
+        if self.color_tick_labels is not None: image.colorbar.ax.set_yticklabels( self.color_tick_labels )
         subplot.title.set_text( data.name )
         overlays = kwargs.get( "overlays", [] )
         for color, overlay in overlays.items():
             overlay.plot( ax=subplot, color=color, linewidth=2 )
-        if self.color_keys is not None:
-            dc = (float(image.colorbar.vmax) - image.colorbar.vmin)/len(self.color_keys)
-            image.colorbar.set_ticks( np.arange( dc/2, image.colorbar.vmax, dc ) )
-            image.colorbar.set_ticklabels( self.color_keys  )
         return image
+
 
     def create_metrics_plot(self):
         if len( self.metrics ):
@@ -311,7 +318,7 @@ class SliceAnimation:
 
     def update_plots(self, iFrame: int ):
         for iPlot in range(self.nPlots):
-            subplot: SubplotBase = self.getSubplot(iPlot)
+            subplot: Axes = self.getSubplot(iPlot)
             data = self.data[iPlot]
             self.images[iPlot].set_data( data[iFrame,:,:] )
             acoord = self.get_anim_coord( iPlot )
@@ -357,7 +364,7 @@ class ArrayListAnimation:
         self.figure, self.plot_axes = plt.subplots()
         self.figure.suptitle( kwargs.get("title",""), fontsize=14 )
         self.figure.subplots_adjust(bottom=0.18)
-        self.slider_axes: SubplotBase = self.figure.add_axes([0.1, 0.05, 0.8, 0.04])  # [left, bottom, width, height]
+        self.slider_axes: Axes = self.figure.add_axes([0.1, 0.05, 0.8, 0.04])  # [left, bottom, width, height]
         self.x_axis = kwargs.get( 'x', 1 )
         self.x_axis_name = self.data[0].dims[ self.x_axis ]
         self.y_axis = kwargs.get( 'y', 0 )
@@ -381,20 +388,20 @@ class ArrayListAnimation:
 
     def create_cmap( self, **kwargs ):
         self.cmap = kwargs.get("cmap")
-        self.cnorm = None
+        self.norm = None
         if self.cmap is None:
             colors = kwargs.get("colors")
             if colors is None:
                 self.cmap = "jet"
             else:
-                self.cnorm = Normalize(0, len(colors))
+                self.norm = Normalize(0, len(colors))
                 self.cmap = LinearSegmentedColormap.from_list("custom colors", colors, N=4)
 
     def create_image(self ) -> AxesImage:
         z =  self.data[ 0 ]   # .transpose()
-        image: AxesImage = self.plot_axes.imshow( z, cmap=self.cmap, norm=self.cnorm )
+        image: AxesImage = self.plot_axes.imshow( z, cmap=self.cmap, norm=self.norm )
         self.plot_axes.title.set_text( z.name )
-        plt.colorbar(image, ax=self.plot_axes, cmap=self.cmap, norm=self.cnorm)
+        plt.colorbar(image, ax=self.plot_axes, cmap=self.cmap, norm=self.norm)
         return image
 
     # def create_image1(self, ) -> AxesImage:
@@ -403,10 +410,10 @@ class ArrayListAnimation:
     #     subplot: SubplotBase = self.getSubplot(iPlot)
     #     z: xa.DataArray = dataSeries[0]
     #     plotArgs = self.getPlotArgs( subplot, seriesId )
-    #     image: AxesImage = self.figure.imshow( z, cmap=self.cmap, norm=self.cnorm, **plotArgs )
+    #     image: AxesImage = self.figure.imshow( z, cmap=self.cmap, norm=self.norm, **plotArgs )
     #     if range is not None: image.set_clim( *range )
     #     image.axes.title.set_text(z.name)
-    #     plt.colorbar(image, ax=subplot, cmap=self.cmap, norm=self.cnorm)
+    #     plt.colorbar(image, ax=subplot, cmap=self.cmap, norm=self.norm)
     #     return image
 
     def update_plot(self, iFrame: int):
@@ -447,7 +454,7 @@ class PlotComparisons:
         self.figure, self.plot_axes = plt.subplots( *self.plot_grid_shape )
         self.figure.suptitle( kwargs.get("title",""), fontsize=14 )
         self.figure.subplots_adjust(bottom=0.18)
-        self.slider_axes: SubplotBase = self.figure.add_axes([0.1, 0.05, 0.8, 0.04])  # [left, bottom, width, height]
+        self.slider_axes: Axes = self.figure.add_axes([0.1, 0.05, 0.8, 0.04])  # [left, bottom, width, height]
         self.x_axis = kwargs.get( 'x', 1 )
         self.y_axis = kwargs.get( 'y', 0 )
         self.ranges: Dict[str,Dict[int,Tuple[float,float]]] = { seriesId: { frameId: (data.min(), data.max()) for frameId, data in seriesData.items() } for seriesId, seriesData in self.data.items() }
@@ -470,13 +477,13 @@ class PlotComparisons:
 
     def create_cmap( self, **kwargs ):
         self.cmap = kwargs.get("cmap")
-        self.cnorm = None
+        self.norm = None
         if self.cmap is None:
             colors = kwargs.get("colors")
             if colors is None:
                 self.cmap = "jet"
             else:
-                self.cnorm = Normalize(0, len(colors))
+                self.norm = Normalize(0, len(colors))
                 self.cmap = LinearSegmentedColormap.from_list("custom colors", colors, N=4)
 
     def getPlotArgs(self, ax, seriesId: str ):
@@ -497,16 +504,16 @@ class PlotComparisons:
     def create_image(self, seriesId: str, iPlot: int ) -> AxesImage:
         dataSeries: Dict[int,xa.DataArray] = self.data[seriesId]
         range = self.ranges[seriesId].get(0)
-        subplot: SubplotBase = self.getSubplot(iPlot)
+        subplot: Axes = self.getSubplot(iPlot)
         z: xa.DataArray = dataSeries[0]
         plotArgs = self.getPlotArgs( subplot, seriesId )
-        image: AxesImage = subplot.imshow( z, cmap=self.cmap, norm=self.cnorm, **plotArgs )
+        image: AxesImage = subplot.imshow( z, cmap=self.cmap, norm=self.norm, **plotArgs )
         if range is not None: image.set_clim( *range )
         image.axes.title.set_text(z.name)
-        plt.colorbar(image, ax=subplot, cmap=self.cmap, norm=self.cnorm)
+        plt.colorbar(image, ax=subplot, cmap=self.cmap, norm=self.norm)
         return image
 
-    def getSubplot( self, iPlot: int  ) -> SubplotBase:
+    def getSubplot( self, iPlot: int  ) -> Axes:
         if self.plot_grid_shape == [1, 1]: return self.plot_axes
         if self.plot_grid_shape[0] == 1 or self.plot_grid_shape[1] == 1:
             return self.plot_axes[iPlot]
