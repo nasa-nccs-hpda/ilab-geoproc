@@ -59,7 +59,8 @@ class ConfigurableObject:
         merge_coord = pd.Index( frame_names, name="frames" )
         return xr.concat( objs=data_arrays, dim=merge_coord )
 
-    def time_merge( self, data_arrays: List[xr.DataArray] ) -> xr.DataArray:
+    @classmethod
+    def time_merge( cls, data_arrays: List[xr.DataArray] ) -> xr.DataArray:
         frame_indices = range( len(data_arrays) )
         frame_names = [da.name for da in data_arrays]
         merge_coord = pd.Index( frame_indices, name="time" )

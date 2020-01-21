@@ -12,12 +12,14 @@ from geoproc.xext.xplot import XPlot
 import os
 
 mask_value = 5
+mismatch_value = 6
 colors4 = [ ( 0, 'nodata', (0, 0, 0)),
             ( 1, 'land',   (0, 1, 0)),
             ( 2, 'water',  (0, 0, 1)),
             ( 3, 'interp land',   (0, 0.5, 0)),
             ( 4, 'interp water',  (0, 0, 0.5)),
-            ( mask_value, 'mask', (0.25, 0.25, 0.25) ) ]
+            ( mask_value, 'mask', (0.25, 0.25, 0.25) ),
+            ( mismatch_value, 'mismatches', (1, 1, 0) ) ]
 
 colors3 = [ ( 0, 'nodata', (0, 0, 0)),
             ( 1, 'land',   (0, 1, 0)),
@@ -34,15 +36,15 @@ dat_url = "https://floodmap.modaps.eosdis.nasa.gov/Products"
 savePath = DATA_DIR + "/LakeMap_counts_diagnostic_animation.gif"
 location: str = locations[0]
 product: str = products[1]
-year = 2019
+years = [2019]
 download = True
 shpManager = ShapefileManager()
 locPoint: Point = shpManager.parseLocation(location)
 threshold = 0.5
 binSize = 8
-matchSliceIndex = 3
+matchSliceIndex = 17
 resolution = (250,250)
-time_range = [0,80]
+time_range = [0,360]
 view_data = False
 subset = None
 animate = True
@@ -51,7 +53,7 @@ plot_dem = True
 lake_mask: gpd.GeoSeries = gpd.read_file( SHAPEFILE )
 
 dataMgr = MWPDataManager(DATA_DIR, dat_url)
-dataMgr.setDefaults(product=product, download=download, year=year, start_day=time_range[0], end_day=time_range[1])
+dataMgr.setDefaults(product=product, download=download, years=years, start_day=time_range[0], end_day=time_range[1])
 file_paths = dataMgr.get_tile(location)
 
 dem_arrays: List[xr.DataArray] = dataMgr.get_array_data( glob( DEMs ) )
@@ -68,9 +70,9 @@ if view_data:
 else:
     masking_results = waterMapGenerator.get_water_masks( cropped_data, binSize, threshold )
     water_masks: xr.DataArray = masking_results["mask"]
-#    water_masks.xplot.frame_array()
-
-    ms = waterMapGenerator.get_slice_matches(water_masks, matchSliceIndex)
-
-    water_masks.xplot.animate( overlays=dict(red=lake_mask.boundary), colors=colors4, metrics=dict( blue=ms['match_score'], green=ms['match_count'], red=ms['mismatch_count'] ), subplot=ms['overlap_maps'] )
+    ms = waterMapGenerator.temporal_interpolate(water_masks, matchSliceIndex)
+    ms['interp_water_masks'].xplot.animate( overlays=dict(red=lake_mask.boundary),
+                                            colors=colors4,
+                                            metrics=dict( blue=ms['match_score'], green=ms['match_count'], red=ms['mismatch_count'], markers=dict( cyan=matchSliceIndex ) ),
+                                            auxplot=ms['overlap_maps'] )
 

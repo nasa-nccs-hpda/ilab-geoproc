@@ -1,9 +1,10 @@
-import time, os, wget, sys
+import time, os, wget, sys, pprint
 from typing import List, Union, Dict
 import numpy as np
 from multiprocessing import Pool
 from geoproc.xext.xgeo import XGeo
 import xarray as xr
+pp = pprint.PrettyPrinter(depth=4).pprint
 from geoproc.util.configuration import ConfigurableObject, Region
 
 class MWPDataManager(ConfigurableObject):
@@ -28,30 +29,70 @@ class MWPDataManager(ConfigurableObject):
         self.transferMetadata( array, input_array )
         return input_array
 
-    def get_tile(self, location: str = "120W050N", **kwargs) -> List[str]:
-        t0 = time.time()
-        download =  self.getParameter( "download",  **kwargs )
+    def test_if_damaged( self, file_path ):
+        import rioxarray
+        try:
+            result: xr.DataArray = rioxarray.open_rasterio(file_path)
+            return False
+        except Exception as err:
+            return True
+
+    def reload_damaged_files(self, location: str = "120W050N", **kwargs) -> List[str]:
         start_day = self.getParameter( "start_day", **kwargs )
         end_day =   self.getParameter( "end_day",   **kwargs )
-        year =      self.getParameter( "year",      **kwargs )
+        years =     self.getParameter( "years",      **kwargs )
+        year =      self.getParameter("year", **kwargs)
         product =   self.getParameter( "product",   **kwargs )
         location_dir = self.get_location_dir( location )
         files = []
-        for iFile in range(start_day+1,end_day+1):
-            target_file = f"MWP_{year}{iFile:03}_{location}_{product}.tif"
-            target_file_path = os.path.join( location_dir, target_file )
-            if not os.path.exists( target_file_path ):
-                if download:
-                    target_url = self.data_source_url + f"/{location}/{year}/{target_file}"
+        if years is None: years = year
+        iYs = years if isinstance(years, list) else [years]
+        for iY in iYs:
+            for iFile in range(start_day+1,end_day+1):
+                target_file = f"MWP_{iY}{iFile:03}_{location}_{product}.tif"
+                target_file_path = os.path.join( location_dir, target_file )
+                if self.test_if_damaged( target_file_path ):
+                    target_url = self.data_source_url + f"/{location}/{iY}/{target_file}"
                     try:
                         wget.download( target_url, target_file_path )
                         print(f"Downloading url {target_url} to file {target_file_path}")
                         files.append( target_file_path )
                     except Exception:
                         print( f"     ---> Can't access {target_url}")
-            else:
-                print(f" Array[{len(files)}] -> Time[{iFile}]: {target_file_path}")
-                files.append( target_file_path )
+                else:
+                    print(f" Array[{len(files)}] -> Time[{iFile}]: {target_file_path}")
+                    files.append( target_file_path )
+        print(" Downloaded replacement files:")
+        pp( files )
+        return files
+
+    def get_tile(self, location: str = "120W050N", **kwargs) -> List[str]:
+        download =  self.getParameter( "download",  **kwargs )
+        start_day = self.getParameter( "start_day", **kwargs )
+        end_day =   self.getParameter( "end_day",   **kwargs )
+        years =     self.getParameter( "years",      **kwargs )
+        year =      self.getParameter("year", **kwargs)
+        product =   self.getParameter( "product",   **kwargs )
+        location_dir = self.get_location_dir( location )
+        files = []
+        if years is None: years = year
+        iYs = years if isinstance(years, list) else [years]
+        for iY in iYs:
+            for iFile in range(start_day+1,end_day+1):
+                target_file = f"MWP_{iY}{iFile:03}_{location}_{product}.tif"
+                target_file_path = os.path.join( location_dir, target_file )
+                if not os.path.exists( target_file_path ):
+                    if download:
+                        target_url = self.data_source_url + f"/{location}/{iY}/{target_file}"
+                        try:
+                            wget.download( target_url, target_file_path )
+                            print(f"Downloading url {target_url} to file {target_file_path}")
+                            files.append( target_file_path )
+                        except Exception:
+                            print( f"     ---> Can't access {target_url}")
+                else:
+                    print(f" Array[{len(files)}] -> Time[{iFile}]: {target_file_path}")
+                    files.append( target_file_path )
         return files
 
     def get_array_data(self, files: List[str], merge=False ) ->  Union[xr.DataArray,List[xr.DataArray]]:

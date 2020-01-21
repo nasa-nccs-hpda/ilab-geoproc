@@ -18,12 +18,16 @@ class XRio(XExtension):
 
     @classmethod
     def open( cls, filename, mask=None, **kwargs ):
-        oargs = argfilter( kwargs, parse_coordinates = None, chunks = None, cache = None, lock = None )
-        result: xr.DataArray = rioxarray.open_rasterio( filename, **oargs )
-        band = kwargs.pop( 'band', -1 )
-        if band >= 0: result = result.isel(band=band)
-        if mask is None: return result
-        return result.xrio.clip( mask, **kwargs )
+        try:
+            oargs = argfilter( kwargs, parse_coordinates = None, chunks = None, cache = None, lock = None )
+            result: xr.DataArray = rioxarray.open_rasterio( filename, **oargs )
+            band = kwargs.pop( 'band', -1 )
+            if band >= 0: result = result.isel(band=band)
+            if mask is None: return result
+            return result.xrio.clip( mask, **kwargs )
+        except Exception as err:
+            print( f"\nError opening file {filename}: {err}\n")
+            return None
 
     def clip(self, geodf: GeoDataFrame, **kwargs ):
         cargs = argfilter( kwargs, all_touched = True, drop = True )
@@ -38,7 +42,10 @@ class XRio(XExtension):
         merge = kwargs.pop('merge', True)
         mask: GeoDataFrame = kwargs.pop("mask", None)
         if isinstance( filePaths, str ): filePaths = [ filePaths ]
-        array_list: List[xr.DataArray] =  [ cls.open( file, mask, **kwargs ) for file in filePaths ]
+        array_list: List[xr.DataArray] = []
+        for file in filePaths:
+            data_array = cls.open( file, mask, **kwargs )
+            if data_array is not None: array_list.append( data_array )
         if merge and (len(array_list) > 1) and cls.mergable( array_list[0], array_list[1] ):
             return cls.merge( array_list, **kwargs )
         return array_list if (len(array_list) > 1) else array_list[0]

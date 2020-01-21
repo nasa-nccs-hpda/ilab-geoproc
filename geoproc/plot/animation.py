@@ -207,10 +207,7 @@ class SliceAnimation:
         self.data: List[xa.DataArray] = data_arrays if isinstance(data_arrays, list) else [ data_arrays ]
         assert self.data[0].ndim == 3, f"This plotter only works with 3 dimensional [t,y,x] data arrays.  Found {self.data[0].dims}"
         self.plot_axes = None
-        self.cbar_args = None
-        self.cmap = None
-        self.color_tick_labels = None
-        self.norm = None
+        self.auxplot = kwargs.get( "auxplot", None )
         self.figure: Figure = None
         self.images: Dict[int,AxesImage] = {}
         self.nPlots = len(self.data)
@@ -225,7 +222,6 @@ class SliceAnimation:
         self.y_axis_name = self.data[0].dims[ self.y_axis ]
 
         self.nFrames = self.data[0].shape[0]
-        self.create_cmap( kwargs )
         self.add_plots( **kwargs )
         self.add_slider( **kwargs )
         self._update(0)
@@ -236,7 +232,11 @@ class SliceAnimation:
             self.plot_axes = np.arange(2)
             self.figure = plt.figure()
             gs = self.figure.add_gridspec(2, 3)
-            self.plot_axes = np.array( [ self.figure.add_subplot( gs[:, :-1] ), self.figure.add_subplot( gs[:,  -1] ) ] )
+            if self.auxplot is None:
+                self.plot_axes = np.array( [ self.figure.add_subplot( gs[:, :-1] ), self.figure.add_subplot( gs[:,  -1] ) ] )
+            else:
+                self.plot_axes = np.array([self.figure.add_subplot(gs[:, :-1]), self.figure.add_subplot(gs[0, -1]), self.figure.add_subplot(gs[1, -1]) ])
+
         else:
             self.figure, self.plot_axes = plt.subplots( *self.plot_grid_shape )
 
@@ -266,25 +266,26 @@ class SliceAnimation:
         plot_coords = [ iPlot//self.plot_grid_shape[1], iPlot % self.plot_grid_shape[1]  ]
         return self.plot_axes[ plot_coords[0], plot_coords[1] ]
 
-    def create_cmap( self, kwargs ):
-        range = kwargs.pop("range",None)
-        if self.cmap is None:
-            colors = kwargs.pop("colors",None)
-            if colors is None:
-                self.cmap = kwargs.pop("cmap","jet")
-                self.norm = Normalize(*range) if range else None
-            else:
-                rgbs = [ cval[2] for cval in colors ]
-                self.cmap: ListedColormap = ListedColormap( rgbs )
-                self.color_tick_labels = [ cval[1] for cval in colors ]
-                color_values = [ float(cval[0]) for cval in colors]
-                color_bounds = get_color_bounds(color_values)
-                self.norm = mpl.colors.BoundaryNorm( color_bounds, len( colors )  )
-                self.cbar_args = dict( cmap=self.cmap, norm=self.norm, boundaries=color_bounds, ticks=color_values, spacing='proportional',  orientation='vertical')
+    def create_cmap( self, cmap_spec: Dict ):
+        range = cmap_spec.pop("range",None)
+        colors = cmap_spec.pop("colors",None)
+        if colors is None:
+            cmap = cmap_spec.pop("cmap","jet")
+            norm = Normalize(*range) if range else None
+            return dict( cmap=cmap, norm=norm, cbar_kwargs=dict(cmap=cmap, norm=norm), tick_labels=None )
+        else:
+            rgbs = [ cval[2] for cval in colors ]
+            cmap: ListedColormap = ListedColormap( rgbs )
+            tick_labels = [ cval[1] for cval in colors ]
+            color_values = [ float(cval[0]) for cval in colors]
+            color_bounds = get_color_bounds(color_values)
+            norm = mpl.colors.BoundaryNorm( color_bounds, len( colors )  )
+            cbar_args = dict( cmap=cmap, norm=norm, boundaries=color_bounds, ticks=color_values, spacing='proportional',  orientation='vertical')
+            return dict( cmap=cmap, norm=norm, cbar_kwargs=cbar_args, tick_labels=tick_labels )
 
-    def update_diagnostics( self, iFrame: int ):
+    def update_metrics( self, iFrame: int ):
         if len( self.metrics ):
-            axis: Axes = self.plot_axes[-1]
+            axis: Axes = self.plot_axes[1]
             x = [iFrame, iFrame]
             y = [ axis.dataLim.y0, axis.dataLim.y1 ]
             if self.frame_marker == None:
@@ -292,12 +293,18 @@ class SliceAnimation:
             else:
                 self.frame_marker.set_data( x, y )
 
+    def update_aux_plot( self, iFrame: int ):
+        if self.auxplot is not None:
+            self.images[self.nPlots].set_data( self.auxplot[iFrame] )
+
     def create_image(self, iPlot: int, **kwargs ) -> AxesImage:
         data: xa.DataArray = self.data[iPlot]
         subplot: Axes = self.getSubplot( iPlot )
+        cm = self.create_cmap( data.attrs.get("cmap",{}) )
         z: xa.DataArray =  data[ 0, :, : ]   # .transpose()
-        image: AxesImage = z.plot.imshow( cmap=self.cmap, norm=self.norm, ax=subplot, cbar_kwargs=self.cbar_args )
-        if self.color_tick_labels is not None: image.colorbar.ax.set_yticklabels( self.color_tick_labels )
+        color_tick_labels = cm.pop( 'tick_labels', None )
+        image: AxesImage = z.plot.imshow( ax=subplot, **cm )
+        if color_tick_labels is not None: image.colorbar.ax.set_yticklabels( color_tick_labels )
         subplot.title.set_text( data.name )
         overlays = kwargs.get( "overlays", [] )
         for color, overlay in overlays.items():
@@ -306,29 +313,47 @@ class SliceAnimation:
 
     def create_metrics_plot(self):
         if len( self.metrics ):
-            axis = self.plot_axes[-1]
+            axis = self.plot_axes[1]
             axis.title.set_text("Metrics")
+            markers = self.metrics.pop('markers',{})
             for color, values in self.metrics.items():
                 x = range( len(values) )
                 line, = axis.plot( x, values, color=color )
                 line.set_label(values.name)
+            for color, value in markers.items():
+                x = [value, value]
+                y = [axis.dataLim.y0, axis.dataLim.y1]
+                line, = axis.plot(x, y, color=color)
+            axis.legend()
+
+    def create_aux_plot(self):
+        if self.auxplot is not None:
+            axis = self.plot_axes[2]
+            axis.title.set_text("AuxPlot")
+            cm = self.create_cmap( self.auxplot.attrs.get("cmap", {}) )
+            color_tick_labels = cm.pop('tick_labels', None)
+            z: xa.DataArray = self.auxplot[0]
+            self.images[self.nPlots]  = z.plot.imshow( ax=axis, **cm )
+            if color_tick_labels is not None: self.images[self.nPlots].colorbar.ax.set_yticklabels(color_tick_labels)
             axis.legend()
 
     def update_plots(self, iFrame: int ):
         for iPlot in range(self.nPlots):
             subplot: Axes = self.getSubplot(iPlot)
             data = self.data[iPlot]
-            self.images[iPlot].set_data( data[iFrame,:,:] )
+            self.images[iPlot].set_data( data[iFrame] )
             acoord = self.get_anim_coord( iPlot )
             frame_title = data.name if data.name else f"Frame-{iFrame}"
             cval = acoord[iFrame]
             subplot.title.set_text( f"Frame {iFrame}: {frame_title} {cval}" )
-        self.update_diagnostics( iFrame )
+        self.update_metrics( iFrame )
+        self.update_aux_plot(iFrame)
 
     def add_plots(self, **kwargs ):
         for iPlot in range(self.nPlots):
             self.images[iPlot] = self.create_image( iPlot, **kwargs )
         self.create_metrics_plot()
+        self.create_aux_plot()
 
     def add_slider(self,  **kwargs ):
         self.slider = PageSlider( self.slider_axes, self.nFrames )
@@ -395,18 +420,6 @@ class ArrayListAnimation:
         self.plot_axes.title.set_text( z.name )
         plt.colorbar(image, ax=self.plot_axes, cmap=self.cmap, norm=self.norm)
         return image
-
-    # def create_image1(self, ) -> AxesImage:
-    #     dataSeries: Dict[int,xa.DataArray] = self.data[seriesId]
-    #     range = self.ranges[seriesId].get(0)
-    #     subplot: SubplotBase = self.getSubplot(iPlot)
-    #     z: xa.DataArray = dataSeries[0]
-    #     plotArgs = self.getPlotArgs( subplot, seriesId )
-    #     image: AxesImage = self.figure.imshow( z, cmap=self.cmap, norm=self.norm, **plotArgs )
-    #     if range is not None: image.set_clim( *range )
-    #     image.axes.title.set_text(z.name)
-    #     plt.colorbar(image, ax=subplot, cmap=self.cmap, norm=self.norm)
-    #     return image
 
     def update_plot(self, iFrame: int):
         data: xa.DataArray = self.data[iFrame]
