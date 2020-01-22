@@ -10,6 +10,10 @@ from geoproc.util.logging import ILABLogger
 def argfilter( args: Dict, **kwargs ) -> Dict:
     return { key: args.get(key,value) for key,value in kwargs.items() }
 
+def sanitize( array: xr.DataArray ):
+    for key, value in array.attrs.items():
+        array.attrs[key] = str(value)
+    return array
 
 class ConfigurableObject:
 
@@ -64,7 +68,7 @@ class ConfigurableObject:
         frame_indices = range( len(data_arrays) )
         frame_names = [da.name for da in data_arrays]
         merge_coord = pd.Index( frame_indices, name="time" )
-        result: xr.DataArray =  xr.concat( objs=data_arrays, dim=merge_coord )
+        result: xr.DataArray =  xr.concat( data_arrays, dim=merge_coord )
         return result # .assign_coords( {'frames': frame_names } )
 
 class Region:

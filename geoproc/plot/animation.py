@@ -6,13 +6,14 @@ from matplotlib.axes import Axes
 from matplotlib.colors import LinearSegmentedColormap, Normalize, ListedColormap
 import matplotlib.pyplot as plt
 from threading import  Thread
+from geoproc.util.configuration import sanitize, ConfigurableObject as BaseOp
 from matplotlib.figure import Figure
 from matplotlib.image import AxesImage
 import matplotlib as mpl
 import xarray as xa
 import numpy as np
 from typing import List, Union, Dict, Callable, Tuple
-import time, math, atexit
+import time, math, atexit, json
 from enum import Enum
 
 def get_color_bounds( color_values: List[float] ) -> List[float]:
@@ -204,8 +205,7 @@ class PageSlider(matplotlib.widgets.Slider):
 class SliceAnimation:
 
     def __init__(self, data_arrays: Union[xa.DataArray,List[xa.DataArray]], **kwargs ):
-        self.data: List[xa.DataArray] = data_arrays if isinstance(data_arrays, list) else [ data_arrays ]
-        assert self.data[0].ndim == 3, f"This plotter only works with 3 dimensional [t,y,x] data arrays.  Found {self.data[0].dims}"
+        self.data: List[xa.DataArray] = self.preprocess_inputs(data_arrays)
         self.plot_axes = None
         self.auxplot = kwargs.get( "auxplot", None )
         self.figure: Figure = None
@@ -225,6 +225,19 @@ class SliceAnimation:
         self.add_plots( **kwargs )
         self.add_slider( **kwargs )
         self._update(0)
+
+    @classmethod
+    def preprocess_inputs(cls, data_arrays: Union[xa.DataArray,List[xa.DataArray]]  ) -> List[xa.DataArray]:
+        inputs_list = data_arrays if isinstance(data_arrays, list) else [data_arrays]
+        return [ cls.preprocess_input(input) for input in inputs_list ]
+
+    @classmethod
+    def preprocess_input(cls, dataArray: xa.DataArray ) -> xa.DataArray:
+        if dataArray.ndim == 3: return dataArray
+        if 'time' not in dataArray.dims:
+            return BaseOp.time_merge([dataArray])
+        else:
+            raise Exception( f"This plotter only works with 3 dimensional [t,y,x] data arrays.  Found {dataArray.dims}" )
 
     def setup_plots( self, **kwargs ):
         self.plot_grid_shape: List[int] = self.getSubplotShape( len(self.metrics)>0 )  # [ rows, cols ]
@@ -266,7 +279,8 @@ class SliceAnimation:
         plot_coords = [ iPlot//self.plot_grid_shape[1], iPlot % self.plot_grid_shape[1]  ]
         return self.plot_axes[ plot_coords[0], plot_coords[1] ]
 
-    def create_cmap( self, cmap_spec: Dict ):
+    def create_cmap( self, cmap_spec: Union[str,Dict] ):
+        if isinstance(cmap_spec,str): cmap_spec =  json.loads(cmap_spec)
         range = cmap_spec.pop("range",None)
         colors = cmap_spec.pop("colors",None)
         if colors is None:
@@ -274,6 +288,8 @@ class SliceAnimation:
             norm = Normalize(*range) if range else None
             return dict( cmap=cmap, norm=norm, cbar_kwargs=dict(cmap=cmap, norm=norm), tick_labels=None )
         else:
+            if isinstance( colors, np.ndarray ):
+                return dict( cmap=LinearSegmentedColormap.from_list('my_colormap', colors) )
             rgbs = [ cval[2] for cval in colors ]
             cmap: ListedColormap = ListedColormap( rgbs )
             tick_labels = [ cval[1] for cval in colors ]

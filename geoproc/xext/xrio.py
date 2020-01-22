@@ -23,7 +23,10 @@ class XRio(XExtension):
             result: xr.DataArray = rioxarray.open_rasterio( filename, **oargs )
             band = kwargs.pop( 'band', -1 )
             if band >= 0: result = result.isel(band=band)
+            result.encoding = dict( dtype = str(result.dtype))
             if mask is None: return result
+#            x, y = result.coords['x'], result.coords['y']
+#            print( f" {filename}:   x[{x.size}]: ( {x.data[0]:.2f}, {x.data[-1]:.2f} ) ")
             return result.xrio.clip( mask, **kwargs )
         except Exception as err:
             print( f"\nError opening file {filename}: {err}\n")
@@ -35,6 +38,7 @@ class XRio(XExtension):
         self._obj.rio.set_nodata(mask_value)
         result = self._obj.rio.clip( geodf.geometry.apply(mapping), geodf.crs, **cargs )
         result.attrs['mask_value'] = mask_value
+        result.encoding = self._obj.encoding
         return result
 
     @classmethod
@@ -46,19 +50,25 @@ class XRio(XExtension):
         for file in filePaths:
             data_array = cls.open( file, mask, **kwargs )
             if data_array is not None: array_list.append( data_array )
-        if merge and (len(array_list) > 1) and cls.mergable( array_list[0], array_list[1] ):
-            return cls.merge( array_list, **kwargs )
+        if merge and (len(array_list) > 1):
+            assert cls.mergable( array_list ), "Attempt to merge arrays with different shapes"
+            result = cls.merge( array_list, **kwargs )
+            return result
         return array_list if (len(array_list) > 1) else array_list[0]
 
     @classmethod
     def merge( cls, data_arrays: List[xr.DataArray], **kwargs ) -> xr.DataArray:
+#        from xarray.core.variable import concat
         new_axis_name = kwargs.get('axis','time')
         indexed = kwargs.get('indexed',True)
         new_axis_values = range( len(data_arrays) ) if indexed else [da.name for da in data_arrays]
+#        result: xr.DataArray =  concat( data_arrays, new_axis_name )
         merge_coord = pd.Index( new_axis_values, name=new_axis_name )
-        result: xr.DataArray =  xr.concat( objs=data_arrays, dim=merge_coord )
+        result: xr.DataArray =  xr.concat( data_arrays, merge_coord )
         return result
 
     @classmethod
-    def mergable(cls, a0: xr.DataArray, a1: xr.DataArray) -> bool:
-        return a0.shape == a1.shape
+    def mergable(cls, arrays: List[xr.DataArray]) -> bool:
+        for array in arrays:
+            if array.shape != arrays[0].shape: return False
+        return True

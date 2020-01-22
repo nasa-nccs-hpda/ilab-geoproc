@@ -70,14 +70,11 @@ class MWPDataManager(ConfigurableObject):
         download =  self.getParameter( "download",  **kwargs )
         start_day = self.getParameter( "start_day", **kwargs )
         end_day =   self.getParameter( "end_day",   **kwargs )
-        years =     self.getParameter( "years",      **kwargs )
-        year =      self.getParameter("year", **kwargs)
+        years =     self.getParameter( "years",   self.getParameter("year", **kwargs) )
         product =   self.getParameter( "product",   **kwargs )
         location_dir = self.get_location_dir( location )
         files = []
-        if years is None: years = year
-        iYs = years if isinstance(years, list) else [years]
-        for iY in iYs:
+        for iY in list(years):
             for iFile in range(start_day+1,end_day+1):
                 target_file = f"MWP_{iY}{iFile:03}_{location}_{product}.tif"
                 target_file_path = os.path.join( location_dir, target_file )
