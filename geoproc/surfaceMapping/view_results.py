@@ -11,7 +11,7 @@ import xarray as xr
 
 SHAPEFILE = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/saltLake/GreatSalt.shp"
 DATA_DIR = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt"
-result_file = DATA_DIR + f"/WaterProbabilityMaps.nc"
+result_file = DATA_DIR + f"/SaltLakeWaterMasks.nc"
 lake_mask: gpd.GeoSeries = gpd.read_file( SHAPEFILE )
 land_water_thresholds = [ 0.05, 0.85 ]
 

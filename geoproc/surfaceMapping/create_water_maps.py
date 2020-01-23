@@ -8,6 +8,7 @@ from geoproc.surfaceMapping.lakes import WaterMapGenerator
 from geoproc.data.mwp import MWPDataManager
 from geoproc.data.shapefiles import ShapefileManager
 from geoproc.xext.xrio import XRio
+from geoproc.util.configuration import sanitize, ConfigurableObject as BaseOp
 from geoproc.xext.xplot import XPlot
 import os
 
@@ -36,7 +37,7 @@ dat_url = "https://floodmap.modaps.eosdis.nasa.gov/Products"
 savePath = DATA_DIR + "/LakeMap_counts_diagnostic_animation.gif"
 location: str = locations[0]
 product: str = products[1]
-years = [2019]
+year_range = ( 2014, 2020 )
 download = True
 shpManager = ShapefileManager()
 locPoint: Point = shpManager.parseLocation(location)
@@ -50,10 +51,26 @@ subset = None
 animate = True
 plot_dem = True
 
+def get_water_prob( cropped_data ):
+    perm_water = (cropped_data == 2)
+    fld_water = (cropped_data == 3)
+    water = (perm_water + fld_water)
+    land = (cropped_data == 1)
+    masked = cropped_data[0] == mask_value
+
+    water_cnts = water.sum(axis=0)
+    land_cnts = land.sum(axis=0)
+
+    visible_cnts = (water_cnts + land_cnts + 1)
+    water_prob: xr.DataArray = xr.where(masked, 1.01, water_cnts / visible_cnts)
+    water_prob.attrs = cropped_data.attrs
+    water_prob.name = "WaterProbability"
+    return water_prob
+
 lake_mask: gpd.GeoSeries = gpd.read_file( SHAPEFILE )
 
 dataMgr = MWPDataManager(DATA_DIR, dat_url)
-dataMgr.setDefaults(product=product, download=download, years=years, start_day=time_range[0], end_day=time_range[1])
+dataMgr.setDefaults(product=product, download=download, years=range(*year_range), start_day=time_range[0], end_day=time_range[1])
 file_paths = dataMgr.get_tile(location)
 
 dem_arrays: List[xr.DataArray] = dataMgr.get_array_data( glob( DEMs ) )
@@ -70,9 +87,27 @@ if view_data:
 else:
     masking_results = waterMapGenerator.get_water_masks( cropped_data, binSize, threshold )
     water_masks: xr.DataArray = masking_results["mask"]
-    ms = waterMapGenerator.temporal_interpolate(water_masks, matchSliceIndex)
-    ms['interp_water_masks'].xplot.animate( overlays=dict(red=lake_mask.boundary),
-                                            colors=colors4,
-                                            metrics=dict( blue=ms['match_score'], green=ms['match_count'], red=ms['mismatch_count'], markers=dict( cyan=matchSliceIndex ) ),
-                                            auxplot=ms['overlap_maps'] )
 
+    water_probability = get_water_prob( cropped_data )
+
+    result = xr.Dataset( dict( water_masks=sanitize(water_masks)  ) )
+    result_file = DATA_DIR + f"/SaltLake_water_masks.nc"
+    result.to_netcdf( result_file )
+    print( f"Saved water_masks to {result_file}")
+
+    result = xr.Dataset( dict(cropped_data=sanitize(cropped_data)  ) )
+    result_file = DATA_DIR + f"/SaltLake_cropped_data.nc"
+    result.to_netcdf( result_file )
+    print( f"Saved cropped_data to {result_file}")
+
+    result = xr.Dataset( dict( water_probability=sanitize(water_probability)  ) )
+    result_file = DATA_DIR + f"/SaltLake_water_probability.nc"
+    result.to_netcdf( result_file )
+    print( f"Saved water_probability to {result_file}")
+
+    # ms = waterMapGenerator.temporal_interpolate(water_masks, matchSliceIndex)
+    # ms['interp_water_masks'].xplot.animate( overlays=dict(red=lake_mask.boundary),
+    #                                         colors=colors4,
+    #                                         metrics=dict( blue=ms['match_score'], green=ms['match_count'], red=ms['mismatch_count'], markers=dict( cyan=matchSliceIndex ) ),
+    #                                         auxplot=ms['overlap_maps'] )
+    #

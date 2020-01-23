@@ -8,39 +8,51 @@ from glob import glob
 from geoproc.data.mwp import MWPDataManager
 from geoproc.plot.animation import SliceAnimation
 from geoproc.data.shapefiles import ShapefileManager
+from geoproc.cluster.manager import ClusterManager
 from geoproc.util.configuration import sanitize, ConfigurableObject as BaseOp
 from geoproc.xext.xrio import XRio
 from geoproc.xext.xplot import XPlot
+import functools
+import numpy as np
 import os
+from dask.distributed import Client, Future, LocalCluster
 
 mask_value = 5
+mismatch_value = 6
 colors3 = [ ( 0, 'land',  (0, 1, 0) ),
             ( 1, 'undetermined', (1, 1, 0) ),
             ( 2, 'water', (0, 0, 1) ),
             ( mask_value, 'mask', (0.25, 0.25, 0.25) ) ]
+
+colors4 = [ ( 0, 'nodata', (0, 0, 0)),
+            ( 1, 'land',   (0, 1, 0)),
+            ( 2, 'water',  (0, 0, 1)),
+            ( 3, 'interp land',   (0, 0.5, 0)),
+            ( 4, 'interp water',  (0, 0, 0.5)),
+            ( mask_value, 'mask', (0.25, 0.25, 0.25) ),
+            ( mismatch_value, 'mismatches', (1, 1, 0) ) ]
+
+mask_value = 5
+mask_color = [0.25, 0.25, 0.25]
+jet_colors2 = plt.cm.jet(np.linspace(0, 1, 128))
+jet_colors2[127] = mask_color + [ 1.0 ]
 
 SHAPEFILE = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/saltLake/GreatSalt.shp"
 DEMs = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/DEM/*.tif"
 locations = [ "120W050N", "100W040N" ]
 products = [ "1D1OS", "2D2OT", "3D3OT" ]
 DATA_DIR = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt"
-dat_url = "https://floodmap.modaps.eosdis.nasa.gov/Products"
+cluster_parameters = {'type': 'local'}
 location: str = locations[0]
-product: str = products[1]
-year_range = ( 2014, 2020 )  # Data changes resolution at the beginning of 2014
-download = True
 shpManager = ShapefileManager()
 locPoint: Point = shpManager.parseLocation(location)
-threshold = 0.5
-binSize = 8
-matchSliceIndex = 17
-resolution = (250,250)
-time_range = [0,40]
+from multiprocessing import Pool
+
 view_data = False
 subset = None
 animate = True
 plot_dem = True
-land_water_thresholds = [ 0.25, 0.75 ]
+land_water_thresholds = [ 0.03, 0.95 ]
 
 t0 = time.time()
 
@@ -48,41 +60,51 @@ lake_mask: gpd.GeoSeries = gpd.read_file( SHAPEFILE )
 water_prob_maps = []
 water_prob_classes = []
 
-def get_water_prob( cropped_data ):
-    perm_water = (cropped_data == 2)
-    fld_water = (cropped_data == 3)
-    water = (perm_water + fld_water)
-    land = (cropped_data == 1)
-    masked = cropped_data[0] == mask_value
+def patch_water_map( persistent_classes: xr.DataArray, input_array: xr.DataArray  ) -> xr.DataArray:
+    land_mask = persistent_classes == 0
+    water_mask = persistent_classes == 2
+    persistent_class_map = land_mask + water_mask
+    result = persistent_classes.where( persistent_class_map, input_array )
+    return result
 
-    water_cnts = water.sum(axis=0)
-    land_cnts = land.sum(axis=0)
+def patch_water_maps_dask( persistent_classes: xr.DataArray, inputs: xr.DataArray  ) -> xr.DataArray:
+    patch_func = functools.partial(patch_water_map,persistent_classes)
+    return xr.apply_ufunc( patch_func, inputs, input_core_dims= [ [inputs.dims[0]], ] )
 
-    visible_cnts = (water_cnts + land_cnts + 1)
-    water_prob: xr.DataArray = xr.where(masked, 1.01, water_cnts / visible_cnts)
-    water_prob.attrs = cropped_data.attrs
-    water_prob.name = "WaterProbability"
-    return water_prob
+def patch_water_maps_mp( persistent_classes: xr.DataArray, inputs: xr.DataArray, nProcesses: int = 8  ) -> xr.DataArray:
+    slices = [ slice.reset_coords(inputs.dims[0]).variables[slice.name] for slice in inputs ]
+    patch_func = functools.partial(patch_water_map, persistent_classes)
+    with Pool(nProcesses) as p:
+        patched_slices = p.map( patch_func, slices, nProcesses )
+    return BaseOp.time_merge( patched_slices, dim="frames" )
 
+def get_persistent_classes( water_probability: xr.DataArray, thresholds: List[float] ) -> xr.DataArray:
+    return xr.where(water_probability > 1.0, mask_value, xr.where(water_probability > thresholds[1], 2, (water_probability > thresholds[0])))
+
+
+# dask_client = Client(LocalCluster(n_workers=8))
+# with ClusterManager( cluster_parameters ) as clusterMgr:
 with xr.set_options(keep_attrs=True):
 
+    water_masks_dataset = xr.open_dataset( f"{DATA_DIR}/SaltLake_water_masks.nc" )
+    water_masks: xr.DataArray = water_masks_dataset.water_masks
+    water_masks.attrs['cmap'] = dict(colors=colors4)
 
-    dataMgr = MWPDataManager(DATA_DIR, dat_url)
-    dataMgr.setDefaults(product=product, download=download, year=range(*year_range), start_day=time_range[0], end_day=time_range[1])
-    file_paths = dataMgr.get_tile(location)
-    cropped_data: xr.DataArray = XRio.load( file_paths, mask = lake_mask, band=0, mask_value=mask_value ) # , chunks={'x': 600, 'y': 600} )
+    water_probability_dataset = xr.open_dataset(f"{DATA_DIR}/SaltLake_water_probability.nc")
+    water_probability: xr.DataArray = water_probability_dataset.water_probability
+    water_probability.attrs['cmap'] = dict(colors=jet_colors2)
 
-    print(f" cropped_data dtype={cropped_data.dtype} ")
-    print(f" cropped_data attrs={cropped_data.attrs} ")
+    persistent_classes: xr.DataArray = get_persistent_classes( water_probability, land_water_thresholds )
+    persistent_classes.attrs['cmap'] = dict(colors=colors3)
 
-    print( f"\n Computing water probability map for year range {year_range}\n" )
+#    animation = SliceAnimation( [water_probability,persistent_classes], overlays=dict(red=lake_mask.boundary) )
+#    animation.show()
 
-    water_prob = get_water_prob( cropped_data )
+    patched_water_maps: xr.DataArray = patch_water_maps_mp( persistent_classes, water_masks )
+    patched_water_maps.attrs['cmap'] = dict(colors=colors4)
 
-    print( f" water_prob dtype={water_prob.dtype} " )
-    print(f" water_prob attrs={water_prob.attrs} ")
-
-
+    animation = SliceAnimation( [water_masks,patched_water_maps], overlays=dict(red=lake_mask.boundary) )
+    animation.show()
 
  #    thresholded_map: xr.DataArray = xr.where(  masked, mask_value, xr.where( water_prob > land_water_thresholds[1], 2, (water_prob > land_water_thresholds[0]) ) )
 
@@ -105,8 +127,3 @@ with xr.set_options(keep_attrs=True):
 # #    animation = SliceAnimation( [water_prob_map,water_prob_class], overlays=dict(red=lake_mask.boundary) )
 # #    animation.show()
 #
-
-    result = xr.Dataset( dict( probabilitiy=water_prob ) )
-    result_file = DATA_DIR + f"/WaterProbabilityMaps.nc"
-    result.to_netcdf( result_file )
-    print( f"Saved result to {result_file}")

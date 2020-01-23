@@ -64,10 +64,10 @@ class ConfigurableObject:
         return xr.concat( objs=data_arrays, dim=merge_coord )
 
     @classmethod
-    def time_merge( cls, data_arrays: List[xr.DataArray] ) -> xr.DataArray:
+    def time_merge( cls, data_arrays: List[xr.DataArray], **kwargs ) -> xr.DataArray:
         frame_indices = range( len(data_arrays) )
         frame_names = [da.name for da in data_arrays]
-        merge_coord = pd.Index( frame_indices, name="time" )
+        merge_coord = pd.Index( frame_indices, name=kwargs.get("dim","time") )
         result: xr.DataArray =  xr.concat( data_arrays, dim=merge_coord )
         return result # .assign_coords( {'frames': frame_names } )
 

@@ -1,5 +1,3 @@
-from geoproc.cluster.slurm import SlurmClusterManager
-from geoproc.cluster.local import LocalClusterManager
 from geoproc.util.logging import ILABLogger
 import traceback
 from typing import Dict, Any, Union, List, Callable, Optional
@@ -10,8 +8,10 @@ class ClusterManager:
         self.logger = ILABLogger.getLogger()
         self.type = serverConfiguration.get('type','local')
         if self.type == "slurm":
+            from geoproc.cluster.slurm import SlurmClusterManager
             self.mgr = SlurmClusterManager( serverConfiguration )
         else:
+            from geoproc.cluster.local import LocalClusterManager
             self.mgr = LocalClusterManager( serverConfiguration )
         self.logger.info( f"Using {self.type} Cluster Manager for Dask/xarray, Dashboard: '{self.mgr.getDashboardAddress()}'" )
 

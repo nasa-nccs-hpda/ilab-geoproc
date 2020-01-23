@@ -4,6 +4,7 @@ import pandas as pd
 from geoproc.xext.xextension import XExtension
 from geopandas import GeoDataFrame
 import os, warnings
+import numpy as np
 from shapely.geometry import box, mapping
 from geoproc.util.configuration import argfilter
 import rioxarray
@@ -22,7 +23,8 @@ class XRio(XExtension):
             oargs = argfilter( kwargs, parse_coordinates = None, chunks = None, cache = None, lock = None )
             result: xr.DataArray = rioxarray.open_rasterio( filename, **oargs )
             band = kwargs.pop( 'band', -1 )
-            if band >= 0: result = result.isel(band=band)
+            if band >= 0:
+                result = result.isel( band=band, drop=True )
             result.encoding = dict( dtype = str(result.dtype))
             if mask is None: return result
 #            x, y = result.coords['x'], result.coords['y']
@@ -51,7 +53,7 @@ class XRio(XExtension):
             data_array = cls.open( file, mask, **kwargs )
             if data_array is not None: array_list.append( data_array )
         if merge and (len(array_list) > 1):
-            assert cls.mergable( array_list ), "Attempt to merge arrays with different shapes"
+            assert cls.mergable( array_list ), f"Attempt to merge arrays with different shapes"
             result = cls.merge( array_list, **kwargs )
             return result
         return array_list if (len(array_list) > 1) else array_list[0]
@@ -64,7 +66,7 @@ class XRio(XExtension):
         new_axis_values = range( len(data_arrays) ) if indexed else [da.name for da in data_arrays]
 #        result: xr.DataArray =  concat( data_arrays, new_axis_name )
         merge_coord = pd.Index( new_axis_values, name=new_axis_name )
-        result: xr.DataArray =  xr.concat( data_arrays, merge_coord )
+        result: xr.DataArray =  xr.concat( data_arrays, merge_coord ).astype( data_arrays[0].dtype )
         return result
 
     @classmethod
