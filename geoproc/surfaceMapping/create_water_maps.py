@@ -28,6 +28,7 @@ colors3 = [ ( 0, 'nodata', (0, 0, 0)),
             ( 3, 'flood water', (0, 1, 1)),
             ( mask_value, 'mask', (0.25, 0.25, 0.25) ) ]
 
+debug = False
 SHAPEFILE = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/saltLake/GreatSalt.shp"
 DEMs = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/DEM/*.tif"
 locations = [ "120W050N", "100W040N" ]
@@ -37,30 +38,26 @@ dat_url = "https://floodmap.modaps.eosdis.nasa.gov/Products"
 savePath = DATA_DIR + "/LakeMap_counts_diagnostic_animation.gif"
 location: str = locations[0]
 product: str = products[1]
-year_range = ( 2014, 2020 )
+year_range = ( 2019, 2020 ) if debug else ( 2014, 2020 )
 download = True
 shpManager = ShapefileManager()
 locPoint: Point = shpManager.parseLocation(location)
 threshold = 0.5
 binSize = 8
-matchSliceIndex = 17
+matchSliceIndex = 5 if debug else  17
 resolution = (250,250)
-time_range = [0,360]
+time_range = [0,80] if debug else [0,360]
 view_data = False
 subset = None
 animate = True
 plot_dem = True
 
 def get_water_prob( cropped_data ):
-    perm_water = (cropped_data == 2)
-    fld_water = (cropped_data == 3)
-    water = (perm_water + fld_water)
-    land = (cropped_data == 1)
-    masked = cropped_data[0] == mask_value
-
+    water = cropped_data.isin( [2,3] )
+    land = cropped_data.isin( [1] )
+    masked = cropped_data[0].isin( [mask_value] ).drop_vars( cropped_data.dims[0] )
     water_cnts = water.sum(axis=0)
     land_cnts = land.sum(axis=0)
-
     visible_cnts = (water_cnts + land_cnts + 1)
     water_prob: xr.DataArray = xr.where(masked, 1.01, water_cnts / visible_cnts)
     water_prob.attrs = cropped_data.attrs
@@ -85,7 +82,7 @@ if view_data:
     cropped_data.xplot.animate( overlays=dict(red=lake_mask.boundary), colors=colors3 )
 
 else:
-    masking_results = waterMapGenerator.get_water_masks( cropped_data, binSize, threshold )
+    masking_results = waterMapGenerator.get_water_masks( cropped_data, binSize, threshold, mask_value )
     water_masks: xr.DataArray = masking_results["mask"]
 
     water_probability = get_water_prob( cropped_data )

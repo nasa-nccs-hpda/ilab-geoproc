@@ -61,34 +61,58 @@ water_prob_maps = []
 water_prob_classes = []
 
 def patch_water_map( persistent_classes: xr.DataArray, input_array: xr.DataArray  ) -> xr.DataArray:
-    land_mask = persistent_classes == 0
-    water_mask = persistent_classes == 2
-    persistent_class_map = land_mask + water_mask
-    result = persistent_classes.where( persistent_class_map, input_array )
+    dynamics_mask = persistent_classes.isin( [0] )
+    result = input_array.where( dynamics_mask, persistent_classes )
     return result
 
-def patch_water_maps_dask( persistent_classes: xr.DataArray, inputs: xr.DataArray  ) -> xr.DataArray:
-    patch_func = functools.partial(patch_water_map,persistent_classes)
-    return xr.apply_ufunc( patch_func, inputs, input_core_dims= [ [inputs.dims[0]], ] )
-
-def patch_water_maps_mp( persistent_classes: xr.DataArray, inputs: xr.DataArray, nProcesses: int = 8  ) -> xr.DataArray:
-    slices = [ slice.reset_coords(inputs.dims[0]).variables[slice.name] for slice in inputs ]
-    patch_func = functools.partial(patch_water_map, persistent_classes)
-    with Pool(nProcesses) as p:
-        patched_slices = p.map( patch_func, slices, nProcesses )
-    return BaseOp.time_merge( patched_slices, dim="frames" )
+def patch_water_maps( persistent_classes: xr.DataArray, inputs: xr.DataArray, dynamics_class: int = 0  ) -> xr.DataArray:
+    dynamics_mask = persistent_classes.isin( [dynamics_class] )
+    result = inputs.where( dynamics_mask, persistent_classes )
+    return result
 
 def get_persistent_classes( water_probability: xr.DataArray, thresholds: List[float] ) -> xr.DataArray:
-    return xr.where(water_probability > 1.0, mask_value, xr.where(water_probability > thresholds[1], 2, (water_probability > thresholds[0])))
+    perm_water_mask = water_probability > thresholds[1]
+    perm_land_mask =  water_probability < thresholds[0]
+    boundaries_mask = water_probability > 1.0
+    return xr.where( boundaries_mask, mask_value,
+                     xr.where(perm_water_mask, 2,
+                             xr.where(perm_land_mask, 1, 0)))
 
+def get_matching_slice( water_masks: xr.DataArray, match_score: xr.DataArray, current_slice: int ):
+    match_score[ current_slice ] = 0
+    matching_slice = water_masks[ match_score.argmax() ]
+    return matching_slice
+
+def get_match_score( water_mask: xr.DataArray, dynamics_mask: xr.DataArray, current_slice: xr.DataArray, **kwargs ) -> xr.DataArray:
+    critical_undef_count = xr.where( dynamics_mask, water_mask==0, False ).count()
+    valid_mask = np.logical_and( dynamics_mask, water_mask > 0 )
+    match_count = xr.where( valid_mask, water_mask == current_slice, False ).count()
+    mismatch_count = xr.where( valid_mask, water_mask != current_slice, False).count()
+    return xr.DataArray( [ match_count, mismatch_count, critical_undef_count ] )
+
+def temporal_interpolate( persistent_classes: xr.DataArray, water_masks: xr.DataArray, current_slice_index: int, **kwargs ):
+    dynamics_mask = persistent_classes.isin( [1] )
+    current_slice = water_masks[current_slice_index].drop_vars( water_masks.dims[0] )
+    ms = water_masks.groupby( water_masks.dims[0] ).map( get_match_score, args=( dynamics_mask, current_slice ), **kwargs )
+    match_count = ms[:,0]
+    mismatch_count = ms[:,1]
+    critical_undef_count = ms[:,2]
+    match_scores = match_count - mismatch_count - critical_undef_count
+    matching_slice = get_matching_slice( water_masks, match_scores, current_slice_index )
+    interp_slice: xr.DataArray = current_slice.where( current_slice != 0, matching_slice + 2  )
+    water_masks[ current_slice_index ] = interp_slice
+    return dict( match_scores=match_scores, interp_water_masks = water_masks, match_count = match_count, mismatch_count=mismatch_count,  critical_undef_count=critical_undef_count )
 
 # dask_client = Client(LocalCluster(n_workers=8))
 # with ClusterManager( cluster_parameters ) as clusterMgr:
+
+debug = False
 with xr.set_options(keep_attrs=True):
 
     water_masks_dataset = xr.open_dataset( f"{DATA_DIR}/SaltLake_water_masks.nc" )
     water_masks: xr.DataArray = water_masks_dataset.water_masks
     water_masks.attrs['cmap'] = dict(colors=colors4)
+    if debug: water_masks = water_masks[0:3]
 
     water_probability_dataset = xr.open_dataset(f"{DATA_DIR}/SaltLake_water_probability.nc")
     water_probability: xr.DataArray = water_probability_dataset.water_probability
@@ -100,30 +124,19 @@ with xr.set_options(keep_attrs=True):
 #    animation = SliceAnimation( [water_probability,persistent_classes], overlays=dict(red=lake_mask.boundary) )
 #    animation.show()
 
-    patched_water_maps: xr.DataArray = patch_water_maps_mp( persistent_classes, water_masks )
+    patched_water_maps: xr.DataArray = patch_water_maps( persistent_classes, water_masks )
     patched_water_maps.attrs['cmap'] = dict(colors=colors4)
 
-    animation = SliceAnimation( [water_masks,patched_water_maps], overlays=dict(red=lake_mask.boundary) )
-    animation.show()
+#    animation = SliceAnimation( [water_masks,patched_water_maps], overlays=dict(red=lake_mask.boundary) )
+#    animation.show()
 
- #    thresholded_map: xr.DataArray = xr.where(  masked, mask_value, xr.where( water_prob > land_water_thresholds[1], 2, (water_prob > land_water_thresholds[0]) ) )
+    matchSliceIndex = 2
+    ms = temporal_interpolate( persistent_classes, patched_water_maps, matchSliceIndex )
 
-#    water_prob_maps.append( water_prob )
-#    water_prob_classes.append( thresholded_map )
+    ms['interp_water_masks'].xplot.animate( overlays=dict(red=lake_mask.boundary),
+                                            colors=colors4,
+                                            metrics=dict( blue=ms['match_scores'], green=ms['match_count'], red=ms['mismatch_count'], black=ms['critical_undef_count'], markers=dict( cyan=matchSliceIndex ) ),
+                                            auxplot=water_masks )
 
 
-#     water_prob_map: xr.DataArray = BaseOp.time_merge(water_prob_maps)
-#     water_prob_map.name = "WaterProbablity"
-#     water_prob_map.attrs['cmap'] = json.dumps( dict( cmap = "jet" ) )
-#  #   water_prob_map.xgeo.to_tif( DATA_DIR + f"/WaterProbabilityMap.tif" )
-#
-#     water_prob_class = BaseOp.time_merge(water_prob_classes)
-#     water_prob_class.name = "Classification"
-#     water_prob_class.attrs['cmap'] = json.dumps( dict( colors = colors3 ) )
-#  #   water_prob_class.xgeo.to_tif( DATA_DIR + f"/WaterProbabilityClasses.tif" )
-#
-#     print( f'Completed computation in {(time.time()-t0)/60.0} mins')
-#
-# #    animation = SliceAnimation( [water_prob_map,water_prob_class], overlays=dict(red=lake_mask.boundary) )
-# #    animation.show()
-#
+

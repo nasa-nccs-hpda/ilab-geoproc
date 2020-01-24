@@ -52,15 +52,12 @@ class WaterMapGenerator(ConfigurableObject):
         matching_slice = water_masks[ scores.argmax() ]
         return matching_slice
 
-    def get_water_mask(self, inputs: Union[ xr.DataArray, List[xr.DataArray] ], threshold = 0.5 )-> xr.Dataset:
+    def get_water_mask(self, inputs: Union[ xr.DataArray, List[xr.DataArray] ], threshold = 0.5, mask_value = 0 )-> xr.Dataset:
         da: xr.DataArray = self.time_merge(inputs) if isinstance(inputs, list) else inputs
         binSize = da.shape[0]
-        mask_value = da.attrs.get( 'mask_value', 255 )
-        masked = ( da[0] == mask_value )
-        land = ( da == 1 ).sum( axis=0 )
-        perm_water = ( da == 2 ).sum( axis=0 )
-        fld_water = ( da == 3 ).sum( axis=0 )
-        water = (perm_water + fld_water)
+        masked = da[0].isin( [mask_value] ).drop_vars( inputs.dims[0] )
+        land = da.isin( [1] ).sum( axis=0 )
+        water =  da.isin( [2,3] ).sum( axis=0 )
         visible = ( water + land )
         reliability = visible / float(binSize)
         prob_h20 = water / visible
@@ -68,12 +65,12 @@ class WaterMapGenerator(ConfigurableObject):
         result =  xr.where( masked, mask_value, xr.where( water_mask, 2, xr.where( land, 1, 0 ) ) )
         return xr.Dataset( { "mask": result,  "reliability": reliability } )
 
-    def get_water_masks(self, data_array: xr.DataArray, binSize: int, threshold = 0.5  ) -> xr.Dataset:
+    def get_water_masks(self, data_array: xr.DataArray, binSize: int, threshold = 0.5, mask_value=0  ) -> xr.Dataset:
         print("\n Executing get_water_masks ")
         t0 = time.time()
         time_bins = np.array( list(range( 0, data_array.shape[0]+1, binSize )), dtype=np.int32 )
         grouped_data: DatasetGroupBy = data_array.groupby_bins( 'time', time_bins, right = False )
-        results:  xr.Dataset = grouped_data.apply( self.get_water_mask, threshold = threshold )
+        results:  xr.Dataset = grouped_data.apply( self.get_water_mask, threshold = threshold, mask_value=mask_value )
         print( f" Completed get_water_masks in {time.time()-t0:.3f} seconds" )
         for result in results.values(): self.transferMetadata( data_array, result )
         return results.assign( time_bins = time_bins[0:-1] )
