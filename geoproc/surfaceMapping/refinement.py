@@ -83,25 +83,20 @@ def get_matching_slice( water_masks: xr.DataArray, match_score: xr.DataArray, cu
     matching_slice = water_masks[ match_score.argmax() ]
     return matching_slice
 
-def get_match_score( water_mask: xr.DataArray, dynamics_mask: xr.DataArray, current_slice: xr.DataArray, **kwargs ) -> xr.DataArray:
-    critical_undef_count = xr.where( dynamics_mask, water_mask==0, False ).count()
-    valid_mask = np.logical_and( dynamics_mask, water_mask > 0 )
-    match_count = xr.where( valid_mask, water_mask == current_slice, False ).count()
-    mismatch_count = xr.where( valid_mask, water_mask != current_slice, False).count()
-    return xr.DataArray( [ match_count, mismatch_count, critical_undef_count ] )
-
 def temporal_interpolate( persistent_classes: xr.DataArray, water_masks: xr.DataArray, current_slice_index: int, **kwargs ):
-    dynamics_mask = persistent_classes.isin( [1] )
+    dynamics_mask = persistent_classes == 1
+    sdims = water_masks.dims[1:]
     current_slice = water_masks[current_slice_index].drop_vars( water_masks.dims[0] )
-    ms = water_masks.groupby( water_masks.dims[0] ).map( get_match_score, args=( dynamics_mask, current_slice ), **kwargs )
-    match_count = ms[:,0]
-    mismatch_count = ms[:,1]
-    critical_undef_count = ms[:,2]
+    critical_undef_count = xr.where(dynamics_mask, water_masks == 0, 0 ).sum( dim = sdims )
+    valid_mask = np.logical_and( dynamics_mask, water_masks > 0 )
+    matches = xr.where(valid_mask, water_masks == current_slice, 0)
+    match_count = matches.sum( dim = sdims )
+    mismatch_count = xr.where( valid_mask, water_masks != current_slice, 0 ).sum( dim = sdims )
     match_scores = match_count - mismatch_count - critical_undef_count
     matching_slice = get_matching_slice( water_masks, match_scores, current_slice_index )
     interp_slice: xr.DataArray = current_slice.where( current_slice != 0, matching_slice + 2  )
     water_masks[ current_slice_index ] = interp_slice
-    return dict( match_scores=match_scores, interp_water_masks = water_masks, match_count = match_count, mismatch_count=mismatch_count,  critical_undef_count=critical_undef_count )
+    return dict( match_scores=match_scores, interp_water_masks = water_masks, match_count = match_count, mismatch_count=mismatch_count,  critical_undef_count=critical_undef_count, matches=matches )
 
 # dask_client = Client(LocalCluster(n_workers=8))
 # with ClusterManager( cluster_parameters ) as clusterMgr:
@@ -136,7 +131,7 @@ with xr.set_options(keep_attrs=True):
     ms['interp_water_masks'].xplot.animate( overlays=dict(red=lake_mask.boundary),
                                             colors=colors4,
                                             metrics=dict( blue=ms['match_scores'], green=ms['match_count'], red=ms['mismatch_count'], black=ms['critical_undef_count'], markers=dict( cyan=matchSliceIndex ) ),
-                                            auxplot=water_masks )
+                                            auxplot=ms['matches'] )
 
 
 
