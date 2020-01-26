@@ -54,9 +54,7 @@ animate = True
 plot_dem = True
 land_water_thresholds = [ 0.03, 0.95 ]
 
-t0 = time.time()
 
-lake_mask: gpd.GeoSeries = gpd.read_file( SHAPEFILE )
 water_prob_maps = []
 water_prob_classes = []
 
@@ -68,15 +66,15 @@ def patch_water_map( persistent_classes: xr.DataArray, input_array: xr.DataArray
 def patch_water_maps( persistent_classes: xr.DataArray, inputs: xr.DataArray, dynamics_class: int = 0  ) -> xr.DataArray:
     dynamics_mask = persistent_classes.isin( [dynamics_class] )
     result = inputs.where( dynamics_mask, persistent_classes )
-    return result
+    return result.where( result == inputs, persistent_classes + 2 )
 
 def get_persistent_classes( water_probability: xr.DataArray, thresholds: List[float] ) -> xr.DataArray:
     perm_water_mask = water_probability > thresholds[1]
     perm_land_mask =  water_probability < thresholds[0]
     boundaries_mask = water_probability > 1.0
     return xr.where( boundaries_mask, mask_value,
-                     xr.where(perm_water_mask, 2,
-                             xr.where(perm_land_mask, 1, 0)))
+                         xr.where(perm_water_mask, 2,
+                             xr.where(perm_land_mask, 1, 0)) )
 
 def get_matching_slice( water_masks: xr.DataArray, match_score: xr.DataArray, current_slice: int ):
     match_score[ current_slice ] = 0
@@ -98,12 +96,33 @@ def temporal_interpolate( persistent_classes: xr.DataArray, water_masks: xr.Data
     water_masks[ current_slice_index ] = interp_slice
     return dict( match_scores=match_scores, interp_water_masks = water_masks, match_count = match_count, mismatch_count=mismatch_count,  critical_undef_count=critical_undef_count, matches=matches )
 
+def temporal_patch_slice( water_masks: xr.DataArray, slice_index: int, patched_slice=None, patch_slice_index=None  ) -> xr.DataArray:
+    current_slice = patched_slice if patched_slice is not None else water_masks[slice_index].drop_vars(water_masks.dims[0])
+    undef_Mask: xr.DataArray = ( current_slice == 0 )
+    current_patch_slice_index = slice_index - 1 if patch_slice_index is None else patch_slice_index - 1
+    if (undef_Mask.count() == 0) or (current_patch_slice_index < 0): return current_slice
+    patch_slice = water_masks[ current_patch_slice_index ].drop_vars(water_masks.dims[0])
+    recolored_patch_slice = patch_slice.where( patch_slice == 0, patch_slice + 2  )
+    current_patched_slice = current_slice.where( current_slice>0, recolored_patch_slice )
+    return temporal_patch_slice( water_masks, slice_index, current_patched_slice, current_patch_slice_index )
+
+def temporal_patch( water_masks: xr.DataArray, nProcesses: int = 8  ) -> xr.DataArray:
+    slices = list(range( water_masks.shape[0]))
+    patcher = functools.partial( temporal_patch_slice, water_masks )
+    with Pool(nProcesses) as p:
+        patched_slices = p.map( patcher, slices, nProcesses)
+        return BaseOp.time_merge( patched_slices )
+
+
 # dask_client = Client(LocalCluster(n_workers=8))
 # with ClusterManager( cluster_parameters ) as clusterMgr:
 
 debug = False
+temportal_interp = True
 with xr.set_options(keep_attrs=True):
 
+    t0 = time.time()
+    lake_mask: gpd.GeoSeries = gpd.read_file(SHAPEFILE)
     water_masks_dataset = xr.open_dataset( f"{DATA_DIR}/SaltLake_water_masks.nc" )
     water_masks: xr.DataArray = water_masks_dataset.water_masks
     water_masks.attrs['cmap'] = dict(colors=colors4)
@@ -125,13 +144,11 @@ with xr.set_options(keep_attrs=True):
 #    animation = SliceAnimation( [water_masks,patched_water_maps], overlays=dict(red=lake_mask.boundary) )
 #    animation.show()
 
-    matchSliceIndex = 2
-    ms = temporal_interpolate( persistent_classes, patched_water_maps, matchSliceIndex )
+    repatched_water_maps = temporal_patch( patched_water_maps ) if temportal_interp else patched_water_maps
+    repatched_water_maps.compute()
 
-    ms['interp_water_masks'].xplot.animate( overlays=dict(red=lake_mask.boundary),
-                                            colors=colors4,
-                                            metrics=dict( blue=ms['match_scores'], green=ms['match_count'], red=ms['mismatch_count'], black=ms['critical_undef_count'], markers=dict( cyan=matchSliceIndex ) ),
-                                            auxplot=ms['matches'] )
+    print( f"Completed computation in {time.time()-t0} seconds")
+    repatched_water_maps.xplot.animate( overlays=dict( red=lake_mask.boundary),  colors=colors4 )
 
 
 
