@@ -1,5 +1,6 @@
 import xarray as xa
 import os, time
+import matplotlib.pyplot as plt
 
 DATA_DIR = "/att/nobackup/jli30/workspace/landslide/perf_test"
 image_file = os.path.join( DATA_DIR, "4551910_2016-01-02_RE4_3A_Analytic.tif" )
@@ -18,11 +19,9 @@ var_array.to_netcdf( result_file )
 
 print(f" \n Completed operation in {time.time()-t0} seconds, wrote output to {result_file} ")
 
-
-
-
-
-
+fig, ax = plt.subplots()
+im = ax.imshow( var_array.values, cmap="jet" )
+plt.show()
 
 
 
