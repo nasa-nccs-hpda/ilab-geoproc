@@ -15,10 +15,15 @@ if __name__ == '__main__':
 
         data_array: xa.DataArray = xa.open_rasterio(image_file)
         band_data: xa.DataArray  = data_array.sel( band=band_index, drop=True )
+
+        print( " * Band Data: " )
         print( band_data.dims )
+        print( band_data.shape )
 
         var_array = data_array.coarsen( **block ).var()
 
+        print(" \n *Var Data: ")
+        print( var_array.dims )
         print( var_array.shape )
 
 
