@@ -6,7 +6,7 @@ DATA_DIR = "/att/nobackup/jli30/workspace/landslide/perf_test"
 image_file = os.path.join( DATA_DIR, "4551910_2016-01-02_RE4_3A_Analytic.tif" )
 result_file =  "/tmp/4551910_2016-01-02_RE4_3A_var.nc"
 block = dict(x=5, y=5)
-chunks = dict(x=500, y=500)
+chunks = dict(x=1000, y=1000)
 band_index = 3
 
 if __name__ == '__main__':
