@@ -1,6 +1,6 @@
 from shapely.geometry import Point
 import xarray as xr
-import string, random
+import string, random, json
 import pandas as pd
 from os.path import dirname, abspath, join
 import logging, os
@@ -12,7 +12,10 @@ def argfilter( args: Dict, **kwargs ) -> Dict:
 
 def sanitize( array: xr.DataArray ):
     for key, value in array.attrs.items():
-        array.attrs[key] = str(value)
+        if key == "cmap" and not isinstance(value,str):
+            array.attrs[key] = json.dumps(value)
+        else:
+            array.attrs[key] = str(value)
     return array
 
 class ConfigurableObject:
@@ -65,9 +68,9 @@ class ConfigurableObject:
 
     @classmethod
     def time_merge( cls, data_arrays: List[xr.DataArray], **kwargs ) -> xr.DataArray:
+        time_axis = kwargs.get('time',None)
         frame_indices = range( len(data_arrays) )
-        frame_names = [da.name for da in data_arrays]
-        merge_coord = pd.Index( frame_indices, name=kwargs.get("dim","time") )
+        merge_coord = pd.Index( frame_indices, name=kwargs.get("dim","time") ) if time_axis is None else time_axis
         result: xr.DataArray =  xr.concat( data_arrays, dim=merge_coord )
         return result # .assign_coords( {'frames': frame_names } )
 

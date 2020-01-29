@@ -52,8 +52,12 @@ view_data = False
 subset = None
 animate = True
 plot_dem = True
-land_water_thresholds = [ 0.03, 0.95 ]
+land_water_thresholds = [ 0.08, 0.92 ]
 
+def update_metrics( data_array: xr.DataArray, **kwargs ):
+    metrics = data_array.attrs.get('metrics', {} )
+    metrics.update( **kwargs )
+    data_array.attrs['metrics'] = metrics
 
 water_prob_maps = []
 water_prob_classes = []
@@ -64,9 +68,11 @@ def patch_water_map( persistent_classes: xr.DataArray, input_array: xr.DataArray
     return result
 
 def patch_water_maps( persistent_classes: xr.DataArray, inputs: xr.DataArray, dynamics_class: int = 0  ) -> xr.DataArray:
+    persistent_classes = persistent_classes.interp_like( inputs )
     dynamics_mask = persistent_classes.isin( [dynamics_class] )
-    result = inputs.where( dynamics_mask, persistent_classes )
-    return result.where( result == inputs, persistent_classes + 2 )
+    result = xr.where( dynamics_mask, inputs, persistent_classes  )
+    patched_result: xr.DataArray = result.where( result == inputs, persistent_classes + 2 )
+    return patched_result
 
 def get_persistent_classes( water_probability: xr.DataArray, thresholds: List[float] ) -> xr.DataArray:
     perm_water_mask = water_probability > thresholds[1]
@@ -111,7 +117,7 @@ def temporal_patch( water_masks: xr.DataArray, nProcesses: int = 8  ) -> xr.Data
     patcher = functools.partial( temporal_patch_slice, water_masks )
     with Pool(nProcesses) as p:
         patched_slices = p.map( patcher, slices, nProcesses)
-        return BaseOp.time_merge( patched_slices )
+        return BaseOp.time_merge( patched_slices, time=water_masks.coords[ water_masks.dims[0] ] )
 
 
 # dask_client = Client(LocalCluster(n_workers=8))
@@ -119,6 +125,9 @@ def temporal_patch( water_masks: xr.DataArray, nProcesses: int = 8  ) -> xr.Data
 
 debug = False
 temportal_interp = True
+use_previous_patching = False
+use_yearly_probabilities = True
+
 with xr.set_options(keep_attrs=True):
 
     t0 = time.time()
@@ -126,29 +135,49 @@ with xr.set_options(keep_attrs=True):
     water_masks_dataset = xr.open_dataset( f"{DATA_DIR}/SaltLake_water_masks.nc" )
     water_masks: xr.DataArray = water_masks_dataset.water_masks
     water_masks.attrs['cmap'] = dict(colors=colors4)
+    water_masks = water_masks.rename( dict( time_bins = 'time' ))
+    space_dims = water_masks.dims[1:]
     if debug: water_masks = water_masks[0:3]
 
-    water_probability_dataset = xr.open_dataset(f"{DATA_DIR}/SaltLake_water_probability.nc")
-    water_probability: xr.DataArray = water_probability_dataset.water_probability
-    water_probability.attrs['cmap'] = dict(colors=jet_colors2)
+    if use_previous_patching:
+        repatched_water_maps: xr.DataArray = xr.open_dataset(f"{DATA_DIR}/SaltLake_patched_water_masks.nc").water_masks
+        repatched_water_maps.attrs['cmap'] = dict(colors=colors4)
 
-    persistent_classes: xr.DataArray = get_persistent_classes( water_probability, land_water_thresholds )
-    persistent_classes.attrs['cmap'] = dict(colors=colors3)
+    else:
+        if use_yearly_probabilities:
+            water_probability_dataset = xr.open_dataset(f"{DATA_DIR}/SaltLake_yearly_water_probability.nc")
+            water_probability: xr.DataArray = water_probability_dataset.water_probability
 
-#    animation = SliceAnimation( [water_probability,persistent_classes], overlays=dict(red=lake_mask.boundary) )
-#    animation.show()
+        else:
+            water_probability_dataset = xr.open_dataset(f"{DATA_DIR}/SaltLake_water_probability.nc")
+            water_probability: xr.DataArray = water_probability_dataset.water_probability
 
-    patched_water_maps: xr.DataArray = patch_water_maps( persistent_classes, water_masks )
-    patched_water_maps.attrs['cmap'] = dict(colors=colors4)
+        persistent_classes: xr.DataArray = get_persistent_classes( water_probability, land_water_thresholds )
+        persistent_classes.attrs['cmap'] = dict(colors=colors3)
 
-#    animation = SliceAnimation( [water_masks,patched_water_maps], overlays=dict(red=lake_mask.boundary) )
-#    animation.show()
 
-    repatched_water_maps = temporal_patch( patched_water_maps ) if temportal_interp else patched_water_maps
-    repatched_water_maps.compute()
+    #    animation = SliceAnimation( [water_probability,persistent_classes], overlays=dict(red=lake_mask.boundary) )
+    #    animation.show()
+
+        patched_water_maps: xr.DataArray = patch_water_maps( persistent_classes, water_masks )
+
+    #    animation = SliceAnimation( [water_masks,patched_water_maps], overlays=dict(red=lake_mask.boundary) )
+    #    animation.show()
+
+        repatched_water_maps = temporal_patch( patched_water_maps ) if temportal_interp else patched_water_maps
+        result_file = DATA_DIR + ( f"/SaltLake_patched_water_masks.nc" if use_yearly_probabilities else f"/SaltLake_patched_yearly_water_masks.nc" )
+        sanitize(repatched_water_maps).to_netcdf( result_file )
+        repatched_water_maps.attrs['cmap'] = dict(colors=colors4)
+
+
+    patched_water_count: xr.DataArray  = (repatched_water_maps == 4).sum( dim=space_dims )
+    patched_water_count.name="Patched Water"
+
+    patched_land_count: xr.DataArray  = (repatched_water_maps == 3).sum( dim=space_dims )
+    patched_land_count.name="Patched Land"
 
     print( f"Completed computation in {time.time()-t0} seconds")
-    repatched_water_maps.xplot.animate( overlays=dict( red=lake_mask.boundary),  colors=colors4 )
+    repatched_water_maps.xplot.animate( overlays=dict( red=lake_mask.boundary), auxplot=water_masks, metrics=dict(green=patched_land_count, blue=patched_water_count ) )
 
 
 

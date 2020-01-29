@@ -208,6 +208,7 @@ class SliceAnimation:
         self.data: List[xa.DataArray] = self.preprocess_inputs(data_arrays)
         self.plot_axes = None
         self.auxplot = kwargs.get( "auxplot", None )
+        self.metrics_alpha = kwargs.get( "metrics_alpha", 0.7 )
         self.figure: Figure = None
         self.images: Dict[int,AxesImage] = {}
         self.nPlots = len(self.data)
@@ -280,7 +281,8 @@ class SliceAnimation:
         return self.plot_axes[ plot_coords[0], plot_coords[1] ]
 
     def create_cmap( self, cmap_spec: Union[str,Dict] ):
-        if isinstance(cmap_spec,str): cmap_spec =  json.loads(cmap_spec)
+        if isinstance(cmap_spec,str):
+            cmap_spec =  json.loads(cmap_spec)
         range = cmap_spec.pop("range",None)
         colors = cmap_spec.pop("colors",None)
         if colors is None:
@@ -305,7 +307,7 @@ class SliceAnimation:
             x = [iFrame, iFrame]
             y = [ axis.dataLim.y0, axis.dataLim.y1 ]
             if self.frame_marker == None:
-                self.frame_marker, = axis.plot( x, y, color="yellow", lw=3 )
+                self.frame_marker, = axis.plot( x, y, color="yellow", lw=3, alpha=0.5 )
             else:
                 self.frame_marker.set_data( x, y )
 
@@ -334,7 +336,7 @@ class SliceAnimation:
             markers = self.metrics.pop('markers',{})
             for color, values in self.metrics.items():
                 x = range( len(values) )
-                line, = axis.plot( x, values, color=color )
+                line, = axis.plot( x, values, color=color, alpha=self.metrics_alpha )
                 line.set_label(values.name)
             for color, value in markers.items():
                 x = [value, value]
@@ -365,11 +367,20 @@ class SliceAnimation:
         self.update_metrics( iFrame )
         self.update_aux_plot(iFrame)
 
+    def onMetricsClick(self, event):
+        if event.xdata != None and event.ydata != None:
+            if len(self.metrics):
+                axis: Axes = self.plot_axes[1]
+                if event.inaxes == axis:
+                    print( f"onMetricsClick: {event.xdata}" )
+                    self.slider.set_val( round(event.xdata) )
+
     def add_plots(self, **kwargs ):
         for iPlot in range(self.nPlots):
             self.images[iPlot] = self.create_image( iPlot, **kwargs )
         self.create_metrics_plot()
         self.create_aux_plot()
+        self._cid = self.figure.canvas.mpl_connect( 'button_press_event', self.onMetricsClick)
 
     def add_slider(self,  **kwargs ):
         self.slider = PageSlider( self.slider_axes, self.nFrames )

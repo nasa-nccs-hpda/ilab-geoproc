@@ -60,11 +60,8 @@ class XRio(XExtension):
 
     @classmethod
     def merge( cls, data_arrays: List[xr.DataArray], **kwargs ) -> xr.DataArray:
-#        from xarray.core.variable import concat
         new_axis_name = kwargs.get('axis','time')
-        indexed = kwargs.get('indexed',True)
-        new_axis_values = range( len(data_arrays) ) if indexed else [da.name for da in data_arrays]
-#        result: xr.DataArray =  concat( data_arrays, new_axis_name )
+        new_axis_values = kwargs.get('index', range( len(data_arrays) ) )
         merge_coord = pd.Index( new_axis_values, name=new_axis_name )
         result: xr.DataArray =  xr.concat( data_arrays, merge_coord ).astype( data_arrays[0].dtype )
         return result

@@ -1,0 +1,62 @@
+from dask.distributed import Client, LocalCluster, as_completed
+
+import dask.array as da
+
+from osgeo import gdal
+
+import numpy as np
+
+import os
+
+
+def padImage(input, size, mode='symmetric'):
+    a = np.pad(input, size // 2, mode)
+
+    return a
+
+
+def tuple_index(shape):
+    indices = np.ndindex(shape)
+
+
+return ([(i, j) for i, j in indices])
+
+
+def cal_var(in_arr, point, size):
+    i = point[0]
+
+    j = point[1]
+
+    return da.var(in_arr[i:(i + size), j:(j + size)])
+
+
+t0 = time.time()
+
+path = "/att/nobackup/jli30/workspace/landslide/perf_test"
+
+os.chdir(path)
+
+image_file = "4551910_2016-01-02_RE4_3A_Analytic.tif"
+
+img = gdal.Open(image_file)
+
+rows = img.RasterYSize
+
+cols = img.RasterXSize
+
+red_band = img.GetRasterBand(3)
+
+red = red_band.ReadAsArray()
+
+size = 5
+
+red = da.from_array(red)
+
+redpad = padImage(red, size)
+
+points = tuple_index((rows, cols))
+
+c = Client(n_workers=4)
+
+fut = [c.submit(cal_var, redpad, pt, size) for pt in points]
+
