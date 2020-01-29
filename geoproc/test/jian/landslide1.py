@@ -17,10 +17,10 @@ var_array: xa.DataArray = band_data.coarsen( **block, boundary='pad' ).var()
 var_array.name = "band_3_var_5x5"
 var_array.to_netcdf( result_file )
 
-print(f" \n Completed operation in {time.time()-t0} seconds, wrote output to {result_file} ")
+print(f" \n Completed operation in {time.time()-t0} seconds, wrote output to {result_file}, data range = [ {band_data.min()}, {band_data.max()} ] ")
 
 fig, ax = plt.subplots()
-im = ax.imshow( var_array.values, cmap="jet" )
+im = ax.imshow( var_array.values, cmap="jet", vmin=var_array.min(), vmax=var_array.max() )
 plt.show()
 
 
