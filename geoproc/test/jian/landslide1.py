@@ -17,7 +17,9 @@ if __name__ == '__main__':
         band_data: xa.DataArray  = data_array.sel( band=band_index, drop=True )
         print( band_data.dims )
 
-#        var_array = data_array.coarsen( **block ).var()
+        var_array = data_array.coarsen( **block ).var()
+
+        print( var_array.shape )
 
 
 
