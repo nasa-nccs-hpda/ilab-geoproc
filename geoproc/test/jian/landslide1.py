@@ -7,12 +7,17 @@ image_file = os.path.join( DATA_DIR, "4551910_2016-01-02_RE4_3A_Analytic.tif" )
 
 if __name__ == '__main__':
 
+    block = dict( x=5, y=5 )
+    band_index = 3
+
     cluster_parameters = {'type': 'slurm'}
     with ClusterManager( cluster_parameters ) as clusterMgr:
 
-        data_array = xa.open_rasterio(image_file)
-        print( data_array.dims )
-#        var_array = data_array.coarsen(time=7, x=2).mean()
+        data_array: xa.DataArray = xa.open_rasterio(image_file)
+        band_data: xa.DataArray  = data_array.sel( band=band_index, drop=True )
+        print( band_data.dims )
+
+#        var_array = data_array.coarsen( **block ).var()
 
 
 
