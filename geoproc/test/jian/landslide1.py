@@ -18,7 +18,7 @@ if __name__ == '__main__':
         data_array: xa.DataArray = xa.open_rasterio( image_file, chunks=chunks )
         band_data: xa.DataArray  = data_array.sel( band=band_index, drop=True )
         var_array: xa.DataArray = band_data.coarsen( **block, boundary='pad' ).var()
-        var_array.to_netcdf( result_file )
+        var_array.compute().to_netcdf( result_file )
 
         print(f" \n Completed operation in {time.time()-t0} seconds, wrote output to {result_file} ")
 
