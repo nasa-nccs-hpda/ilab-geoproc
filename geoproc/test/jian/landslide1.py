@@ -19,9 +19,7 @@ var_array.to_netcdf( result_file )
 
 print(f" \n Completed operation in {time.time()-t0} seconds, wrote output to {result_file}, data range = [ {band_data.min().values}, {band_data.max().values} ] ")
 
-fig, ax = plt.subplots()
-im = ax.imshow( var_array.values, cmap="jet", vmin=var_array.min().values, vmax=var_array.max().values )
-plt.show()
+var_array.plot.imshow( cmap="jet")
 
 
 
