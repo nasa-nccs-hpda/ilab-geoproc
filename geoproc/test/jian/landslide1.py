@@ -14,19 +14,9 @@ if __name__ == '__main__':
     cluster_parameters = {'type': 'slurm'}
     with ClusterManager( cluster_parameters ) as clusterMgr:
 
-        data_array: xa.DataArray = xa.open_rasterio(image_file)
+        data_array: xa.DataArray = xa.open_rasterio( image_file, chunks=(500,500) )
         band_data: xa.DataArray  = data_array.sel( band=band_index, drop=True )
-
-        print( " * Band Data: " )
-        print( band_data.dims )
-        print( band_data.shape )
-
         var_array: xa.DataArray = band_data.coarsen( **block, boundary='pad' ).var()
-
-        print(" \n *Var Data: ")
-        print( var_array.dims )
-        print( var_array.shape )
-
         var_array.to_netcdf( result_file )
 
         print(f" \n Completed operation in {time.time()-t0} seconds, wrote output to {result_file} ")
