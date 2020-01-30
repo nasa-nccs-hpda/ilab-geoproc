@@ -68,7 +68,7 @@ def patch_water_map( persistent_classes: xr.DataArray, input_array: xr.DataArray
     return result
 
 def patch_water_maps( persistent_classes: xr.DataArray, inputs: xr.DataArray, dynamics_class: int = 0  ) -> xr.DataArray:
-    persistent_classes = persistent_classes.interp_like( inputs )
+    persistent_classes = persistent_classes.interp_like(water_masks, method='nearest').ffill(persistent_classes.dims[0]).bfill(persistent_classes.dims[0])
     dynamics_mask = persistent_classes.isin( [dynamics_class] )
     result = xr.where( dynamics_mask, inputs, persistent_classes  )
     patched_result: xr.DataArray = result.where( result == inputs, persistent_classes + 2 )
@@ -127,6 +127,9 @@ debug = False
 temportal_interp = True
 use_previous_patching = False
 use_yearly_probabilities = True
+view_water_masks = False
+view_persistent_classes = False
+view_interp_persistent_classes = True
 
 with xr.set_options(keep_attrs=True):
 
@@ -137,6 +140,10 @@ with xr.set_options(keep_attrs=True):
     water_masks.attrs['cmap'] = dict(colors=colors4)
     space_dims = water_masks.dims[1:]
     if debug: water_masks = water_masks[0:3]
+
+    if view_water_masks:
+        animation = SliceAnimation( water_masks, overlays=dict(red=lake_mask.boundary) )
+        animation.show()
 
     if use_previous_patching:
         repatched_water_maps: xr.DataArray = xr.open_dataset(f"{DATA_DIR}/SaltLake_patched_water_masks.nc").water_masks
@@ -154,9 +161,11 @@ with xr.set_options(keep_attrs=True):
         persistent_classes: xr.DataArray = get_persistent_classes( water_probability, land_water_thresholds )
         persistent_classes.attrs['cmap'] = dict(colors=colors3)
 
+        if view_persistent_classes:
+            animation = SliceAnimation( [water_probability,persistent_classes], overlays=dict(red=lake_mask.boundary) )
+            animation.show()
 
-    #    animation = SliceAnimation( [water_probability,persistent_classes], overlays=dict(red=lake_mask.boundary) )
-    #    animation.show()
+
 
         patched_water_maps: xr.DataArray = patch_water_maps( persistent_classes, water_masks )
 

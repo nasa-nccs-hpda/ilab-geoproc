@@ -55,10 +55,10 @@ resolution = (250,250)
 time_range = [0,40] if debug else [0,360]
 land_water_thresholds = [ 0.08, 0.92 ]
 
-use_existing_water_masks = False
+use_existing_water_masks = True
 use_existing_cropped_data = True
-show_water_probability = True
-use_existing_water_probability = True
+show_water_probability = False
+use_existing_water_probability = False
 
 def get_date_from_filename( filename: str ):
     from datetime import datetime
@@ -119,7 +119,7 @@ else:
     cropped_data_dset.to_netcdf(cropped_data_file)
     print(f"Saved cropped_data to {cropped_data_file}")
 
-if show_water_probability:
+if show_water_probability is not None:
 
     yearly = True
     water_probability_file = DATA_DIR + ( f"/SaltLake_yearly_water_probability.nc" if yearly else f"/SaltLake_water_probability.nc" )
@@ -137,8 +137,9 @@ if show_water_probability:
     persistent_classes.attrs['cmap'] = dict(colors=colors3)
     water_probability.attrs['cmap'] = dict(colors=jet_colors2)
 
-    animation = SliceAnimation( [ water_probability, persistent_classes ], overlays=dict( red=lake_mask.boundary ) )
-    animation.show()
+    if show_water_probability:
+        animation = SliceAnimation( [ water_probability, persistent_classes ], overlays=dict( red=lake_mask.boundary ) )
+        animation.show()
 
 if use_existing_water_masks is not None:
     if use_existing_water_masks:
