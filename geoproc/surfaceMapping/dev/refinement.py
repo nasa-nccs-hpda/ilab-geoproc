@@ -165,8 +165,6 @@ with xr.set_options(keep_attrs=True):
             animation = SliceAnimation( [water_probability,persistent_classes], overlays=dict(red=lake_mask.boundary) )
             animation.show()
 
-
-
         patched_water_maps: xr.DataArray = patch_water_maps( persistent_classes, water_masks )
 
     #    animation = SliceAnimation( [water_masks,patched_water_maps], overlays=dict(red=lake_mask.boundary) )

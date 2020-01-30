@@ -1,17 +1,11 @@
 import geopandas as gpd
-import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 from shapely.geometry import *
-from typing import Dict, List, Tuple, Union
-import os, time, sys
+from typing import List
 import xarray as xr
-import numpy as np
 from glob import glob
-from geoproc.surfaceMapping.lakes import WaterMapGenerator
+from geoproc.surfaceMapping.dev.lakes import WaterMapGenerator
 from geoproc.data.mwp import MWPDataManager
 from geoproc.data.shapefiles import ShapefileManager
-from geoproc.xext.xplot import XPlot
-import os
 
 SHAPEFILE = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/saltLake/GreatSalt.shp"
 DEMs = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/DEM/*.tif"

@@ -11,46 +11,46 @@ class WaterMapGenerator(ConfigurableObject):
     def __init__(self, **kwargs ):
         ConfigurableObject.__init__( self, **kwargs )
 
-    def temporal_interpolate(self, water_masks: xr.DataArray, current_slice_index: int, **kwargs):
-        overlap_class = kwargs.get('overlap_class',2)
-        mismatch_weight = kwargs.get('mismatch_weight',2)
-        mismatch_value = kwargs.get('overlap_class', 6)
-
-        full_water_mask: xr.DataArray =  water_masks == overlap_class
-        slice_water_mask = full_water_mask[current_slice_index]
-
-        full_valid_mask: xr.DataArray =  water_masks > 0
-        slice_valid_mask = full_valid_mask[current_slice_index]
-        valid_area = np.logical_and( full_valid_mask, slice_valid_mask )
-
-        matches = full_water_mask == slice_water_mask
-        valid_matches = matches.where( valid_area, False )
-        match_count = valid_matches.sum( dim=["x","y"])
-        match_count.name = "Overlap"
-
-        mismatches = np.logical_not( matches )
-        valid_mismatches = mismatches.where(valid_area, False)
-        mismatch_count = valid_mismatches.sum(dim=["x", "y"]) * mismatch_weight
-        mismatch_count.name = "Mismatch"
-        mismatch_count = mismatch_count.where( match_count > mismatch_count, match_count )
-        overlap_maps = water_masks.where( np.logical_not(valid_mismatches), mismatch_value  )
-
-        match_score: xr.DataArray = match_count - mismatch_count
-        match_score.name = "Similarity"
-        matching_slice = self.get_matching_slice( water_masks, match_score, current_slice_index )
-        current_slice = water_masks[current_slice_index]
-        interp_slice: xr.DataArray = current_slice.where( current_slice != 0, matching_slice + 2)
-#        slices: List = [ water_masks[i] for i in range(water_masks.shape[0]) ]
-        water_masks[ current_slice_index ] = interp_slice
-
-        return dict( match_score=match_score, match_count=match_count, mismatch_count=mismatch_count, overlap_maps=overlap_maps,
-                     matching_slice=matching_slice, interp_water_masks = water_masks )
-
-    def get_matching_slice(self, water_masks: xr.DataArray, match_score: xr.DataArray, current_slice: int ):
-        scores: np.ndarray = match_score.values.copy( )
-        scores[ current_slice ] = 0
-        matching_slice = water_masks[ scores.argmax() ]
-        return matching_slice
+#     def temporal_interpolate(self, water_masks: xr.DataArray, current_slice_index: int, **kwargs):
+#         overlap_class = kwargs.get('overlap_class',2)
+#         mismatch_weight = kwargs.get('mismatch_weight',2)
+#         mismatch_value = kwargs.get('overlap_class', 6)
+#
+#         full_water_mask: xr.DataArray =  water_masks == overlap_class
+#         slice_water_mask = full_water_mask[current_slice_index]
+#
+#         full_valid_mask: xr.DataArray =  water_masks > 0
+#         slice_valid_mask = full_valid_mask[current_slice_index]
+#         valid_area = np.logical_and( full_valid_mask, slice_valid_mask )
+#
+#         matches = full_water_mask == slice_water_mask
+#         valid_matches = matches.where( valid_area, False )
+#         match_count = valid_matches.sum( dim=["x","y"])
+#         match_count.name = "Overlap"
+#
+#         mismatches = np.logical_not( matches )
+#         valid_mismatches = mismatches.where(valid_area, False)
+#         mismatch_count = valid_mismatches.sum(dim=["x", "y"]) * mismatch_weight
+#         mismatch_count.name = "Mismatch"
+#         mismatch_count = mismatch_count.where( match_count > mismatch_count, match_count )
+#         overlap_maps = water_masks.where( np.logical_not(valid_mismatches), mismatch_value  )
+#
+#         match_score: xr.DataArray = match_count - mismatch_count
+#         match_score.name = "Similarity"
+#         matching_slice = self.get_matching_slice( water_masks, match_score, current_slice_index )
+#         current_slice = water_masks[current_slice_index]
+#         interp_slice: xr.DataArray = current_slice.where( current_slice != 0, matching_slice + 2)
+# #        slices: List = [ water_masks[i] for i in range(water_masks.shape[0]) ]
+#         water_masks[ current_slice_index ] = interp_slice
+#
+#         return dict( match_score=match_score, match_count=match_count, mismatch_count=mismatch_count, overlap_maps=overlap_maps,
+#                      matching_slice=matching_slice, interp_water_masks = water_masks )
+#
+#     def get_matching_slice(self, water_masks: xr.DataArray, match_score: xr.DataArray, current_slice: int ):
+#         scores: np.ndarray = match_score.values.copy( )
+#         scores[ current_slice ] = 0
+#         matching_slice = water_masks[ scores.argmax() ]
+#         return matching_slice
 
     def get_water_mask(self, inputs: Union[ xr.DataArray, List[xr.DataArray] ], threshold = 0.5, mask_value = 0 )-> xr.Dataset:
         da: xr.DataArray = self.time_merge(inputs) if isinstance(inputs, list) else inputs

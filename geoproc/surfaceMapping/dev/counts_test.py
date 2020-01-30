@@ -1,24 +1,20 @@
 import matplotlib.animation as animation
-from matplotlib.figure import Figure
 from matplotlib.image import AxesImage
-from geoproc.util.configuration import ConfigurableObject, Region
+from geoproc.util.configuration import Region
 from matplotlib.colors import LinearSegmentedColormap, Normalize
 import geopandas as gpd
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from shapely.geometry import *
 from PIL import Image
-from typing import Dict, List, Tuple, Union
-import os, time, sys
+from typing import List
+import time
 import xarray as xr
-import numpy as np
-from glob import glob
-from geoproc.surfaceMapping.lakes import WaterMapGenerator
+from geoproc.surfaceMapping.dev.lakes import WaterMapGenerator
 from geoproc.data.mwp import MWPDataManager
 from geoproc.data.shapefiles import ShapefileManager
-from osgeo import gdal, gdalconst, ogr, osr
+from osgeo import osr
 from geoproc.data.grid import GDALGrid
-import os
 
 SHAPEFILE = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/shp/MEASURESLAKESSHAPES.shp"
 DEMs = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/DEM/*.tif"

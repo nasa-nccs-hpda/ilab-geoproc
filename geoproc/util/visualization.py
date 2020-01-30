@@ -1,12 +1,11 @@
 import matplotlib.animation as animation
-from matplotlib.figure import Figure
 from geoproc.util.configuration import ConfigurableObject, Region
 from matplotlib.colors import LinearSegmentedColormap, Normalize
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from PIL import Image
-from typing import Dict, List, Tuple, Union
-import os, time, sys
+from typing import List, Tuple, Union
+import os, time
 import xarray as xr
 
 class TilePlotter(ConfigurableObject):
@@ -118,7 +117,7 @@ class ArrayAnimation(ConfigurableObject):
 
     def create_watermap_diag_animation(self, title: str, data_arrays: List[xr.DataArray], savePath: str = None,
                                        overwrite=False) -> animation.TimedAnimation:
-        from geoproc.surfaceMapping.lakes import WaterMapGenerator
+        from geoproc.surfaceMapping.dev.lakes import WaterMapGenerator
         images = []
         t0 = time.time()
         colors = [(0, 0, 0), (0, 1, 0), (0, 0, 1), (0, 1, 1)]

@@ -1,12 +1,12 @@
 import geopandas as gpd
 import matplotlib.pyplot as plt
 from geoproc.util.configuration import ConfigurableObject
-from typing import Dict, List, Tuple, Union
+from typing import Tuple
 from shapely.geometry import *
 import xarray as xa
 import regionmask
-from geoproc.util.crs import CRS
-from regionmask import Regions_cls, Region_cls
+from regionmask import Regions_cls
+
 
 class ShapefileManager(ConfigurableObject):
 
@@ -87,10 +87,10 @@ class ShapefileManager(ConfigurableObject):
         return LinearRing( coords )
 
 if __name__ == '__main__':
-    from geoproc.surfaceMapping.lakes import WaterMapGenerator
+    from geoproc.surfaceMapping.dev.lakes import WaterMapGenerator
     from geoproc.data.mwp import MWPDataManager
-    from osgeo import gdal, gdalconst, ogr, osr
-    from geoproc.util.visualization import TilePlotter, ArrayAnimation
+    from osgeo import osr
+    from geoproc.util.visualization import ArrayAnimation
     from geoproc.data.grid import GDALGrid
     import os
 #    from geoproc.xext.xgeo import XGeo
