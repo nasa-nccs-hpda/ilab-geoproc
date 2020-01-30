@@ -15,7 +15,7 @@ data_array: xa.DataArray = xa.open_rasterio( image_file )
 band_data: xa.DataArray  = data_array.isel( band=band_index, drop=True )
 var_array: xa.DataArray = band_data.coarsen( **block, boundary='pad' ).var()
 var_array.name = "band_3_var_5x5"
-var_array.compute()
+var_array.persist()
 
 print(f" \n Completed operation in {time.time()-t0} seconds, wrote output to {result_file}")
 
