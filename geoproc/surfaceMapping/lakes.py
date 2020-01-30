@@ -68,12 +68,14 @@ class WaterMapGenerator(ConfigurableObject):
     def get_water_masks(self, data_array: xr.DataArray, binSize: int, threshold = 0.5, mask_value=0  ) -> xr.Dataset:
         print("\n Executing get_water_masks ")
         t0 = time.time()
-        time_bins = np.array( list(range( 0, data_array.shape[0]+1, binSize )), dtype=np.int32 )
+        bin_indices = list(range( 0, data_array.shape[0]+1, binSize ))
+        time_axis = data_array.coords[ data_array.dims[0] ].values
+        time_bins = np.array( [ time_axis[iT] for iT in bin_indices ], dtype='datetime64[ns]' )
         grouped_data: DatasetGroupBy = data_array.groupby_bins( 'time', time_bins, right = False )
-        results:  xr.Dataset = grouped_data.apply( self.get_water_mask, threshold = threshold, mask_value=mask_value )
+        results:  xr.Dataset = grouped_data.map( self.get_water_mask, threshold = threshold, mask_value=mask_value )
         print( f" Completed get_water_masks in {time.time()-t0:.3f} seconds" )
         for result in results.values(): self.transferMetadata( data_array, result )
-        return results.assign( time_bins = time_bins[0:-1] )
+        return results.assign( time_bins = time_bins[0:-1] ).rename( time_bins='time' )
 
     def createDataset(self,  files: List[str], band=-1, subset = None ) ->  xr.DataArray:
         from geoproc.xext.xgeo import XGeo

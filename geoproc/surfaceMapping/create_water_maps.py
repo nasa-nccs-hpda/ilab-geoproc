@@ -55,10 +55,10 @@ resolution = (250,250)
 time_range = [0,40] if debug else [0,360]
 land_water_thresholds = [ 0.08, 0.92 ]
 
-use_existing_water_masks = None
+use_existing_water_masks = False
 use_existing_cropped_data = True
 show_water_probability = True
-use_existing_water_probability = False
+use_existing_water_probability = True
 
 def get_date_from_filename( filename: str ):
     from datetime import datetime

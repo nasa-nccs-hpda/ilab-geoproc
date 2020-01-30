@@ -135,7 +135,6 @@ with xr.set_options(keep_attrs=True):
     water_masks_dataset = xr.open_dataset( f"{DATA_DIR}/SaltLake_water_masks.nc" )
     water_masks: xr.DataArray = water_masks_dataset.water_masks
     water_masks.attrs['cmap'] = dict(colors=colors4)
-    water_masks = water_masks.rename( dict( time_bins = 'time' ))
     space_dims = water_masks.dims[1:]
     if debug: water_masks = water_masks[0:3]
 
