@@ -62,15 +62,13 @@ use_existing_cropped_data = True
 show_water_probability = False
 use_existing_water_probability = False
 
+
+SHAPEFILE = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/saltLake/GreatSalt.shp"
 lake_mask: gpd.GeoSeries = gpd.read_file( SHAPEFILE )
 
 cropped_data_file = DATA_DIR + f"/SaltLake_cropped_data.nc"
 
-def get_date_from_filename(self, filename: str):
-    from datetime import datetime
-    toks = filename.split("_")
-    result = datetime.strptime(toks[1], '%Y%j').date()
-    return np.datetime64(result)
+
 
 maskGenerator = WaterMapGenerator()
 

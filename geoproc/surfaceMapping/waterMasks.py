@@ -1,7 +1,7 @@
 import geopandas as gpd
 import pandas as pd
 from shapely.geometry import *
-from typing import List, Union, Tuple
+from typing import List, Union, Tuple, Dict
 import xarray as xr
 from glob import glob
 import functools
@@ -14,9 +14,26 @@ import os, time
 
 class WaterMapGenerator(ConfigurableObject):
 
+
+
     def __init__( self, **kwargs ):
         ConfigurableObject.__init__( **kwargs )
         pass
+
+    def get_data_colors(self, mask_value=5 ) -> List[Tuple]:
+        return [(0, 'undetermined', (1, 1, 0)),
+               (1, 'land', (0, 1, 0)),
+               (2, 'water', (0, 0, 1)),
+               (mask_value, 'mask', (0.25, 0.25, 0.25))]
+
+    def get_mask_colors(self, mask_value=5, mismatch_value=6 ) -> List[Tuple]:
+        return [(0, 'nodata', (0, 0, 0)),
+               (1, 'land', (0, 1, 0)),
+               (2, 'water', (0, 0, 1)),
+               (3, 'interp land', (0, 0.5, 0)),
+               (4, 'interp water', (0, 0, 0.5)),
+               (mask_value, 'mask', (0.25, 0.25, 0.25)),
+               (mismatch_value, 'mismatches', (1, 1, 0))]
 
     def get_persistent_classes(self,  water_probability: xr.DataArray, thresholds: List[float], mask_value ) -> xr.DataArray:
         perm_water_mask = water_probability > thresholds[1]
@@ -72,7 +89,6 @@ class WaterMapGenerator(ConfigurableObject):
         for result in results.values(): self.transferMetadata( data_array, result )
         return results.assign( time_bins = [ time_axis[i] for i in centroid_indices ]  ).rename( time_bins='time' )
 
-
     def update_metrics( self, data_array: xr.DataArray, **kwargs ):
         metrics = data_array.attrs.get('metrics', {} )
         metrics.update( **kwargs )
@@ -89,26 +105,6 @@ class WaterMapGenerator(ConfigurableObject):
         result = xr.where( dynamics_mask, inputs, persistent_classes  )
         patched_result: xr.DataArray = result.where( result == inputs, persistent_classes + 2 )
         return patched_result
-
-    # def get_matching_slice( self, water_masks: xr.DataArray, match_score: xr.DataArray, current_slice: int ):
-    #     match_score[ current_slice ] = 0
-    #     matching_slice = water_masks[ match_score.argmax() ]
-    #     return matching_slice
-
-    # def temporal_interpolate( self, persistent_classes: xr.DataArray, water_masks: xr.DataArray, current_slice_index: int, **kwargs ):
-    #     dynamics_mask = persistent_classes == 1
-    #     sdims = water_masks.dims[1:]
-    #     current_slice = water_masks[current_slice_index].drop_vars( water_masks.dims[0] )
-    #     critical_undef_count = xr.where(dynamics_mask, water_masks == 0, 0 ).sum( dim = sdims )
-    #     valid_mask = np.logical_and( dynamics_mask, water_masks > 0 )
-    #     matches = xr.where(valid_mask, water_masks == current_slice, 0)
-    #     match_count = matches.sum( dim = sdims )
-    #     mismatch_count = xr.where( valid_mask, water_masks != current_slice, 0 ).sum( dim = sdims )
-    #     match_scores = match_count - mismatch_count - critical_undef_count
-    #     matching_slice = get_matching_slice( water_masks, match_scores, current_slice_index )
-    #     interp_slice: xr.DataArray = current_slice.where( current_slice != 0, matching_slice + 2  )
-    #     water_masks[ current_slice_index ] = interp_slice
-    #     return dict( match_scores=match_scores, interp_water_masks = water_masks, match_count = match_count, mismatch_count=mismatch_count,  critical_undef_count=critical_undef_count, matches=matches )
 
     def temporal_patch_slice( self, water_masks: xr.DataArray, slice_index: int, patched_slice=None, patch_slice_index=None  ) -> xr.DataArray:
         current_slice = patched_slice if patched_slice is not None else water_masks[slice_index].drop_vars(water_masks.dims[0])
@@ -133,3 +129,43 @@ class WaterMapGenerator(ConfigurableObject):
         merge_coord = pd.Index( frame_indices, name=kwargs.get("dim","time") ) if time_axis is None else time_axis
         result: xr.DataArray =  xr.concat( data_arrays, dim=merge_coord )
         return result # .assign_coords( {'frames': frame_names } )
+
+    def get_date_from_filename(self, filename: str):
+        from datetime import datetime
+        toks = filename.split("_")
+        result = datetime.strptime(toks[1], '%Y%j').date()
+        return np.datetime64(result)
+
+    def getMPWDataset(self, opspec: Dict, **kwargs ) -> xr.DataArray:
+        cache = kwargs.get( "cache", True )
+        download = kwargs.get('download', cache)
+
+        DATA_DIR = opspec.get('data_dir')
+        data_file = opspec.get('data_file')
+        cropped_data_file = os.path.join( DATA_DIR, data_file )
+        mask_value = opspec.get('mask_value',5)
+
+        if cache and os.path.isfile( cropped_data_file ):
+            cropped_data_dataset: xr.Dataset = xr.open_dataset(cropped_data_file)
+            cropped_data: xr.DataArray = cropped_data_dataset.cropped_data
+        else:
+            from geoproc.data.mwp import MWPDataManager
+            from geoproc.xext.xrio import XRio
+            data_url = opspec.get('data_url')
+            product = opspec.get('product')
+            roi = opspec.get('roi',None)
+            year_range = opspec.get('year_range').split(",")
+            day_range = opspec.get('day_range').split(",")
+            location = opspec.get('location')
+            dataMgr = MWPDataManager(DATA_DIR, data_url)
+
+            dataMgr.setDefaults(product=product, download=download, years=range(int(year_range[0]),int(year_range[1])), start_day=int(day_range[0]), end_day=int(day_range[1]))
+            file_paths = dataMgr.get_tile(location)
+            lake_mask: gpd.GeoSeries = gpd.read_file(roi) if roi else None
+            time_values = np.array([ self.get_date_from_filename(os.path.basename(path)) for path in file_paths], dtype='datetime64[ns]')
+            cropped_data: xr.DataArray = XRio.load(file_paths, mask=lake_mask, band=0, mask_value=mask_value, index=time_values)
+            if cache:
+                cropped_data_dset = xr.Dataset(dict(cropped_data=sanitize(cropped_data)))
+                cropped_data_dset.to_netcdf(cropped_data_file)
+                print(f"Cached cropped_data to {cropped_data_file}")
+        return cropped_data
