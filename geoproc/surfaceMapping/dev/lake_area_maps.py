@@ -129,7 +129,7 @@ with xr.set_options(keep_attrs=True):
     if use_netcdf:
         yearly_lake_masks: xr.DataArray =  read_lake_mask_netcdf(  f"{DATA_DIR}/SaltLake_fill_masks.nc", precision=spatial_precision )
     else:
-        yearly_lake_masks: xr.DataArray =  read_lake_mask_geotifs( "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/MOD44W/*", precision=spatial_precision )
+        yearly_lake_masks: xr.DataArray =  read_lake_mask_geotifs( f"{DATA_DIR}/MOD44W/*", precision=spatial_precision )
 
     yearly_lake_masks.attrs['cmap'] = dict(colors=colors)
 

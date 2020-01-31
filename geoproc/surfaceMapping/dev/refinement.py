@@ -12,6 +12,7 @@ from geoproc.cluster.manager import ClusterManager
 from geoproc.util.configuration import sanitize, ConfigurableObject as BaseOp
 from geoproc.xext.xrio import XRio
 from geoproc.xext.xplot import XPlot
+from geoproc.surfaceMapping.lakeExtentMapping import WaterMapGenerator
 import functools
 import numpy as np
 import os
@@ -58,66 +59,63 @@ def update_metrics( data_array: xr.DataArray, **kwargs ):
     metrics = data_array.attrs.get('metrics', {} )
     metrics.update( **kwargs )
     data_array.attrs['metrics'] = metrics
-
-water_prob_maps = []
-water_prob_classes = []
-
-def patch_water_map( persistent_classes: xr.DataArray, input_array: xr.DataArray  ) -> xr.DataArray:
-    dynamics_mask = persistent_classes.isin( [0] )
-    result = input_array.where( dynamics_mask, persistent_classes )
-    return result
-
-def patch_water_maps( persistent_classes: xr.DataArray, inputs: xr.DataArray, dynamics_class: int = 0  ) -> xr.DataArray:
-    persistent_classes = persistent_classes.interp_like(water_masks, method='nearest').ffill(persistent_classes.dims[0]).bfill(persistent_classes.dims[0])
-    dynamics_mask = persistent_classes.isin( [dynamics_class] )
-    result = xr.where( dynamics_mask, inputs, persistent_classes  )
-    patched_result: xr.DataArray = result.where( result == inputs, persistent_classes + 2 )
-    return patched_result
-
-def get_persistent_classes( water_probability: xr.DataArray, thresholds: List[float] ) -> xr.DataArray:
-    perm_water_mask = water_probability > thresholds[1]
-    perm_land_mask =  water_probability < thresholds[0]
-    boundaries_mask = water_probability > 1.0
-    return xr.where( boundaries_mask, mask_value,
-                         xr.where(perm_water_mask, 2,
-                             xr.where(perm_land_mask, 1, 0)) )
-
-def get_matching_slice( water_masks: xr.DataArray, match_score: xr.DataArray, current_slice: int ):
-    match_score[ current_slice ] = 0
-    matching_slice = water_masks[ match_score.argmax() ]
-    return matching_slice
-
-def temporal_interpolate( persistent_classes: xr.DataArray, water_masks: xr.DataArray, current_slice_index: int, **kwargs ):
-    dynamics_mask = persistent_classes == 1
-    sdims = water_masks.dims[1:]
-    current_slice = water_masks[current_slice_index].drop_vars( water_masks.dims[0] )
-    critical_undef_count = xr.where(dynamics_mask, water_masks == 0, 0 ).sum( dim = sdims )
-    valid_mask = np.logical_and( dynamics_mask, water_masks > 0 )
-    matches = xr.where(valid_mask, water_masks == current_slice, 0)
-    match_count = matches.sum( dim = sdims )
-    mismatch_count = xr.where( valid_mask, water_masks != current_slice, 0 ).sum( dim = sdims )
-    match_scores = match_count - mismatch_count - critical_undef_count
-    matching_slice = get_matching_slice( water_masks, match_scores, current_slice_index )
-    interp_slice: xr.DataArray = current_slice.where( current_slice != 0, matching_slice + 2  )
-    water_masks[ current_slice_index ] = interp_slice
-    return dict( match_scores=match_scores, interp_water_masks = water_masks, match_count = match_count, mismatch_count=mismatch_count,  critical_undef_count=critical_undef_count, matches=matches )
-
-def temporal_patch_slice( water_masks: xr.DataArray, slice_index: int, patched_slice=None, patch_slice_index=None  ) -> xr.DataArray:
-    current_slice = patched_slice if patched_slice is not None else water_masks[slice_index].drop_vars(water_masks.dims[0])
-    undef_Mask: xr.DataArray = ( current_slice == 0 )
-    current_patch_slice_index = slice_index - 1 if patch_slice_index is None else patch_slice_index - 1
-    if (undef_Mask.count() == 0) or (current_patch_slice_index < 0): return current_slice
-    patch_slice = water_masks[ current_patch_slice_index ].drop_vars(water_masks.dims[0])
-    recolored_patch_slice = patch_slice.where( patch_slice == 0, patch_slice + 2  )
-    current_patched_slice = current_slice.where( current_slice>0, recolored_patch_slice )
-    return temporal_patch_slice( water_masks, slice_index, current_patched_slice, current_patch_slice_index )
-
-def temporal_patch( water_masks: xr.DataArray, nProcesses: int = 8  ) -> xr.DataArray:
-    slices = list(range( water_masks.shape[0]))
-    patcher = functools.partial( temporal_patch_slice, water_masks )
-    with Pool(nProcesses) as p:
-        patched_slices = p.map( patcher, slices, nProcesses)
-        return BaseOp.time_merge( patched_slices, time=water_masks.coords[ water_masks.dims[0] ] )
+#
+# def patch_water_map( persistent_classes: xr.DataArray, input_array: xr.DataArray  ) -> xr.DataArray:
+#     dynamics_mask = persistent_classes.isin( [0] )
+#     result = input_array.where( dynamics_mask, persistent_classes )
+#     return result
+#
+# def patch_water_maps( persistent_classes: xr.DataArray, inputs: xr.DataArray, dynamics_class: int = 0  ) -> xr.DataArray:
+#     persistent_classes = persistent_classes.interp_like(water_masks, method='nearest').ffill(persistent_classes.dims[0]).bfill(persistent_classes.dims[0])
+#     dynamics_mask = persistent_classes.isin( [dynamics_class] )
+#     result = xr.where( dynamics_mask, inputs, persistent_classes  )
+#     patched_result: xr.DataArray = result.where( result == inputs, persistent_classes + 2 )
+#     return patched_result
+#
+# def get_persistent_classes( water_probability: xr.DataArray, thresholds: List[float] ) -> xr.DataArray:
+#     perm_water_mask = water_probability > thresholds[1]
+#     perm_land_mask =  water_probability < thresholds[0]
+#     boundaries_mask = water_probability > 1.0
+#     return xr.where( boundaries_mask, mask_value,
+#                          xr.where(perm_water_mask, 2,
+#                              xr.where(perm_land_mask, 1, 0)) )
+#
+# def get_matching_slice( water_masks: xr.DataArray, match_score: xr.DataArray, current_slice: int ):
+#     match_score[ current_slice ] = 0
+#     matching_slice = water_masks[ match_score.argmax() ]
+#     return matching_slice
+#
+# def temporal_interpolate( persistent_classes: xr.DataArray, water_masks: xr.DataArray, current_slice_index: int, **kwargs ):
+#     dynamics_mask = persistent_classes == 1
+#     sdims = water_masks.dims[1:]
+#     current_slice = water_masks[current_slice_index].drop_vars( water_masks.dims[0] )
+#     critical_undef_count = xr.where(dynamics_mask, water_masks == 0, 0 ).sum( dim = sdims )
+#     valid_mask = np.logical_and( dynamics_mask, water_masks > 0 )
+#     matches = xr.where(valid_mask, water_masks == current_slice, 0)
+#     match_count = matches.sum( dim = sdims )
+#     mismatch_count = xr.where( valid_mask, water_masks != current_slice, 0 ).sum( dim = sdims )
+#     match_scores = match_count - mismatch_count - critical_undef_count
+#     matching_slice = get_matching_slice( water_masks, match_scores, current_slice_index )
+#     interp_slice: xr.DataArray = current_slice.where( current_slice != 0, matching_slice + 2  )
+#     water_masks[ current_slice_index ] = interp_slice
+#     return dict( match_scores=match_scores, interp_water_masks = water_masks, match_count = match_count, mismatch_count=mismatch_count,  critical_undef_count=critical_undef_count, matches=matches )
+#
+# def temporal_patch_slice( water_masks: xr.DataArray, slice_index: int, patched_slice=None, patch_slice_index=None  ) -> xr.DataArray:
+#     current_slice = patched_slice if patched_slice is not None else water_masks[slice_index].drop_vars(water_masks.dims[0])
+#     undef_Mask: xr.DataArray = ( current_slice == 0 )
+#     current_patch_slice_index = slice_index - 1 if patch_slice_index is None else patch_slice_index - 1
+#     if (undef_Mask.count() == 0) or (current_patch_slice_index < 0): return current_slice
+#     patch_slice = water_masks[ current_patch_slice_index ].drop_vars(water_masks.dims[0])
+#     recolored_patch_slice = patch_slice.where( patch_slice == 0, patch_slice + 2  )
+#     current_patched_slice = current_slice.where( current_slice>0, recolored_patch_slice )
+#     return temporal_patch_slice( water_masks, slice_index, current_patched_slice, current_patch_slice_index )
+#
+# def temporal_patch( water_masks: xr.DataArray, nProcesses: int = 8  ) -> xr.DataArray:
+#     slices = list(range( water_masks.shape[0]))
+#     patcher = functools.partial( temporal_patch_slice, water_masks )
+#     with Pool(nProcesses) as p:
+#         patched_slices = p.map( patcher, slices, nProcesses)
+#         return BaseOp.time_merge( patched_slices, time=water_masks.coords[ water_masks.dims[0] ] )
 
 
 # dask_client = Client(LocalCluster(n_workers=8))
@@ -134,12 +132,13 @@ view_interp_persistent_classes = True
 with xr.set_options(keep_attrs=True):
 
     t0 = time.time()
-    lake_mask: gpd.GeoSeries = gpd.read_file(SHAPEFILE)
-    water_masks_dataset = xr.open_dataset( f"{DATA_DIR}/SaltLake_water_masks.nc" )
-    water_masks: xr.DataArray = water_masks_dataset.water_masks
+
+    opspec = dict()
+
+    waterMapGenerator = WaterMapGenerator()
+    water_masks: xr.DataArray = waterMapGenerator.getMPWData(opspec)
     water_masks.attrs['cmap'] = dict(colors=colors4)
-    space_dims = water_masks.dims[1:]
-    if debug: water_masks = water_masks[0:3]
+    lake_mask = water_masks.attrs[ "roi" ]
 
     if view_water_masks:
         animation = SliceAnimation( water_masks, overlays=dict(red=lake_mask.boundary) )

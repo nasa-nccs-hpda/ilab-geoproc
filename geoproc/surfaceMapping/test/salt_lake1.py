@@ -12,7 +12,7 @@ from multiprocessing import Pool
 from xarray.core.groupby import DatasetGroupBy
 from geoproc.util.configuration import sanitize, ConfigurableObject
 import matplotlib.pyplot as plt
-from geoproc.surfaceMapping.waterMasks import WaterMapGenerator
+from geoproc.surfaceMapping.lakeExtentMapping import WaterMapGenerator
 import numpy as np
 import os, time
 
@@ -37,7 +37,6 @@ colors4 = [ ( 0, 'nodata', (0, 0, 0)),
 
 debug = False
 SHAPEFILE = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/saltLake/GreatSalt.shp"
-DEMs = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/DEM/*.tif"
 locations = [ "120W050N", "100W040N" ]
 products = [ "1D1OS", "2D2OT", "3D3OT" ]
 DATA_DIR = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt"
@@ -68,31 +67,11 @@ lake_mask: gpd.GeoSeries = gpd.read_file( SHAPEFILE )
 
 cropped_data_file = DATA_DIR + f"/SaltLake_cropped_data.nc"
 
-
+opspec = {}
 
 maskGenerator = WaterMapGenerator()
 
-if use_existing_cropped_data:
-
-    cropped_data_dataset: xr.Dataset = xr.open_dataset(cropped_data_file)
-    cropped_data: xr.DataArray = cropped_data_dataset.cropped_data
-    cropped_data.attrs['cmap'] = dict(colors=colors4)
-else:
-    dataMgr = MWPDataManager(DATA_DIR, dat_url)
-    dataMgr.setDefaults(product=product, download=download, years=range(*year_range), start_day=time_range[0], end_day=time_range[1])
-    file_paths = dataMgr.get_tile(location)
-
-    dem_arrays: List[xr.DataArray] = dataMgr.get_array_data(glob(DEMs))
-    dem_array: xr.DataArray = dem_arrays[0]
-    xc = dem_array.coords['x']
-    yc = dem_array.coords['y']
-
-    time_values = np.array([get_date_from_filename(os.path.basename(path)) for path in file_paths], dtype='datetime64[ns]')
-    cropped_data: xr.DataArray = XRio.load(file_paths, mask=lake_mask, band=0, mask_value=mask_value, index=time_values)
-
-    cropped_data_dset = xr.Dataset(dict(cropped_data=sanitize(cropped_data)))
-    cropped_data_dset.to_netcdf(cropped_data_file)
-    print(f"Saved cropped_data to {cropped_data_file}")
+cropped_data: xr.DataArray = maskGenerator.getMPWData(opspec)
 
 if show_water_probability is not None:
 
