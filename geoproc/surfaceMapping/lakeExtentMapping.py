@@ -72,21 +72,27 @@ class WaterMapGenerator(ConfigurableObject):
         return yearly_lake_masks
 
     def get_persistent_classes(self, water_probability: xr.DataArray, opspec: Dict, **kwargs) -> xr.DataArray:
+        print(f"Executing get_persistent_classes" )
+        t0 = time.time()
         thresholds = opspec.get('water_class_thresholds', [ 0.05, 0.95 ] )
         mask_value = opspec.get('mask_value', 5)
         yearly_lake_masks:  xr.DataArray = self.get_yearly_lake_area_masks( opspec, **kwargs )
         yearly_lake_masks = yearly_lake_masks.interp_like( water_probability, method='nearest' )
         perm_water_mask: xr.DataArray = water_probability > thresholds[1]
+#        self.show( perm_water_mask, "perm_water_mask" )
         boundaries_mask: xr.DataArray = water_probability > 1.0
         if yearly_lake_masks is None:
             perm_land_mask = water_probability < thresholds[0]
             boundaries_mask = water_probability > 1.0
-            return xr.where(boundaries_mask, mask_value,
+            result = xr.where(boundaries_mask, mask_value,
                             xr.where(perm_water_mask, 2,
                                      xr.where(perm_land_mask, 1, 0)))
         else:
             apply_thresholds_partial = functools.partial(self.apply_thresholds, boundaries_mask, perm_water_mask, mask_value = mask_value )
-            return yearly_lake_masks.groupby(yearly_lake_masks.dims[0]).map(apply_thresholds_partial)
+            result = yearly_lake_masks.groupby(yearly_lake_masks.dims[0]).map(apply_thresholds_partial)
+        result.persist()
+        print(f"Done get_persistent_classes in time {time.time() - t0}")
+        return result
 
     def apply_thresholds(self, boundaries_mask: xr.DataArray, perm_water_mask: xr.DataArray, yearly_lake_mask: xr.DataArray, **kwargs ) -> xr.DataArray:
         mask_value = kwargs.get('mask_value')
@@ -97,6 +103,8 @@ class WaterMapGenerator(ConfigurableObject):
 
     def get_water_probability(self, cropped_data: xr.DataArray, opspec: Dict, **kwargs ) -> xr.DataArray:
         from datetime import datetime
+        print(f"Executing get_water_probability" )
+        t0 = time.time()
         cache = kwargs.get( "cache", True )
         yearly_lake_masks_dir = opspec.get( 'yearly_lake_masks_dir', None )
         yearly = yearly_lake_masks_dir is not None
@@ -131,6 +139,8 @@ class WaterMapGenerator(ConfigurableObject):
                 result = xr.Dataset(dict(water_probability=sanitize(water_probability)))
                 result.to_netcdf(water_probability_file)
                 print(f"Saved water_probability to {water_probability_file}")
+        water_probability.persist()
+        print(f"Done get_water_probability in time {time.time() - t0}")
         return water_probability
 
     def get_water_mask(self, inputs: Union[ xr.DataArray, List[xr.DataArray] ], threshold = 0.5, mask_value = 0 )-> xr.Dataset:
@@ -165,32 +175,57 @@ class WaterMapGenerator(ConfigurableObject):
         data_array.attrs['metrics'] = metrics
 
     def interpolate(self, persistent_classes: xr.DataArray, water_maps: xr.DataArray ) -> xr.DataArray:
+        print(f"Executing interpolate")
+        t0 = time.time()
         patched_water_maps: xr.DataArray = self.spatial_interpolate( persistent_classes, water_maps )
-        return self.temporal_interpolate( patched_water_maps )
+        result = self.temporal_interpolate( patched_water_maps )
+        result.persist()
+        print(f"Done interpolate in time {time.time() - t0}")
+        return result
 
     def spatial_interpolate( self, persistent_classes: xr.DataArray, water_maps: xr.DataArray, dynamics_class: int = 0  ) -> xr.DataArray:
-        persistent_classes = persistent_classes.interp_like( water_maps, method='nearest' ).ffill(persistent_classes.dims[0]).bfill(persistent_classes.dims[0])
-        dynamics_mask = persistent_classes.isin( [dynamics_class] )
-        result = xr.where( dynamics_mask, water_maps, persistent_classes  )
+        print("Spatial Interpolate")
+        tdim = persistent_classes.dims[0]
+        persistent_classes: xr.DataArray = persistent_classes.interp_like( water_maps, method='nearest' ).ffill(tdim).bfill(tdim)
+#        self.show( persistent_classes, "persistent_classes" )
+        dynamics_mask: xr.DataArray = persistent_classes.isin( [dynamics_class] )
+#        self.show( dynamics_mask, "dynamics_mask" )
+        result: xr.DataArray = xr.where( dynamics_mask, water_maps, persistent_classes  )
         patched_result: xr.DataArray = result.where( result == water_maps, persistent_classes + 2 )
         return patched_result
 
-    def temporal_interpolate_slice( self, water_maps: xr.DataArray, slice_index: int, patched_slice=None, patch_slice_index=None  ) -> xr.DataArray:
-        current_slice = patched_slice if patched_slice is not None else water_maps[slice_index].drop_vars(water_maps.dims[0])
-        undef_Mask: xr.DataArray = ( current_slice == 0 )
-        current_patch_slice_index = slice_index - 1 if patch_slice_index is None else patch_slice_index - 1
-        if (undef_Mask.count() == 0) or (current_patch_slice_index < 0): return current_slice
-        patch_slice = water_maps[ current_patch_slice_index ].drop_vars(water_maps.dims[0])
-        recolored_patch_slice = patch_slice.where( patch_slice == 0, patch_slice + 2  )
-        current_patched_slice = current_slice.where( current_slice>0, recolored_patch_slice )
-        return self.temporal_interpolate_slice( water_maps, slice_index, current_patched_slice, current_patch_slice_index )
+    def show(self, data: xr.DataArray, name: str ):
+        data.name = name
+        if len(data.dims) == 2:
+            data.name = name
+            data.plot.imshow(cmap=data.attrs.get("cmap","jet"))
+            plt.show()
+        elif len(data.dims) == 3:
+            animation = SliceAnimation(data)
+            animation.show()
+        else:
+            print( f"Error, can't show '{name}' data with {len(data.dims)} dimensions")
 
-    def temporal_interpolate( self, water_maps: xr.DataArray, nProcesses: int = 8  ) -> xr.DataArray:
-        slices = list(range( water_maps.shape[0]))
-        patcher = functools.partial( self.temporal_interpolate_slice, water_maps )
-        with Pool(nProcesses) as p:
-            patched_slices = p.map( patcher, slices, nProcesses)
-            return self.time_merge( patched_slices, time=water_maps.coords[ water_maps.dims[0] ] )
+    # def temporal_interpolate_slice( self, water_maps: xr.DataArray, slice_index: int=0, patched_slice=None  ) -> xr.DataArray:
+    #     current_slice = patched_slice if patched_slice is not None else water_maps[slice_index].drop_vars(water_maps.dims[0])
+    #     undef_Mask: xr.DataArray = ( current_slice == 0 )
+    #     current_patch_slice_index = slice_index - 1
+    #     if (undef_Mask.count() == 0) or (current_patch_slice_index < 0): return current_slice
+    #     patch_slice = water_maps[ current_patch_slice_index ].drop_vars(water_maps.dims[0])
+    #     recolored_patch_slice = patch_slice.where( patch_slice == 0, patch_slice + 2  )
+    #     current_patched_slice = current_slice.where( current_slice>0, recolored_patch_slice )
+    #     return self.temporal_interpolate_slice( water_maps, slice_index, current_patched_slice )
+
+    def temporal_interpolate( self, water_maps: xr.DataArray  ) -> xr.DataArray:
+        print( "Temporal Interpolate")
+        nodata_mask = water_maps == 0
+        water_maps = xr.where( nodata_mask, np.nan, water_maps )
+        result = water_maps.ffill( water_maps.dims[0] ).bfill( water_maps.dims[0] )
+        return xr.where( nodata_mask, result + 2, result )
+
+        # patcher = functools.partial(self.temporal_interpolate_slice, water_maps)
+        # patched_slices = water_maps.groupby( water_maps.dims[0] ).map( patcher )
+        # return patched_slices
 
     def time_merge( cls, data_arrays: List[xr.DataArray], **kwargs ) -> xr.DataArray:
         time_axis = kwargs.get('time',None)
@@ -206,6 +241,8 @@ class WaterMapGenerator(ConfigurableObject):
         return np.datetime64(result)
 
     def get_mpw_data(self, opspec: Dict, **kwargs) -> xr.DataArray:
+        print( "reading mpw data")
+        t0 = time.time()
         cache = kwargs.get( "cache", True )
         download = kwargs.get('download', cache)
 
@@ -226,8 +263,8 @@ class WaterMapGenerator(ConfigurableObject):
             data_url = opspec.get('data_url')
             product = opspec.get('product')
 
-            year_range = opspec.get('year_range').split(",")
-            day_range = opspec.get('day_range',"0,365").split(",")
+            year_range = opspec.get('year_range')
+            day_range = opspec.get('day_range',[0,365])
             location = opspec.get('location')
             dataMgr = MWPDataManager(data_dir, data_url)
 
@@ -240,10 +277,13 @@ class WaterMapGenerator(ConfigurableObject):
                 cropped_data_dset.to_netcdf(cropped_data_file)
                 print(f"Cached cropped_data to {cropped_data_file}")
 
-        cropped_data.assign_attrs( roi = lake_mask )
+        cropped_data.attrs.update( roi = lake_mask )
+        cropped_data.persist()
+        print(f"Done reading mpw data in time {time.time()-t0}")
         return cropped_data
 
     def get_patched_water_maps(self, opspec: Dict, **kwargs) -> xr.DataArray:
+        t0 = time.time()
         data_dir = opspec.get('data_dir')
         lake_index = opspec.get('lake_index', 0)
         lake_id = opspec.get('lake_id', f"lake-{lake_index}")
@@ -256,6 +296,7 @@ class WaterMapGenerator(ConfigurableObject):
             water_masks: xr.DataArray = self.get_mpw_data(opspec)
             repatched_water_maps = self.patch_water_maps( water_masks, opspec, **kwargs )
 
+        print(f"Completed get_patched_water_maps in time {(time.time() - t0)/60.0} minutes")
         return repatched_water_maps
 
     def patch_water_maps( self, water_maps: xr.DataArray, opspec: Dict, **kwargs ) -> xr.DataArray:
@@ -272,11 +313,9 @@ class WaterMapGenerator(ConfigurableObject):
             result_file = f"{data_dir}/{lake_id}_patched_water_masks.nc"
             sanitize(patched_water_maps).to_netcdf( result_file )
 
-        patched_water_maps.assign_attrs( **water_maps.attrs )
+        patched_water_maps.attrs.update( **water_maps.attrs )
         patched_water_maps.attrs['cmap'] = dict(colors=self.get_water_map_colors())
         return patched_water_maps
-
-
 
 if __name__ == '__main__':
     from geoproc.plot.animation import SliceAnimation
@@ -288,11 +327,12 @@ if __name__ == '__main__':
         location = "120W050N",
         product =  "2D2OT",
         data_dir = DATA_DIR,
-        land_water_thresholds="0.03,0.95",
-        lake_index = "19",
+        water_class_thresholds=[0.05,0.95],
+        lake_index = 19,
         lake_masks_dir = f"{DATA_DIR}/MOD44W",
-        lake_masks_nodata = '256',
-        year_range = "2018, 2020"
+        lake_masks_nodata = 256,
+        year_range = [2014, 2016],
+        day_range=[ 0, 365 ]
     )
 
     waterMapGenerator = WaterMapGenerator()

@@ -1,8 +1,8 @@
 ---
 id: 'defaults'
 data_dir: DATA_DIR
-land_water_thresholds: [0.03,0.95]
-time_range: [2018, 2020]
+water_class_thresholds: [0.03,0.95]
+year_range: [2018, 2020]
 source:
   type: 'MPW'
   url: "https://floodmap.modaps.eosdis.nasa.gov/Products"
