@@ -71,7 +71,7 @@ opspec = {}
 
 maskGenerator = WaterMapGenerator()
 
-cropped_data: xr.DataArray = maskGenerator.getMPWData(opspec)
+cropped_data: xr.DataArray = maskGenerator.get_mpw_data(opspec)
 
 if show_water_probability is not None:
 

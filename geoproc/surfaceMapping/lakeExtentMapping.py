@@ -43,22 +43,22 @@ class WaterMapGenerator(ConfigurableObject):
         from geoproc.xext.xrio import XRio
         images = {}
         data_dir = opspec.get('data_dir')
-        file_path = opspec.get('yearly_lake_masks_dir', None )
-        if file_path is None: return None
+        lake_masks_dir = opspec.get('lake_masks_dir', None )
+        if lake_masks_dir is None: return None
         lake_index = opspec.get('lake_index')
         lake_id = opspec.get('lake_id', f"lake-{lake_index}" )
-        yearly_lake_masks_file = os.path.join(data_dir, f"/{lake_id}_fill_masks.nc")
+        yearly_lake_masks_file = os.path.join(data_dir, f"Lake{lake_id}_fill_masks.nc")
         cache = kwargs.get('cache',True)
-        lake_mask_nodata = opspec.get('yearly_lake_masks_nodata', 256)
+        lake_mask_nodata = opspec.get('lake_masks_nodata', 256)
         roi = opspec.get('roi', None)
         lake_mask: gpd.GeoSeries = gpd.read_file(roi) if roi else None
         if cache=="true" and os.path.isfile( yearly_lake_masks_file ):
             yearly_lake_masks_dataset: xr.Dataset = xr.open_dataset(yearly_lake_masks_file)
             yearly_lake_masks: xr.DataArray = yearly_lake_masks_dataset.yearly_lake_masks
         else:
-             for sdir in glob(file_path):
+             for sdir in glob( f"{lake_masks_dir}/*" ):
                 year = os.path.basename(sdir)
-                filepath = f"{file_path}/{year}/lake{lake_index}_{year}.tif"
+                filepath = f"{lake_masks_dir}/{year}/lake{lake_index}_{year}.tif"
                 images[int(year)] = filepath
              sorted_file_paths = collections.OrderedDict(sorted(images.items()))
              time_values = np.array([self.get_date_from_year(year) for year in sorted_file_paths.keys()], dtype='datetime64[ns]')
@@ -75,6 +75,7 @@ class WaterMapGenerator(ConfigurableObject):
         thresholds = opspec.get('water_class_thresholds', [ 0.05, 0.95 ] )
         mask_value = opspec.get('mask_value', 5)
         yearly_lake_masks:  xr.DataArray = self.get_yearly_lake_area_masks( opspec, **kwargs )
+        yearly_lake_masks = yearly_lake_masks.interp_like( water_probability, method='nearest' )
         perm_water_mask: xr.DataArray = water_probability > thresholds[1]
         boundaries_mask: xr.DataArray = water_probability > 1.0
         if yearly_lake_masks is None:
@@ -84,12 +85,11 @@ class WaterMapGenerator(ConfigurableObject):
                             xr.where(perm_water_mask, 2,
                                      xr.where(perm_land_mask, 1, 0)))
         else:
-            boundaries_mask.assign_attrs( mask_value = mask_value )
-            apply_thresholds_partial = functools.partial(self.apply_thresholds, boundaries_mask, perm_water_mask)
+            apply_thresholds_partial = functools.partial(self.apply_thresholds, boundaries_mask, perm_water_mask, mask_value = mask_value )
             return yearly_lake_masks.groupby(yearly_lake_masks.dims[0]).map(apply_thresholds_partial)
 
-    def apply_thresholds(self, boundaries_mask: xr.DataArray, perm_water_mask: xr.DataArray, yearly_lake_mask: xr.DataArray) -> xr.DataArray:
-        mask_value = boundaries_mask.attrs['mask_value']
+    def apply_thresholds(self, boundaries_mask: xr.DataArray, perm_water_mask: xr.DataArray, yearly_lake_mask: xr.DataArray, **kwargs ) -> xr.DataArray:
+        mask_value = kwargs.get('mask_value')
         perm_land_mask: xr.DataArray = (yearly_lake_mask == 0)
         return xr.where(boundaries_mask, mask_value,
                         xr.where(perm_water_mask, 2,
@@ -205,7 +205,7 @@ class WaterMapGenerator(ConfigurableObject):
         result = datetime.strptime(toks[1], '%Y%j').date()
         return np.datetime64(result)
 
-    def getMPWData(self, opspec: Dict, **kwargs) -> xr.DataArray:
+    def get_mpw_data(self, opspec: Dict, **kwargs) -> xr.DataArray:
         cache = kwargs.get( "cache", True )
         download = kwargs.get('download', cache)
 
@@ -253,7 +253,7 @@ class WaterMapGenerator(ConfigurableObject):
             repatched_water_maps: xr.DataArray = xr.open_dataset(data_file).water_masks
             repatched_water_maps.attrs['cmap'] = dict(colors=self.get_water_map_colors())
         else:
-            water_masks: xr.DataArray = self.getMPWData(opspec)
+            water_masks: xr.DataArray = self.get_mpw_data(opspec)
             repatched_water_maps = self.patch_water_maps( water_masks, opspec, **kwargs )
 
         return repatched_water_maps
@@ -272,6 +272,7 @@ class WaterMapGenerator(ConfigurableObject):
             result_file = f"{data_dir}/{lake_id}_patched_water_masks.nc"
             sanitize(patched_water_maps).to_netcdf( result_file )
 
+        patched_water_maps.assign_attrs( **water_maps.attrs )
         patched_water_maps.attrs['cmap'] = dict(colors=self.get_water_map_colors())
         return patched_water_maps
 
@@ -289,8 +290,8 @@ if __name__ == '__main__':
         data_dir = DATA_DIR,
         land_water_thresholds="0.03,0.95",
         lake_index = "19",
-        yearly_lake_masks_dir = f"{DATA_DIR}/MOD44W",
-        yearly_lake_masks_nodata = '256',
+        lake_masks_dir = f"{DATA_DIR}/MOD44W",
+        lake_masks_nodata = '256',
         year_range = "2018, 2020"
     )
 

@@ -136,7 +136,7 @@ with xr.set_options(keep_attrs=True):
     opspec = dict()
 
     waterMapGenerator = WaterMapGenerator()
-    water_masks: xr.DataArray = waterMapGenerator.getMPWData(opspec)
+    water_masks: xr.DataArray = waterMapGenerator.get_mpw_data(opspec)
     water_masks.attrs['cmap'] = dict(colors=colors4)
     lake_mask = water_masks.attrs[ "roi" ]
 

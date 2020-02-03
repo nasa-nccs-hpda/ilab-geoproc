@@ -1,0 +1,19 @@
+---
+id: 'defaults'
+data_dir: DATA_DIR
+land_water_thresholds: [0.03,0.95]
+time_range: [2018, 2020]
+source:
+  type: 'MPW'
+  url: "https://floodmap.modaps.eosdis.nasa.gov/Products"
+  product:  "2D2OT"
+water_masks:
+    location: "{data_dir}/MOD44W"
+    nodata: 256
+
+---
+id: 'SaltLake'
+index: 19
+roi: "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/saltLake/GreatSalt.shp"
+source:
+  location: "120W050N"

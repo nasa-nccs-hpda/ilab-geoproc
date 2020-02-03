@@ -19,24 +19,20 @@ class XRio(XExtension):
 
     @classmethod
     def open( cls, filename, mask=None, **kwargs ):
-        try:
-            oargs = argfilter( kwargs, parse_coordinates = None, chunks = None, cache = None, lock = None )
-            result: xr.DataArray = rioxarray.open_rasterio( filename, **oargs )
-            band = kwargs.pop( 'band', -1 )
-            if band >= 0:
-                result = result.isel( band=band, drop=True )
-            result.encoding = dict( dtype = str(result.dtype))
-            if mask is None: return result
+        oargs = argfilter( kwargs, parse_coordinates = None, chunks = None, cache = None, lock = None )
+        result: xr.DataArray = rioxarray.open_rasterio( filename, **oargs )
+        band = kwargs.pop( 'band', -1 )
+        if band >= 0:
+            result = result.isel( band=band, drop=True )
+        result.encoding = dict( dtype = str(result.dtype) )
+        if mask is None: return result
 #            x, y = result.coords['x'], result.coords['y']
 #            print( f" {filename}:   x[{x.size}]: ( {x.data[0]:.2f}, {x.data[-1]:.2f} ) ")
-            return result.xrio.clip( mask, **kwargs )
-        except Exception as err:
-            print( f"\nError opening file {filename}: {err}\n")
-            return None
+        return result.xrio.clip( mask, **kwargs )
 
     def clip(self, geodf: GeoDataFrame, **kwargs ):
         cargs = argfilter( kwargs, all_touched = True, drop = True )
-        mask_value = kwargs.pop( 'mask_value', 255  )
+        mask_value = int( kwargs.pop( 'mask_value', 255  ) )
         self._obj.rio.set_nodata(mask_value)
         result = self._obj.rio.clip( geodf.geometry.apply(mapping), geodf.crs, **cargs )
         result.attrs['mask_value'] = mask_value
