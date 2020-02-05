@@ -36,8 +36,8 @@ class ConfigurableObject:
 
     @classmethod
     def transferMetadata( cls, ref_array: xr.DataArray, new_array: xr.DataArray ):
-        for key, value in ref_array.attrs.items():
-            if key not in new_array.attrs: new_array.attrs[key] = value
+        new_attrs = { key: value for key, value in ref_array.attrs.items() if  key not in new_array.attrs }
+        return new_array.assign_attrs( new_attrs )
 
     @classmethod
     def parseLocation( cls, location: str ) -> Point:

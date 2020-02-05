@@ -1,8 +1,8 @@
 
 defaults:
     data_dir: "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt"
-    water_class_thresholds: [ 0.03, 0.95 ]
-    year_range: [ 2018, 2020 ]
+    water_class_thresholds: [ 0.03, 0.93 ]
+    year_range: [ 2014, 2018 ]
     source:
       type: 'MPW'
       url:  'https://floodmap.modaps.eosdis.nasa.gov/Products'
@@ -10,6 +10,9 @@ defaults:
     water_masks:
         location: '{data_dir}/MOD44W'
         nodata: 256
+    water_maps:
+        threshold: 0.5
+        bin_size: 8
 
 SaltLake:
     index: 19

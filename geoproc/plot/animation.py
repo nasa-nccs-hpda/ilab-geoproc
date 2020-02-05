@@ -36,7 +36,7 @@ class EventSource(Thread):
         Thread.__init__(self)
         self.event = None
         self.action = action
-        self.interval = kwargs.get( "delay",0.5 )
+        self.interval = kwargs.get( "delay",0.01 )
         self.active = False
         self.running = True
         self.daemon = True
@@ -205,6 +205,7 @@ class PageSlider(matplotlib.widgets.Slider):
 class SliceAnimation:
 
     def __init__(self, data_arrays: Union[xa.DataArray,List[xa.DataArray]], **kwargs ):
+        self.time_axis: np.ndarray = None
         self.data: List[xa.DataArray] = self.preprocess_inputs(data_arrays)
         self.plot_axes = None
         self.auxplot = kwargs.get( "auxplot", None )
@@ -222,15 +223,18 @@ class SliceAnimation:
         self.y_axis = kwargs.pop( 'y', 1 )
         self.y_axis_name = self.data[0].dims[ self.y_axis ]
 
-        self.nFrames = self.data[0].shape[0]
         self.add_plots( **kwargs )
         self.add_slider( **kwargs )
         self._update(0)
 
-    @classmethod
-    def preprocess_inputs(cls, data_arrays: Union[xa.DataArray,List[xa.DataArray]]  ) -> List[xa.DataArray]:
+    def preprocess_inputs(self, data_arrays: Union[xa.DataArray,List[xa.DataArray]]  ) -> List[xa.DataArray]:
         inputs_list = data_arrays if isinstance(data_arrays, list) else [data_arrays]
-        return [ cls.preprocess_input(input) for input in inputs_list ]
+        preprocessed_inputs: List[xa.DataArray] = [ self.preprocess_input(input) for input in inputs_list ]
+        axis0_lens = [ processed_input.shape[0] for processed_input in preprocessed_inputs ]
+        self.nFrames = max(axis0_lens)
+        target_input = preprocessed_inputs[ axis0_lens.index( self.nFrames ) ]
+        self.time_axis = target_input.coords[ target_input.dims[0] ].values
+        return preprocessed_inputs
 
     @classmethod
     def preprocess_input(cls, dataArray: xa.DataArray ) -> xa.DataArray:
@@ -288,7 +292,7 @@ class SliceAnimation:
         if colors is None:
             cmap = cmap_spec.pop("cmap","jet")
             norm = Normalize(*range) if range else None
-            return dict( cmap=cmap, norm=norm, cbar_kwargs=dict(cmap=cmap, norm=norm), tick_labels=None )
+            return dict( cmap=cmap, norm=norm, cbar_kwargs=dict(cmap=cmap, norm=norm, orientation='horizontal'), tick_labels=None )
         else:
             if isinstance( colors, np.ndarray ):
                 return dict( cmap=LinearSegmentedColormap.from_list('my_colormap', colors) )
@@ -298,7 +302,7 @@ class SliceAnimation:
             color_values = [ float(cval[0]) for cval in colors]
             color_bounds = get_color_bounds(color_values)
             norm = mpl.colors.BoundaryNorm( color_bounds, len( colors )  )
-            cbar_args = dict( cmap=cmap, norm=norm, boundaries=color_bounds, ticks=color_values, spacing='proportional',  orientation='vertical')
+            cbar_args = dict( cmap=cmap, norm=norm, boundaries=color_bounds, ticks=color_values, spacing='proportional',  orientation='horizontal')
             return dict( cmap=cmap, norm=norm, cbar_kwargs=cbar_args, tick_labels=tick_labels )
 
     def update_metrics( self, iFrame: int ):
@@ -322,9 +326,9 @@ class SliceAnimation:
         z: xa.DataArray =  data[ 0, :, : ]   # .transpose()
         color_tick_labels = cm.pop( 'tick_labels', None )
         image: AxesImage = z.plot.imshow( ax=subplot, **cm )
-        if color_tick_labels is not None: image.colorbar.ax.set_yticklabels( color_tick_labels )
+        if color_tick_labels is not None: image.colorbar.ax.set_xticklabels( color_tick_labels )
         subplot.title.set_text( data.name )
-        overlays = kwargs.get( "overlays", [] )
+        overlays = kwargs.get( "overlays", {} )
         for color, overlay in overlays.items():
             overlay.plot( ax=subplot, color=color, linewidth=2 )
         return image
@@ -356,14 +360,14 @@ class SliceAnimation:
             axis.legend()
 
     def update_plots(self, iFrame: int ):
+        tval = self.time_axis[ iFrame ]
         for iPlot in range(self.nPlots):
             subplot: Axes = self.getSubplot(iPlot)
             data = self.data[iPlot]
-            self.images[iPlot].set_data( data[iFrame] )
-            acoord = self.get_anim_coord( iPlot )
-            frame_title = data.name if data.name else f"Frame-{iFrame}"
-            cval = acoord[iFrame]
-            subplot.title.set_text( f"Frame {iFrame}: {frame_title} {cval}" )
+            frame_image = data.sel( **{ data.dims[0]: tval }, method='nearest' )
+            self.images[iPlot].set_data( frame_image )
+            stval = str(tval).split("T")[0]
+            subplot.title.set_text( f"F-{iFrame} [{stval}]" )
         self.update_metrics( iFrame )
         self.update_aux_plot(iFrame)
 
