@@ -7,12 +7,19 @@ defaults:
       type: 'MPW'
       url:  'https://floodmap.modaps.eosdis.nasa.gov/Products'
       product:  '2D2OT'
-    water_masks:
-        location: '{data_dir}/MOD44W'
-        nodata: 256
+
     water_maps:
         threshold: 0.5
         bin_size: 8
+
+SaltLakeMasked:
+    index: 19
+    roi: '/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/saltLake/GreatSalt.shp'
+    source:
+      location: '120W050N'
+    water_masks:
+        location: '{data_dir}/MOD44W'
+        nodata: 256
 
 SaltLake:
     index: 19

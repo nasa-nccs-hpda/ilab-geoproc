@@ -39,9 +39,9 @@ class WaterMapGenerator(ConfigurableObject):
         t0 = time.time()
         images = {}
         data_dir = opspec.get('data_dir')
-        wmask_opspec = opspec['water_masks']
+        wmask_opspec = opspec.get('water_masks')
+        if wmask_opspec is None: return None
         lake_masks_dir: str = wmask_opspec.get('location', None )
-        if lake_masks_dir is None: return None
         if "{data_dir}" in lake_masks_dir:
             lake_masks_dir = lake_masks_dir.replace("{data_dir}","{}").format(data_dir)
         lake_index = opspec.get('index')
@@ -77,7 +77,6 @@ class WaterMapGenerator(ConfigurableObject):
         print(f"Executing get_persistent_classes")
         t0 = time.time()
         thresholds = opspec.get('water_class_thresholds', [ 0.05, 0.95 ] )
-        yearly_lake_masks = yearly_lake_masks.interp_like( self.water_probability, method='nearest' )
         perm_water_mask: xr.DataArray = self.water_probability > thresholds[1]
         boundaries_mask: xr.DataArray = self.water_probability > 1.0
         if yearly_lake_masks is None:
@@ -86,6 +85,7 @@ class WaterMapGenerator(ConfigurableObject):
                             xr.where(perm_water_mask, 2,
                                      xr.where(perm_land_mask, 1, 0)))
         else:
+            yearly_lake_masks = yearly_lake_masks.interp_like(self.water_probability, method='nearest')
             perm_land_mask: xr.DataArray = (yearly_lake_masks == 0)
             result = xr.where(boundaries_mask, self.mask_value,
                             xr.where(perm_water_mask, 2,
@@ -161,7 +161,7 @@ class WaterMapGenerator(ConfigurableObject):
         data_dir = opspec.get('data_dir')
         lake_id = opspec['id']
         water_maps_file = os.path.join(data_dir, f"{lake_id}_water_maps.nc")
-        cache = kwargs.get( "cache", True )
+        cache = kwargs.get( "cache", "update" )
         if cache==True and os.path.isfile( water_maps_file ):
             water_maps_dset: xr.Dataset = xr.open_dataset(water_maps_file)
         else:
@@ -350,24 +350,8 @@ if __name__ == '__main__':
     opspec_file = os.path.join( CURDIR, "specs", "lakes1.yml")
     with open(opspec_file) as f:
         opspecs = yaml.load( f, Loader=yaml.FullLoader )
-
-        # opspec = dict(
-        #     roi="/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/saltLake/GreatSalt.shp",
-        #     data_url= "https://floodmap.modaps.eosdis.nasa.gov/Products",
-        #     location = "120W050N",
-        #     product =  "2D2OT",
-        #     data_dir = DATA_DIR,
-        #     water_class_thresholds=[0.05,0.95],
-        #     lake_index = 19,
-        #     lake_masks_dir = f"{DATA_DIR}/MOD44W",
-        #     lake_masks_nodata = 256,
-        #     year_range = [2014, 2016],
-        #     day_range=[ 0, 365 ]
-        # )
-
         waterMapGenerator = WaterMapGenerator( opspecs )
-
-        patched_water_maps = waterMapGenerator.get_patched_water_maps( "SaltLake", cache="update" )
+        patched_water_maps = waterMapGenerator.get_patched_water_maps( "SaltLake" )
         roi = patched_water_maps.attrs["roi"].boundary
 
         animation = SliceAnimation( [ waterMapGenerator.water_maps, patched_water_maps, waterMapGenerator.persistent_classes ], overlays=dict(red=roi) )
