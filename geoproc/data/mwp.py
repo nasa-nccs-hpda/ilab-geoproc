@@ -70,7 +70,7 @@ class MWPDataManager(ConfigurableObject):
         download =  self.getParameter( "download",  **kwargs )
         start_day = self.getParameter( "start_day", **kwargs )
         end_day =   self.getParameter( "end_day",   **kwargs )
-        years =     self.getParameter( "years",   self.getParameter("year", **kwargs) )
+        years =     self.getParameter( "years",   [ self.getParameter("year", **kwargs) ] )
         product =   self.getParameter( "product",   **kwargs )
         location_dir = self.get_location_dir( location )
         files = []

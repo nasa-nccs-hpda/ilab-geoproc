@@ -365,8 +365,10 @@ class SliceAnimation:
             subplot: Axes = self.getSubplot(iPlot)
             data = self.data[iPlot]
             frame_image = data.sel( **{ data.dims[0]: tval }, method='nearest' )
+            try:                tval1 = frame_image.time.values
+            except Exception:   tval1 = tval
             self.images[iPlot].set_data( frame_image )
-            stval = str(tval).split("T")[0]
+            stval = str(tval1).split("T")[0]
             subplot.title.set_text( f"F-{iFrame} [{stval}]" )
         self.update_metrics( iFrame )
         self.update_aux_plot(iFrame)
