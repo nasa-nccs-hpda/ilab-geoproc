@@ -45,7 +45,9 @@ class TileLocator:
         yc0, yc1 = cls.lat_label( ymin ), cls.lat_label( ymax )
         assert xc0 == xc1, f"Lake mask straddles lon tiles: {xc0} {xc1}"
         assert yc0 == yc1, f"Lake mask straddles lat tiles: {yc0} {yc1}"
-        return f"{xc0}{yc0}"
+        result = f"{xc0}{yc0}"
+        print( f"Inferring tile {result} from xbounds = {[xmin,xmax]}, ybounds = {[ymin,ymax]}" )
+        return result
 
     @classmethod
     def get_bounds(cls, array: xa.DataArray ) -> List:

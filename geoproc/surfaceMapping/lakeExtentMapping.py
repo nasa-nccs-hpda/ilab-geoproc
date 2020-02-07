@@ -7,6 +7,7 @@ from glob import glob
 import functools
 from  xarray.core.groupby import DatasetGroupBy
 from geoproc.util.configuration import sanitize, ConfigurableObject
+from geoproc.surfaceMapping.util import TileLocator
 import matplotlib.pyplot as plt
 import numpy as np
 import os, time, collections
@@ -54,7 +55,7 @@ class WaterMapGenerator(ConfigurableObject):
         lake_id = opspec.get('id' )
         yearly_lake_masks_file = os.path.join(data_dir, f"Lake{lake_id}_fill_masks.nc")
         cache = kwargs.get('cache',"update")
-        lake_mask_nodata = wmask_opspec.get('nodata', 256)
+        lake_mask_nodata = int( wmask_opspec.get('nodata', 256) )
         if cache==True and os.path.isfile( yearly_lake_masks_file ):
             yearly_lake_masks_dataset: xr.Dataset = xr.open_dataset(yearly_lake_masks_file)
             yearly_lake_masks: xr.DataArray = yearly_lake_masks_dataset.yearly_lake_masks
@@ -65,7 +66,7 @@ class WaterMapGenerator(ConfigurableObject):
                 images[int(year)] = self.get_viable_file( filepaths )
              sorted_file_paths = collections.OrderedDict(sorted(images.items()))
              time_values = np.array([self.get_date_from_year(year) for year in sorted_file_paths.keys()], dtype='datetime64[ns]')
-             yearly_lake_masks: xr.DataArray = XRio.load(list(sorted_file_paths.values()), mask=self.roi_bounds, band=0, mask_value=lake_mask_nodata, index=time_values)
+             yearly_lake_masks: xr.DataArray = XRio.load(list(sorted_file_paths.values()), band=0, mask_value=lake_mask_nodata, index=time_values)
 
         if cache in [ True, "update" ]:
             result = xr.Dataset(dict(yearly_lake_masks=sanitize(yearly_lake_masks)))
@@ -262,7 +263,6 @@ class WaterMapGenerator(ConfigurableObject):
         return np.datetime64(result)
 
     def infer_tile_location(self) -> str:
-        from geoproc.surfaceMapping.util import TileLocator
         if self.yearly_lake_masks is not None:
             return TileLocator.infer_tile_xa( self.yearly_lake_masks )
         if self.roi_bounds is not None:
@@ -321,6 +321,18 @@ class WaterMapGenerator(ConfigurableObject):
             return { **value0, **value1 }
         else: return value1
 
+    def get_roi_bounds(self, opspec: Dict ):
+        data_dir = opspec.get('data_dir')
+        roi = opspec.get('roi', None)
+        if roi is not None:
+            if isinstance(roi, list):
+                self.roi_bounds = [ float(x) for x in roi ]
+            else:
+                self.roi_bounds: gpd.GeoSeries = gpd.read_file( roi.replace("{data_dir}", data_dir) )
+        else:
+            assert self.yearly_lake_masks is not None, "Must specify roi to locate lake"
+            self.roi_bounds =  TileLocator.get_bounds( self.yearly_lake_masks[0] )
+
     def get_patched_water_maps(self, lakeId: str, **kwargs) -> xr.DataArray:
         t0 = time.time()
         opspec = self.get_opspec( lakeId.lower() )
@@ -333,10 +345,9 @@ class WaterMapGenerator(ConfigurableObject):
             patched_water_maps: xr.DataArray = xr.open_dataset(patched_water_maps_file).water_masks
             patched_water_maps.attrs['cmap'] = dict(colors=self.get_water_map_colors())
         else:
-            roi = opspec.get('roi', "").replace("{data_dir}", data_dir)
-            self.roi_bounds: gpd.GeoSeries = gpd.read_file(roi) if roi else None
             self.yearly_lake_masks: xr.DataArray = self.get_yearly_lake_area_masks(opspec, **kwargs)
-            water_mapping_data = self.get_mpw_data( opspec, cache=True )
+            self.get_roi_bounds( opspec )
+            water_mapping_data = self.get_mpw_data( opspec, cache="update" )
             self.water_maps: xr.DataArray =  self.get_water_maps( water_mapping_data, opspec )
             patched_water_maps = self.patch_water_maps( opspec, **kwargs )
 
@@ -363,9 +374,9 @@ if __name__ == '__main__':
     with open(opspec_file) as f:
         opspecs = yaml.load( f, Loader=yaml.FullLoader )
         waterMapGenerator = WaterMapGenerator( opspecs )
-        patched_water_maps = waterMapGenerator.get_patched_water_maps( "Lake1295" )
+        patched_water_maps = waterMapGenerator.get_patched_water_maps( "Lake334" )
         roi = patched_water_maps.attrs.get("roi")
-        kwargs = dict( overlays=dict(red=roi.boundary) ) if roi else {}
+        kwargs = dict( overlays=dict(red=roi.boundary) ) if ( roi and not isinstance(roi,list) ) else {}
 
         animation = SliceAnimation( [ waterMapGenerator.water_maps, patched_water_maps, waterMapGenerator.persistent_classes ], **kwargs )
         animation.show()

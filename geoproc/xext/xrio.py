@@ -18,17 +18,30 @@ class XRio(XExtension):
         XExtension.__init__( self, xarray_obj )
 
     @classmethod
-    def open( cls, filename, mask=None, **kwargs ):
+    def open( cls, iFile: int, filename: str, **kwargs ):
+        mask = kwargs.pop("mask", None)
         oargs = argfilter( kwargs, parse_coordinates = None, chunks = None, cache = None, lock = None )
         result: xr.DataArray = rioxarray.open_rasterio( filename, **oargs )
         band = kwargs.pop( 'band', -1 )
         if band >= 0:
             result = result.isel( band=band, drop=True )
-        result.encoding = dict( dtype = str(result.dtype) )
+#        result.encoding = dict( dtype = str(result.dtype) )
         if mask is None: return result
-#            x, y = result.coords['x'], result.coords['y']
-#            print( f" {filename}:   x[{x.size}]: ( {x.data[0]:.2f}, {x.data[-1]:.2f} ) ")
-        return result.xrio.clip( mask, **kwargs )
+        elif isinstance( mask, list ):
+            return result.xrio.subset( iFile, mask[:2], mask[2:] )
+        elif isinstance( mask, GeoDataFrame ):
+            return result.xrio.clip( mask, **kwargs )
+        else:
+            raise Exception( f"Unrecognized mask type: {mask.__class__.__name__}")
+
+    def subset(self, iFile: int, xbounds: List, ybounds: List ):
+        from geoproc.surfaceMapping.util import TileLocator
+        tile_bounds = TileLocator.get_bounds(self._obj)
+        xbounds.sort(), ybounds.sort( reverse = (tile_bounds[2] > tile_bounds[3]) )
+        if iFile == 0:
+            print( f"Subsetting array with bounds {tile_bounds} by xbounds = {xbounds}, ybounds = {ybounds}")
+        sel_args = { self._obj.dims[-1]: slice(*xbounds), self._obj.dims[-2]: slice(*ybounds) }
+        return self._obj.sel(**sel_args)
 
     def clip(self, geodf: GeoDataFrame, **kwargs ):
         cargs = argfilter( kwargs, all_touched = True, drop = True )
@@ -42,11 +55,10 @@ class XRio(XExtension):
     @classmethod
     def load( cls, filePaths: Union[ str, List[str] ], **kwargs ) -> Union[ List[xr.DataArray], xr.DataArray ]:
         merge = kwargs.pop('merge', True)
-        mask: GeoDataFrame = kwargs.pop("mask", None)
         if isinstance( filePaths, str ): filePaths = [ filePaths ]
         array_list: List[xr.DataArray] = []
-        for file in filePaths:
-            data_array = cls.open( file, mask, **kwargs )
+        for iF, file in enumerate(filePaths):
+            data_array = cls.open( iF, file, **kwargs )
             if data_array is not None: array_list.append( data_array )
         if merge and (len(array_list) > 1):
             assert cls.mergable( array_list ), f"Attempt to merge arrays with different shapes"
@@ -59,7 +71,7 @@ class XRio(XExtension):
         new_axis_name = kwargs.get('axis','time')
         new_axis_values = kwargs.get('index', range( len(data_arrays) ) )
         merge_coord = pd.Index( new_axis_values, name=new_axis_name )
-        result: xr.DataArray =  xr.concat( data_arrays, merge_coord ).astype( data_arrays[0].dtype )
+        result: xr.DataArray =  xr.concat( data_arrays, merge_coord )
         return result
 
     @classmethod

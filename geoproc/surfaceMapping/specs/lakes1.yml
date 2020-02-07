@@ -33,3 +33,8 @@ Lake334:
     water_masks:
         location: '{data_dir}/MOD44W'
         nodata: 256
+
+
+MosulDamLake:
+    roi: 36.59876, 36.8855984, 42.443281, 42.992598
+    index: 1534
