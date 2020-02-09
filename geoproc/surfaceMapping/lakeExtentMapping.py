@@ -159,7 +159,7 @@ class WaterMapGenerator(ConfigurableObject):
         result =  xr.where( masked, self.mask_value, xr.where( water_mask, 2, xr.where( land, 1, 0 ) ) )
         return xr.Dataset( { "water_maps": result,  "reliability": reliability } )
 
-    def get_water_maps( self, data_array: xr.DataArray, opspec: Dict, **kwargs ) -> xr.DataArray:
+    def get_water_maps( self, data_array: Optional[xr.DataArray], opspec: Dict, **kwargs ) -> xr.DataArray:
         print("\n Executing get_water_maps ")
         t0 = time.time()
         data_dir = opspec.get('data_dir')
@@ -266,7 +266,10 @@ class WaterMapGenerator(ConfigurableObject):
         if self.yearly_lake_masks is not None:
             return TileLocator.infer_tile_xa( self.yearly_lake_masks )
         if self.roi_bounds is not None:
-            return TileLocator.infer_tile_gpd( self.roi_bounds )
+            if isinstance( self.roi_bounds, list ):
+                return TileLocator.get_tile( *self.roi_bounds )
+            else:
+                return TileLocator.infer_tile_gpd( self.roi_bounds )
         raise Exception( "Must supply either source.location, roi, or lake masks in order to locate region")
 
     def get_mpw_data(self, opspec: Dict, **kwargs) -> xr.DataArray:
@@ -327,8 +330,12 @@ class WaterMapGenerator(ConfigurableObject):
         if roi is not None:
             if isinstance(roi, list):
                 self.roi_bounds = [ float(x) for x in roi ]
-            else:
+            elif isinstance(roi, str) and "," in roi:
+                self.roi_bounds = [ float(x) for x in roi.split(",") ]
+            elif isinstance(roi, str):
                 self.roi_bounds: gpd.GeoSeries = gpd.read_file( roi.replace("{data_dir}", data_dir) )
+            else:
+                raise Exception( f" Unrecognized roi: {roi}")
         else:
             assert self.yearly_lake_masks is not None, "Must specify roi to locate lake"
             self.roi_bounds =  TileLocator.get_bounds( self.yearly_lake_masks[0] )
@@ -342,7 +349,7 @@ class WaterMapGenerator(ConfigurableObject):
         cache = kwargs.get("cache", "update" )
 
         if cache==True and os.path.isfile(patched_water_maps_file):
-            patched_water_maps: xr.DataArray = xr.open_dataset(patched_water_maps_file).water_masks
+            patched_water_maps: xr.DataArray = xr.open_dataset(patched_water_maps_file).Water_Maps
             patched_water_maps.attrs['cmap'] = dict(colors=self.get_water_map_colors())
         else:
             self.yearly_lake_masks: xr.DataArray = self.get_yearly_lake_area_masks(opspec, **kwargs)
@@ -351,7 +358,7 @@ class WaterMapGenerator(ConfigurableObject):
             self.water_maps: xr.DataArray =  self.get_water_maps( water_mapping_data, opspec )
             patched_water_maps = self.patch_water_maps( opspec, **kwargs )
 
-        if cache in [True,"update"]:
+        if ((cache == True) and not os.path.isfile(patched_water_maps_file)) or ( cache == "update" ):
             sanitize(patched_water_maps).to_netcdf( patched_water_maps_file )
             print( f"Saving patched_water_maps to {patched_water_maps_file}")
 
@@ -366,6 +373,28 @@ class WaterMapGenerator(ConfigurableObject):
         patched_water_maps.attrs['cmap'] = dict( colors=self.get_water_map_colors() )
         return patched_water_maps.fillna( self.mask_value )
 
+    def get_cached_water_maps( self, lakeId: str ):
+        opspec = self.get_opspec(lakeId.lower())
+        self.water_maps: xr.DataArray = self.get_water_maps( None, opspec, cache=True )
+        return self.water_maps
+
+    def get_class_proportion(self, class_map: xr.DataArray, target_class: int, relevant_classes: List[int] ) -> xr.DataArray:
+        sdims = [ class_map.dims[-1], class_map.dims[-2] ]
+        total_relevant_population = class_map.isin( relevant_classes ).sum( dim=sdims )
+        class_population = (class_map == target_class).sum( dim=sdims )
+        return ( class_population / total_relevant_population ) * 100
+
+    def view_water_map_results(self, lake_id: str, **kwargs ):
+        from geoproc.plot.animation import SliceAnimation
+        interp_water_class = kwargs.get( 'interp_water_class', 4 )
+        water_classes = kwargs.get('water_classes', [2,4] )
+        water_maps =  self.get_cached_water_maps(  lake_id )
+        patched_water_maps = self.get_patched_water_maps( lake_id, cache=True )
+        class_proportion = self.get_class_proportion( patched_water_maps, interp_water_class, water_classes )
+        animation = SliceAnimation( patched_water_maps, metrics=dict(blue=class_proportion), auxplot=water_maps )
+        animation.show()
+
+
 if __name__ == '__main__':
     from geoproc.plot.animation import SliceAnimation
     import yaml
@@ -374,7 +403,7 @@ if __name__ == '__main__':
     with open(opspec_file) as f:
         opspecs = yaml.load( f, Loader=yaml.FullLoader )
         waterMapGenerator = WaterMapGenerator( opspecs )
-        patched_water_maps = waterMapGenerator.get_patched_water_maps( "Lake334" )
+        patched_water_maps = waterMapGenerator.get_patched_water_maps( "MosulDamLake" )
         roi = patched_water_maps.attrs.get("roi")
         kwargs = dict( overlays=dict(red=roi.boundary) ) if ( roi and not isinstance(roi,list) ) else {}
 

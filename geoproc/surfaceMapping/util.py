@@ -32,15 +32,15 @@ class TileLocator:
     def infer_tile_xa( cls, array: xa.DataArray ) -> str:
         x_coord = array.coords['x'].values
         y_coord = array.coords['y'].values
-        return cls.get_tile( x_coord[0], y_coord[0], x_coord[-1], y_coord[-1]  )
+        return cls.get_tile( x_coord[0], x_coord[-1], y_coord[0], y_coord[-1]  )
 
     @classmethod
     def infer_tile_gpd( cls, series: gpd.GeoSeries ) -> str:
-        bounds = series.geometry.boundary.bounds.values[0]
-        return cls.get_tile( *bounds )
+        [xmin, ymin, xmax, ymax] = series.geometry.boundary.bounds.values[0]
+        return cls.get_tile( xmin, xmax, ymin, ymax )
 
     @classmethod
-    def get_tile( cls, xmin, ymin, xmax, ymax ) -> str :
+    def get_tile( cls, xmin, xmax, ymin, ymax ) -> str :
         xc0, xc1 = cls.lon_label( xmin ), cls.lon_label( xmax )
         yc0, yc1 = cls.lat_label( ymin ), cls.lat_label( ymax )
         assert xc0 == xc1, f"Lake mask straddles lon tiles: {xc0} {xc1}"
