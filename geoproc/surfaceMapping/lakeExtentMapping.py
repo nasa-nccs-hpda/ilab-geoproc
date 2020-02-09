@@ -67,6 +67,7 @@ class WaterMapGenerator(ConfigurableObject):
              sorted_file_paths = collections.OrderedDict(sorted(images.items()))
              time_values = np.array([self.get_date_from_year(year) for year in sorted_file_paths.keys()], dtype='datetime64[ns]')
              yearly_lake_masks: xr.DataArray = XRio.load(list(sorted_file_paths.values()), band=0, mask_value=lake_mask_nodata, index=time_values)
+             yearly_lake_masks = yearly_lake_masks.where( yearly_lake_masks != lake_mask_nodata, self.mask_value )
 
         if cache in [ True, "update" ]:
             result = xr.Dataset(dict(yearly_lake_masks=sanitize(yearly_lake_masks)))
@@ -91,20 +92,14 @@ class WaterMapGenerator(ConfigurableObject):
         else:
             yearly_lake_masks = self.yearly_lake_masks.interp_like(self.water_probability, method='nearest')
             perm_land_mask: xr.DataArray = (yearly_lake_masks == 0)
-            result = xr.where(boundaries_mask, self.mask_value,
-                            xr.where(perm_water_mask, 2,
+            roi_mask: xr.DataArray = np.logical_or( ( yearly_lake_masks == self.mask_value ), boundaries_mask )
+            result = xr.where( roi_mask, self.mask_value,
+                                  xr.where(perm_water_mask, 2,
                                      xr.where(perm_land_mask, 1, 0)))
         result = result.persist()
         result.name = "Persistent_Classes"
         print(f"Done get_persistent_classes in time {time.time() - t0}")
         return result.assign_attrs( cmap = dict( colors=self.get_water_map_colors() ) )
-
-    def apply_thresholds(self, boundaries_mask: xr.DataArray, perm_water_mask: xr.DataArray, yearly_lake_mask: xr.DataArray, **kwargs ) -> xr.DataArray:
-        mask_value = kwargs.get('mask_value')
-        perm_land_mask: xr.DataArray = (yearly_lake_mask == 0)
-        return xr.where(boundaries_mask, mask_value,
-                        xr.where(perm_water_mask, 2,
-                                 xr.where(perm_land_mask, 1, 0)))
 
     def get_water_probability( self, opspec: Dict, **kwargs ) -> xr.DataArray:
         from datetime import datetime
@@ -403,7 +398,7 @@ if __name__ == '__main__':
     with open(opspec_file) as f:
         opspecs = yaml.load( f, Loader=yaml.FullLoader )
         waterMapGenerator = WaterMapGenerator( opspecs )
-        patched_water_maps = waterMapGenerator.get_patched_water_maps( "MosulDamLake" )
+        patched_water_maps = waterMapGenerator.get_patched_water_maps( "Lake334" )
         roi = patched_water_maps.attrs.get("roi")
         kwargs = dict( overlays=dict(red=roi.boundary) ) if ( roi and not isinstance(roi,list) ) else {}
 
