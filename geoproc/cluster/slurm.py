@@ -12,11 +12,11 @@ class SlurmClusterManager(ClusterManagerBase):
 
   def __init__( self, serverConfiguration: Dict[str,Any] ):
       self.slurm_clusters = {}
+      self.cores = serverConfiguration.get( 'scheduler.ncores', 8 )
       self.maxworkers = serverConfiguration.get("scheduler.maxworkers", 16 )
       self.queue = serverConfiguration.get( "scheduler.queue", "default" )
       ClusterManagerBase.__init__( self, serverConfiguration )
       self.submitters = []
-      self.cores = serverConfiguration.get( 'scheduler.ncores', 8 )
 
   def getClient(self):
       return Client( self.getSlurmCluster(self.queue) )
