@@ -16,13 +16,14 @@ class SlurmClusterManager(ClusterManagerBase):
       self.queue = serverConfiguration.get( "scheduler.queue", "default" )
       ClusterManagerBase.__init__( self, serverConfiguration )
       self.submitters = []
+      self.cores = serverConfiguration.get( 'scheduler.ncores', 8 )
 
   def getClient(self):
       return Client( self.getSlurmCluster(self.queue) )
 
   def getSlurmCluster( self, queue: str ):
       self.logger.info( f"Initializing Slurm cluster using queue {queue}" )
-      cluster =  self.slurm_clusters.setdefault( queue, SLURMCluster() if queue == "default" else SLURMCluster( queue=queue ) )
+      cluster =  self.slurm_clusters.setdefault( queue, SLURMCluster(cores = self.cores) if queue == "default" else SLURMCluster( queue=queue, cores = self.cores ) )
       cluster.adapt( minimum=1, maximum=self.maxworkers, interval="2s", wait_count=500 )
       print( "CLUSTER JOB SCRIPT: " + cluster.job_script() )
       return cluster
