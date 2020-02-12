@@ -16,21 +16,31 @@ nRuns = 8
 weight_by_bpvals = False
 bpvals_dataArray = None
 
-for model_index in range(nRuns):
+def ann_feature_importance( model_index: int ) -> np.ndarray:
     saved_model_path = os.path.join(outDir, f"mlp_weights_{model_index}")
     filehandler = open(saved_model_path, "rb")
     weights = pickle.load( filehandler )
     w0: np.ndarray = weights[0]
     w1: np.ndarray = weights[2]
-    feature_importance = np.fabs( np.matmul( w0, w1 ).squeeze() )
+    feature_importance = np.fabs( np.matmul( w0, w1 ) )
+    return norm(feature_importance)
 
-    if weight_by_bpvals:
-        if bpvals_dataArray is None:
-            bpvals_datafile = os.path.join(outDir, 'bpvals.mlp.csv')
-            bpvals_dataArray: np.ndarray = np.loadtxt(bpvals_datafile, delimiter=",")
-        bpvals = np.fabs( bpvals_dataArray[ model_index ] )
-        feature_importance = feature_importance * bpvals
+def rf_feature_importance( model_index: int ) -> np.ndarray:
+    saved_model_path = os.path.join(outDir, f"model.rf.T{model_index}.pkl")
+    filehandler = open(saved_model_path, "rb")
+    estimator = pickle.load(filehandler)
+    from sklearn.ensemble import RandomForestRegressor
+    instance: RandomForestRegressor = estimator.instance
+    feature_importance: np.ndarray =  norm( instance.feature_importances_ )
+    return feature_importance.reshape( [ feature_importance.shape[0], 1 ])
 
-    barplots.addPlot(f"M{model_index}", norm(feature_importance) )
+
+ann_fi = [ ann_feature_importance( model_index ) for model_index in range(nRuns) ]
+ann_ave = np.stack( ann_fi, axis=1 ).mean( axis = 1 ).squeeze()
+barplots.addPlot(f"ANN Feature Importance", ann_ave )
+
+rf_fi = [ rf_feature_importance( model_index ) for model_index in range(nRuns) ]
+rf_ave = np.stack( rf_fi, axis=1 ).mean( axis = 1 ).squeeze()
+barplots.addPlot( f"RF Feature Importance", rf_ave )
 
 barplots.show()
