@@ -38,22 +38,23 @@ class MultiBar:
 
     def _addPlots( self ):
         nPlots = len( self.plots )
-        awidth = 0.88 / nPlots
-        for plot_index in range( nPlots ):
-            title, data = self.plots[plot_index]
-            x0 = 0.1 + plot_index * awidth
-            if plot_index == 0:
-                ax: SubplotBase = self.fig.add_axes( [ x0, 0.1, awidth, 0.8 ], yticks=self.ycoord, yticklabels=self.bar_labels  )
-                ax.invert_yaxis()
-            else:
-                ax = self.fig.add_axes( [ x0, 0.1, awidth, 0.8 ], sharey = self.axes[0], sharex = self.axes[0] )
-                plt.setp( ax.get_yticklabels(), visible=False )
+        if nPlots > 0:
+            awidth = 0.88 / nPlots
+            for plot_index in range( nPlots ):
+                title, data = self.plots[plot_index]
+                x0 = 0.1 + plot_index * awidth
+                if plot_index == 0:
+                    ax: SubplotBase = self.fig.add_axes( [ x0, 0.1, awidth, 0.8 ], yticks=self.ycoord, yticklabels=self.bar_labels  )
+                    ax.invert_yaxis()
+                else:
+                    ax = self.fig.add_axes( [ x0, 0.1, awidth, 0.8 ], sharey = self.axes[0], sharex = self.axes[0] )
+                    plt.setp( ax.get_yticklabels(), visible=False )
 
-            plt.setp( ax.get_xticklabels(), visible=False )
-            ax.set_title(title)
-            ax.barh( self.ycoord, data * self.scale, align='center')
-            self.axes.append( ax )
-        self.plots = []
+                plt.setp( ax.get_xticklabels(), visible=False )
+                ax.set_title(title)
+                ax.barh( self.ycoord, data * self.scale, align='center')
+                self.axes.append( ax )
+            self.plots = []
 
     def save(self, fname, **kwargs ):
         self._addPlots()
