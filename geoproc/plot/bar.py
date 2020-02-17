@@ -36,6 +36,20 @@ class MultiBar:
             for row in plot_data:
                 csv_writer.writerow( row )
 
+    def norm( self, data ):
+        return data / np.abs(data).mean()
+
+    def load_plot_data( self, file_path: str, title: str, **kwargs ):
+        from sklearn.preprocessing import normalize
+        norm = kwargs.get('norm',True)
+        with open( file_path, "r") as csvfile:
+            print( f"Read data from file {file_path}" )
+            csv_reader = csv.reader(csvfile)
+            for row in csv_reader:
+                plot_data: np.array =  np.array( [ float(x) for x in row ] )
+                if norm: plot_data = self.norm(plot_data)
+                self.addPlot( title, plot_data )
+
     def _addPlots( self ):
         nPlots = len( self.plots )
         if nPlots > 0:
