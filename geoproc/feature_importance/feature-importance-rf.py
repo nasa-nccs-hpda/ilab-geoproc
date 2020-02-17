@@ -21,7 +21,7 @@ localTest = True
 
 if __name__ == '__main__':
 
-    barplots = MultiBar( "Feature Importance", band_names[:n_inputs] )
+    barplots = MultiBar( "RF Feature Importance: RFR Method", band_names[:n_inputs] )
 
     for iVersion in range(nVersions):
         saved_model_path = os.path.join(outDir, f"model.{modelType}.T{iVersion}.pkl")
@@ -33,4 +33,5 @@ if __name__ == '__main__':
             instance: RandomForestRegressor = estimator.instance
             barplots.addPlot( f"{modelType}.T{iVersion}", instance.feature_importances_ )
 
+    barplots.addMeanPlot( "RFR Average" )
     barplots.show()

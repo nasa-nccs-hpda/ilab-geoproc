@@ -1,5 +1,6 @@
 import os, math, pickle, numpy as np
 from geoproc.plot.bar import MultiBar
+from typing import List, Union, Tuple
 
 def norm( x: np.ndarray ): return x/x.mean()
 
@@ -16,10 +17,14 @@ nRuns = 8
 weight_by_bpvals = False
 bpvals_dataArray = None
 
-def ann_feature_importance( model_index: int ) -> np.ndarray:
-    saved_model_path = os.path.join(outDir, f"mlp_weights_{model_index}")
+def get_weights(model_index ) -> List[np.ndarray]:
+    saved_model_path = os.path.join( outDir, f"mlp_weights_{model_index}" )
     filehandler = open(saved_model_path, "rb")
     weights = pickle.load( filehandler )
+    return weights
+
+def ann_feature_importance( model_index ) -> np.ndarray:
+    weights = get_weights( model_index )
     w0: np.ndarray = weights[0]
     w1: np.ndarray = weights[2]
     feature_importance = np.fabs( np.matmul( w0, w1 ) )
@@ -33,7 +38,6 @@ def rf_feature_importance( model_index: int ) -> np.ndarray:
     instance: RandomForestRegressor = estimator.instance
     feature_importance: np.ndarray =  norm( instance.feature_importances_ )
     return feature_importance.reshape( [ feature_importance.shape[0], 1 ])
-
 
 ann_fi = [ ann_feature_importance( model_index ) for model_index in range(nRuns) ]
 ann_ave = np.stack( ann_fi, axis=1 ).mean( axis = 1 ).squeeze()
