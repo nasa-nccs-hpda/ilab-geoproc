@@ -38,8 +38,8 @@ if __name__ == '__main__':
     valid_mask = np.isnan(y_data_full) != True
     y_data_filtered = y_data_full.where( valid_mask, drop = True )
     index_data = range( valid_mask.size )
-    indices = xa.DataArray( np.array( index_data ) )
-    valid_indices = indices.where( valid_mask, drop = True ).astype(np.int64)
+    indices = xa.DataArray( np.array( index_data ), dims=[ 'samples' ] )
+    valid_indices = indices.where( valid_mask, drop = True ).astype(np.int64).values
 
     pca_dataset_file = DATA_DIR + f"/pca-{n_components}.nc"
     pca_dataset: xa.Dataset = xa.open_dataset(pca_dataset_file)
