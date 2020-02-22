@@ -205,7 +205,7 @@ class PageSlider(matplotlib.widgets.Slider):
 class SliceAnimation:
 
     def __init__(self, data_arrays: Union[xa.DataArray,List[xa.DataArray]], **kwargs ):
-        self.time_axis: np.ndarray = None
+        self.frames: np.ndarray = None
         self.data: List[xa.DataArray] = self.preprocess_inputs(data_arrays)
         self.plot_axes = None
         self.auxplot = kwargs.get( "auxplot", None )
@@ -233,7 +233,7 @@ class SliceAnimation:
         axis0_lens = [ processed_input.shape[0] for processed_input in preprocessed_inputs ]
         self.nFrames = max(axis0_lens)
         target_input = preprocessed_inputs[ axis0_lens.index( self.nFrames ) ]
-        self.time_axis = target_input.coords[ target_input.dims[0] ].values
+        self.frames = target_input.coords[ target_input.dims[0] ].values
         return preprocessed_inputs
 
     @classmethod
@@ -261,6 +261,13 @@ class SliceAnimation:
         self.figure.subplots_adjust(bottom=0.12) # 0.18)
         self.figure.suptitle( kwargs.get("title",""), fontsize=14 )
         self.slider_axes: Axes = self.figure.add_axes([0.1, 0.05, 0.8, 0.04])  # [left, bottom, width, height]
+
+    def invert_yaxis(self):
+        from matplotlib.artist import Artist
+        if isinstance( self.plot_axes, Artist ):
+            self.plot_axes.invert_yaxis()
+        else:
+            self.plot_axes[0].invert_yaxis()
 
     def get_xy_coords(self, iPlot: int ) -> Tuple[ np.ndarray, np.ndarray ]:
         return self.get_coord( iPlot, self.x_axis ), self.get_coord( iPlot, self.y_axis )
@@ -316,7 +323,7 @@ class SliceAnimation:
                 self.frame_marker.set_data( x, y )
 
     def update_aux_plot( self, iFrame: int ):
-        if self.auxplot is not None:
+        if (self.auxplot is not None) and (self.auxplot.shape[0] == self.nFrames):
             self.images[self.nPlots].set_data( self.auxplot[iFrame] )
 
     def create_image(self, iPlot: int, **kwargs ) -> AxesImage:
@@ -360,7 +367,7 @@ class SliceAnimation:
             axis.legend()
 
     def update_plots(self, iFrame: int ):
-        tval = self.time_axis[ iFrame ]
+        tval = self.frames[ iFrame ]
         for iPlot in range(self.nPlots):
             subplot: Axes = self.getSubplot(iPlot)
             data = self.data[iPlot]
