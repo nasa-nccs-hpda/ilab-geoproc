@@ -13,7 +13,7 @@ aviris_dataset: xa.Dataset = xa.open_dataset( input_file )
 input_bands = aviris_dataset.band_data
 center = aviris_dataset.center
 components_axis = np.array( range(n_components) )
-center_threshold = 0.05
+center_threshold = 0.02
 
 filtered_input_bands: xa.DataArray = input_bands.where( center < center_threshold, drop = True )
 ny, nx = filtered_input_bands.shape[1], filtered_input_bands.shape[2]
