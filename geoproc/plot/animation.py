@@ -206,6 +206,7 @@ class SliceAnimation:
 
     def __init__(self, data_arrays: Union[xa.DataArray,List[xa.DataArray]], **kwargs ):
         self.frames: np.ndarray = None
+        self.metrics_scale =  kwargs.get( 'metrics_scale', None )
         self.data: List[xa.DataArray] = self.preprocess_inputs(data_arrays)
         self.plot_axes = None
         self.auxplot = kwargs.get( "auxplot", None )
@@ -344,6 +345,7 @@ class SliceAnimation:
         if len( self.metrics ):
             axis = self.plot_axes[1]
             axis.title.set_text("Metrics")
+            if self.metrics_scale is not None: axis.set_yscale( self.metrics_scale )
             markers = self.metrics.pop('markers',{})
             for color, values in self.metrics.items():
                 x = range( len(values) )

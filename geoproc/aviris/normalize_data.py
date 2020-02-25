@@ -1,12 +1,11 @@
 import xarray as xa
+import numpy as np
 from typing import List, Union, Tuple
-import matplotlib.pyplot as plt
 import os
 
-def normalize( input_bands: xa.DataArray, name: str, center = None ) -> Tuple[xa.DataArray,xa.DataArray]:
-    x0 = input_bands if center is None else input_bands - center
-    scale = x0.std( dim=['x','y'] )
-    band_data: xa.DataArray =  x0 / scale
+def normalize( input_bands: xa.DataArray, name: str ) -> Tuple[xa.DataArray,xa.DataArray]:
+    scale = input_bands.std( dim=['x','y'] )
+    band_data: xa.DataArray =  input_bands / scale
     band_data.name = name
     return band_data.assign_coords( dict( x=input_bands.x, y=input_bands.y ) ), scale
 
@@ -21,21 +20,22 @@ DATA_DIR = "/Users/tpmaxwel/Dropbox/Tom/Data/Aviris"
 outDir = os.path.join( DATA_DIR, "results" )
 if not os.path.exists(outDir): os.makedirs( outDir )
 aviris_tile = "ang20170714t213741"
-input_file = os.path.join( DATA_DIR, f"{aviris_tile}_rdn_v2p9", f"{aviris_tile}_rdn_v2p9_img" )
+input_file = os.path.join( DATA_DIR, f"{aviris_tile}_rfl_v2p9", f"{aviris_tile}_corr_v2p9_img" )
 
 norm_band_data = True
-norm_training_data = True
+norm_training_data = False
 
 input_bands: xa.DataArray =  get_aviris_input( input_file )
 
 if norm_band_data:
     print( "Reading and normalizing band data")
-    mean: xa.DataArray  = input_bands.mean( dim=['x','y'])
-    std: xa.DataArray  = (input_bands/mean).std( dim=['x','y'] )
-    band_data, scale  = normalize( input_bands, "band_data", mean )
-    outFile = os.path.join( outDir, f"{aviris_tile}_rdn_v2p9.nc" )
+    scale = np.fabs(input_bands).mean( dim=['x','y'] )
+    imin, imax = input_bands.min( dim=['x','y'] ), input_bands.max( dim=['x','y'] )
+    xp, xm = ( imin + imax ),  ( imax - imin  )
+    band_data = ( 2*input_bands - xp ) / xm
+    outFile = os.path.join( outDir, f"{aviris_tile}_corr_v2p9.nc" )
     print( f"Writing feature data to {outFile}")
-    dset = xa.Dataset( { "center": mean,  "range": std, "band_data": band_data, "scale": scale } )
+    dset = xa.Dataset( { "band_data": band_data,  "scale": scale } )
     dset.to_netcdf( outFile )
 
 if norm_training_data:

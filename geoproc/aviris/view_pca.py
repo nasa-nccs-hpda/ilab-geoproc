@@ -6,7 +6,7 @@ DATA_DIR = "/Users/tpmaxwel/Dropbox/Tom/Data/Aviris"
 aviris_tile = "ang20170714t213741"
 target_file = os.path.join( DATA_DIR, "results", f"{aviris_tile}_Avg-Chl.nc")
 n_components = 6
-components_file = DATA_DIR + f"/pca-{n_components}.nc"
+components_file = DATA_DIR + f"/pca-rfl-{n_components}.nc"
 cmap_range = [-2,2]
 
 pca_dataset: xa.Dataset = xa.open_dataset( components_file )
