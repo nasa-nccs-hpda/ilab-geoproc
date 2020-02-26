@@ -2,7 +2,7 @@ import xarray as xa
 import matplotlib.pyplot as plt
 import numpy as np
 from typing import List, Tuple, Union
-from geoproc.plot.animation import SliceAnimation
+from geoproc.data.sampling import get_binned_sampling
 from framework.estimator.base import EstimatorBase
 import os, sys, pickle
 
@@ -19,7 +19,7 @@ modelType =  "rf" #[ "mlp", "rf", "svr", "nnr" ]
 parameters = dict(
     mlp=dict( max_iter=500, learning_rate="constant", solver="adam", learning_rate_init=0.05, early_stopping=False,
               validation_fraction = 0.2, activation='identity', hidden_layer_sizes=[], nesterovs_momentum=False ),    # activation='identity'
-    rf=dict(n_estimators=50, max_depth=15),
+    rf=dict(n_estimators=50, max_depth=20),
     svr=dict(C=5.0, gamma=0.5, cache_size=2000 ),
     nnr=dict( n_neighbors=3, weights='distance', algorithm = 'kd_tree', leaf_size=30, metric="euclidean", n_jobs=8 ),
 )
@@ -30,24 +30,6 @@ def get_indices( valid_mask: np.ndarray ) -> np.ndarray:
 def mean_squared_error( x: np.ndarray, y: np.ndarray ):
     diff =  x-y
     return np.sqrt( np.mean( diff*diff, axis=0 ) )
-
-def get_binned_sampling( x_data_full: xa.DataArray, y_data_full: xa.DataArray, n_bins: int, n_samples_per_bin: int = 1000 ) -> Tuple[xa.DataArray,xa.DataArray]:
-    training_indices = []
-    for sbin in y_data_full[ y_data_full.dims[0] ].groupby_bins( y_data_full, n_bins ):
-        binned_indices: xa.DataArray = sbin[1]
-        ns = binned_indices.size
-        if ns <= n_samples_per_bin:
-            training_indices.append(  binned_indices.values )
-        else:
-            selection_indices = np.linspace( 0, ns-1, n_samples_per_bin ).astype( np.int )
-            sample_indices = binned_indices.isel( samples=selection_indices )
-            training_indices.append( sample_indices.values )
-        print( f"  *  Bin range = {sbin[0]}; NSamples total = {ns}, actual = {training_indices[-1].size} ")
-
-    np_training_indices = np.concatenate( training_indices )
-    x_data_train = x_data_full.isel( samples=np_training_indices, drop=True )
-    y_data_train = y_data_full.isel( samples=np_training_indices, drop=True )
-    return x_data_train, y_data_train
 
 if __name__ == '__main__':
     print("Reading Data")
@@ -74,9 +56,9 @@ if __name__ == '__main__':
         fig, ax = plt.subplots(1)
         ax.set_title( f"{modelType} Train Data MSE = {mse_train:.2f} ")
         xaxis = range(train_prediction.shape[0])
-        ax.plot(xaxis, y_dataset.ydata.values, "b--", label="train data")
-        ax.plot(xaxis, train_prediction, "r--", label="prediction")
-        ax.legend()
+        ax.plot(xaxis, y_dataset.ydata.values, color=(0,0,1,0.5), label="train data")
+        ax.plot(xaxis, train_prediction, color=(1,0,0,0.5), label="prediction")
+        ax.legend( loc = 'upper right' )
         plt.tight_layout()
         outFile =  os.path.join( outDir, f"aviris.plots.{modelType}.png" )
         print(f"Saving plots to {outFile} ")
