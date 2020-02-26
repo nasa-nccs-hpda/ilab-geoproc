@@ -1,16 +1,16 @@
 import xarray as xa
 import matplotlib.pyplot as plt
-import numpy.ma as ma
 import numpy as np
-from bathyml.common.data import IterativeTable
+from typing import List, Tuple, Union
 from geoproc.plot.animation import SliceAnimation
 from framework.estimator.base import EstimatorBase
-import os, pickle
+import os, sys, pickle
 
 DATA_DIR = "/Users/tpmaxwel/Dropbox/Tom/Data/Aviris"
 outDir = "/Users/tpmaxwel/Dropbox/Tom/InnovationLab/results/Aviris"
 aviris_tile = "ang20170714t213741"
-n_training_samples = 50000
+n_bins = 50
+n_samples_per_bin = 500
 verbose = False
 make_plots = True
 show_plots = True
@@ -31,6 +31,24 @@ def mean_squared_error( x: np.ndarray, y: np.ndarray ):
     diff =  x-y
     return np.sqrt( np.mean( diff*diff, axis=0 ) )
 
+def get_binned_sampling( x_data_full: xa.DataArray, y_data_full: xa.DataArray, n_bins: int, n_samples_per_bin: int = 1000 ) -> Tuple[xa.DataArray,xa.DataArray]:
+    training_indices = []
+    for sbin in y_data_full[ y_data_full.dims[0] ].groupby_bins( y_data_full, n_bins ):
+        binned_indices: xa.DataArray = sbin[1]
+        ns = binned_indices.size
+        if ns <= n_samples_per_bin:
+            training_indices.append(  binned_indices.values )
+        else:
+            selection_indices = np.linspace( 0, ns-1, n_samples_per_bin ).astype( np.int )
+            sample_indices = binned_indices.isel( samples=selection_indices )
+            training_indices.append( sample_indices.values )
+        print( f"  *  Bin range = {sbin[0]}; NSamples total = {ns}, actual = {training_indices[-1].size} ")
+
+    np_training_indices = np.concatenate( training_indices )
+    x_data_train = x_data_full.isel( samples=np_training_indices, drop=True )
+    y_data_train = y_data_full.isel( samples=np_training_indices, drop=True )
+    return x_data_train, y_data_train
+
 if __name__ == '__main__':
     print("Reading Data")
 
@@ -39,34 +57,24 @@ if __name__ == '__main__':
     y_dataset: xa.Dataset = xa.open_dataset(yTrainFile)
     x_dataset: xa.Dataset = xa.open_dataset(xTrainFile)
 
-    x_data_full = x_dataset.xdata
-    y_data_full = y_dataset.ydata
-
-    grouped_data = y_dataset.groupby_bins( 'ydata', 10 )
-    for gd in grouped_data:
-        print( f"{gd[0]} : {gd[1].ydata.shape}" )
-    random_samples = np.random.randint( 0, x_data_full.shape[0], (n_training_samples,) )
-    x_data_train = x_data_full.isel( samples=random_samples, drop=True ).values
-    y_data_train = y_data_full.isel( samples=random_samples, drop=True ).values
-    np_y_data_full = y_data_full.values
-    np_x_data_full = x_data_full.values
-
+    x_data_train, y_data_train = get_binned_sampling( x_dataset.xdata,  y_dataset.ydata, n_bins, n_samples_per_bin )
     modParms = parameters[modelType]
     estimator: EstimatorBase = EstimatorBase.new( modelType )
     estimator.update_parameters( **modParms )
     print( f"Executing {modelType} estimator, parameters: { estimator.instance_parameters.items() } " )
-    estimator.fit( x_data_train, y_data_train )
+    print(f"Using {y_data_train.size} samples out of {y_dataset.ydata.size} ")
+    estimator.fit( x_data_train.values, y_data_train.values )
     print( f"Performance {modelType}: ")
 
-    train_prediction = estimator.predict( np_x_data_full )
-    mse_train =  mean_squared_error( np_y_data_full, train_prediction )
+    train_prediction = estimator.predict( x_dataset.xdata.values )
+    mse_train =  mean_squared_error( y_dataset.ydata.values, train_prediction )
     print( f" ----> TRAIN SCORE: MSE= {mse_train:.2f}")
 
     if make_plots:
         fig, ax = plt.subplots(1)
         ax.set_title( f"{modelType} Train Data MSE = {mse_train:.2f} ")
         xaxis = range(train_prediction.shape[0])
-        ax.plot(xaxis, np_y_data_full, "b--", label="train data")
+        ax.plot(xaxis, y_dataset.ydata.values, "b--", label="train data")
         ax.plot(xaxis, train_prediction, "r--", label="prediction")
         ax.legend()
         plt.tight_layout()
