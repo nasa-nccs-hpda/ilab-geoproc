@@ -7,14 +7,15 @@ from geoproc.data.sampling import get_binned_sampling, add_bias_column
 
 class LinearPerceptron:
 
-    def __init__(self, train_data: np.ndarray, target_data: np.ndarray ):
+    def __init__(self, **kwargs ):
         self.weights = None
-        self.x = train_data
-        self.y = target_data
-        self.weights = np.zeros([self.x.shape[1]])
+        self.weights = kwargs.get( "weights", None )
         self.lrscale = 1e-2
 
-    def fit(self, **kwargs ):
+    def fit(self, train_data: np.ndarray, target_data: np.ndarray, **kwargs ):
+        self.x = train_data
+        self.y = target_data
+        if self.weights is None: self.weights = np.zeros([self.x.shape[1]])
         n_iter = kwargs['n_iter']
         alpha =  kwargs['learning_rate'] * self.lrscale
         emax, mse, error = self.get_error( self.predict() )
@@ -22,25 +23,18 @@ class LinearPerceptron:
         mse_data = []
         for iL in range(n_iter):
             dW = np.dot( error, self.x ) / self.x.shape[0]
-            new_weights = self.weights + alpha * dW
-            prediction = np.dot( new_weights, self.x.transpose())
-            emax, new_mse, error = self.get_error( prediction )
-            decreasing = new_mse < mse
-            if decreasing:
-                self.weights = new_weights
-                mse = new_mse
-                max_error_data.append( emax )
-                mse_data.append( mse )
-#            if not decreasing or ( (iL % 100 == 0) and (iL >= 200) ):
-            if not decreasing or ((iL % 10 == 0) and (iL >= 2)):
-                alpha = self.optimize_learning_rate( alpha, dW )
+            self.weights = self.weights + alpha * dW
+            prediction = np.dot( self.weights, self.x.transpose())
+            emax, mse, error = self.get_error( prediction )
+            max_error_data.append( emax )
+            mse_data.append( mse )
             if (iL < 10) or (iL % 20 == 0):
-                print(f" iter {iL}, max error = {emax}, mse = {mse}, alpha = {alpha}, decreasing = {decreasing}")
+                print(f" iter {iL}, max error = {emax}, mse = {mse}, alpha = {alpha}")
         return np.array(mse_data), np.array(max_error_data)
 
     def optimize_learning_rate(self, alpha: float, dW: np.ndarray ) -> float:
-        rmag = alpha * 0.1
-        arange = np.linspace( alpha-rmag, alpha + rmag, 11 )
+        rmag = alpha * 0.2
+        arange = np.linspace( alpha-rmag, alpha + rmag, 21 )
         errors = [ self.get_mse( np.dot(self.weights + a * dW, self.x.transpose()) ) for a in arange ]
         min_error_indices = np.where(errors == np.amin(errors))[0]
         return arange[ min_error_indices[0] ]
@@ -60,20 +54,22 @@ class LinearPerceptron:
 if __name__ == '__main__':
     DATA_DIR = "/Users/tpmaxwel/Dropbox/Tom/Data/Aviris"
     outDir = "/Users/tpmaxwel/Dropbox/Tom/InnovationLab/results/Aviris"
+    init_weights_file = f"{outDir}/aviris.perceptron-T1.pkl"
     aviris_tile = "ang20170714t213741"
-    version = "T1"
+    version = "T2"
     modelType = "perceptron"
     verbose = False
     make_plots = True
     show_plots = True
     n_bins = 16
-    n_samples_per_bin = 10000
-    n_iter = 100000
+    n_samples_per_bin = 500
+    n_iter = 200000
     n_samples = 1000
     use_binned_sampling = True
     use_bias = False
 
     parameters = dict( n_iter = n_iter, learning_rate = 1.2 )
+    init_weights = pickle.load( open( init_weights_file, "rb" ) ) if init_weights_file else None
 
     def get_indices(valid_mask: np.ndarray) -> np.ndarray:
         return np.extract(valid_mask, np.array(range(valid_mask.size)))
@@ -87,7 +83,8 @@ if __name__ == '__main__':
     yTrainFile = os.path.join(outDir, f"{aviris_tile}_ytrain_full.nc")
     y_dataset: xa.Dataset = xa.open_dataset(yTrainFile)
     x_dataset: xa.Dataset = xa.open_dataset(xTrainFile)
-    x_data_raw, y_data_raw = add_bias_column( x_dataset.xdata ) if use_bias else x_dataset.xdata, y_dataset.ydata
+    x_data_raw = x_dataset.xdata.stack(samples=('x', 'y')).transpose()
+    y_data_raw = y_dataset.ydata.stack(samples=('x', 'y'))
     y_data = y_data_raw - y_data_raw.mean()
     x_data_full = x_data_raw.values
     y_data_full = y_data.values
@@ -100,8 +97,8 @@ if __name__ == '__main__':
         x_train_data = x_data_raw.values[0:n_samples]
         y_train_data = y_data.values[0:n_samples]
 
-    estimator: LinearPerceptron = LinearPerceptron( x_train_data, y_train_data )
-    mse, max_error = estimator.fit( **parameters )
+    estimator: LinearPerceptron = LinearPerceptron( weights = init_weights )
+    mse, max_error = estimator.fit( x_train_data, y_train_data , **parameters )
 
     train_prediction = estimator.predict( x_data_full )
     mse_train =  mean_squared_error( y_data_full, train_prediction )
@@ -119,7 +116,7 @@ if __name__ == '__main__':
         ax[1].set_title( f"{modelType} Training Performance ")
         xaxis1 = range(mse.size)
         ax[1].plot(xaxis1, mse, color=(0,0,1,0.5), label="mse")
-        ax[1].plot(xaxis1, max_error*0.25, color=(1,0,0,0.5), label="max_error")
+        ax[1].plot(xaxis1, max_error*0.1, color=(1,0,0,0.5), label="max_error")
         ax[1].set_yscale("log")
         ax[1].legend( loc = 'upper right' )
 
@@ -130,7 +127,7 @@ if __name__ == '__main__':
         if show_plots: plt.show()
         plt.close( fig )
 
-    saved_model_path = os.path.join( outDir, f"aviris.{modelType}-{n_iter}-{n_bins}-{n_samples_per_bin}.pkl")
+    saved_model_path = os.path.join( outDir, f"aviris.{modelType}-{version}.pkl")
     filehandler = open(saved_model_path,"wb")
     pickle.dump( estimator.weights, filehandler )
     print( f"Saved {modelType} Estimator to file {saved_model_path}" )

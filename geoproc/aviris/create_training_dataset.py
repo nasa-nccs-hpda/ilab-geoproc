@@ -15,7 +15,8 @@ print("Reading Data")
 
 target_file = os.path.join(DATA_DIR, "results", f"{aviris_tile}_Avg-Chl.nc")
 target_dataset: xa.DataArray = xa.open_dataset(target_file)
-y_data_full: np.ndarray = target_dataset.band_data.squeeze().stack(samples=('x', 'y'))
+y_data_raw = target_dataset.band_data
+y_data_full: np.ndarray = y_data_raw.squeeze().stack(samples=('x', 'y'))
 valid_mask: np.ndarray = np.isnan(y_data_full) != True
 y_data_filtered = y_data_full.where(valid_mask, drop=True)
 
@@ -25,17 +26,18 @@ filtered_input_bands: xa.DataArray = aviris_dataset.band_data.where(aviris_datas
 train_data_filtered = filtered_input_bands.stack(samples=('x', 'y')).transpose().isel(samples=get_indices(valid_mask))
 
 if n_training_samples == "full":
-    x_data_norm = train_data_filtered.reset_index( "samples" )
-    y_data = y_data_filtered.reset_index( "samples" )
+    x_data_norm = train_data_filtered.unstack( 'samples' )
+    y_data = y_data_filtered.unstack( 'samples' )
 else:
-    x_data_norm = train_data_filtered[:n_training_samples].reset_index( "samples" )
-    y_data = y_data_filtered[:n_training_samples].reset_index( "samples" )
+    x_data_norm = train_data_filtered[:n_training_samples].unstack( 'samples' )
+    y_data = y_data_filtered[:n_training_samples].unstack( 'samples' )
 
 xoutFile = os.path.join(outDir, f"{aviris_tile}_xtrain_{n_training_samples}.nc")
 print(f"Writing xtraining data to {xoutFile}")
 xdset = xa.Dataset( { "xdata": x_data_norm } )
 xdset.to_netcdf(xoutFile)
 
+# y_data.assign_coords( dict( x=y_data_raw.x, y=y_data_raw.y  ) )
 youtFile = os.path.join(outDir, f"{aviris_tile}_ytrain_{n_training_samples}.nc")
 print(f"Writing ytraining data to {youtFile}")
 ydset = xa.Dataset( { "ydata": y_data } )
