@@ -1,7 +1,7 @@
 from matplotlib.axes import SubplotBase
 import matplotlib.pyplot as plt
 from typing import List, Optional, Tuple, Dict, Any, Union
-import csv
+import csv, collections
 import numpy as np
 
 
@@ -10,7 +10,7 @@ class MultiBar:
     def __init__(self, title: str, bar_labels: Union[List[str],Dict[int,str]], **kwargs ):
         self.fig = plt.figure()
         self.fig.suptitle( title, fontsize=12 )
-        self.bar_labels = bar_labels if isinstance(bar_labels,dict) else { ib:bar_labels[ib] for ib in range(len(bar_labels)) }
+        self.bar_labels = bar_labels if isinstance( bar_labels, collections.Mapping ) else { ib:bar_labels[ib] for ib in range(len(bar_labels)) }
         self.scale = kwargs.get( 'scale', 1.0 )
         self.axes = []
         self.plots = []
@@ -25,7 +25,6 @@ class MultiBar:
         outfile_path: str = kwargs.get( 'write_to_file', None )
         if outfile_path is not None:
             self.write_plot_data( outfile_path, [ plot_data ] )
-
 
     def write_plot_data(self, outfile_path: str, plot_data: List[np.ndarray] ):
         with open( outfile_path, "w") as outfile:
@@ -64,6 +63,7 @@ class MultiBar:
 
                 plt.setp( ax.get_xticklabels(), visible=False )
                 ax.barh( range( data.size ), data * self.scale, align='center')
+                ax.set_title(title)
                 self.axes.append( ax )
             self.plots = []
 

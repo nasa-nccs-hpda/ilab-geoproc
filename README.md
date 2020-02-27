@@ -1,5 +1,5 @@
 # geoProc
-Geoprocessing roputines for Earth Science Applications
+Geoprocessing routines for Earth Science Applications
 
 ### Installation
 

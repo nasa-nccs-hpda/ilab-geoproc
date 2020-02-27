@@ -210,6 +210,7 @@ class SliceAnimation:
         self.data: List[xa.DataArray] = self.preprocess_inputs(data_arrays)
         self.plot_axes = None
         self.auxplot = kwargs.get( "auxplot", None )
+        self.ptstats = kwargs.get( "ptstats", {} )
         self.metrics_alpha = kwargs.get( "metrics_alpha", 0.7 )
         self.figure: Figure = None
         self.images: Dict[int,AxesImage] = {}
