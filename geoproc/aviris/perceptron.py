@@ -16,30 +16,42 @@ class LinearPerceptron:
 
     def fit(self, **kwargs ):
         n_iter = kwargs['n_iter']
-        error_divergence_level = kwargs.get( 'edl', 1000 )
         alpha =  kwargs['learning_rate'] * self.lrscale
         emax, mse, error = self.get_error( self.predict() )
         max_error_data = []
         mse_data = []
         for iL in range(n_iter):
-            self.weights = self.weights + alpha * np.dot( error, self.x ) / self.x.shape[0]
-            prediction = np.dot(self.weights, self.x.transpose())
-            emax, mse, error = self.get_error( prediction )
-            if emax > error_divergence_level:
-                print( "Diverged!")
-                break
-            max_error_data.append( emax )
-            mse_data.append( mse )
-            if (iL < 10) or (iL% 20 == 0):
-                print( f" iter {iL}, max error = {emax}, mse = {mse}")
+            dW = np.dot( error, self.x ) / self.x.shape[0]
+            new_weights = self.weights + alpha * dW
+            prediction = np.dot( new_weights, self.x.transpose())
+            emax, new_mse, error = self.get_error( prediction )
+            decreasing = new_mse < mse
+            if decreasing:
+                self.weights = new_weights
+                mse = new_mse
+                max_error_data.append( emax )
+                mse_data.append( mse )
+#            if not decreasing or ( (iL % 100 == 0) and (iL >= 200) ):
+            if not decreasing or ((iL % 10 == 0) and (iL >= 2)):
+                alpha = self.optimize_learning_rate( alpha, dW )
+            if (iL < 10) or (iL % 20 == 0):
+                print(f" iter {iL}, max error = {emax}, mse = {mse}, alpha = {alpha}, decreasing = {decreasing}")
         return np.array(mse_data), np.array(max_error_data)
+
+    def optimize_learning_rate(self, alpha: float, dW: np.ndarray ) -> float:
+        rmag = alpha * 0.1
+        arange = np.linspace( alpha-rmag, alpha + rmag, 11 )
+        errors = [ self.get_mse( np.dot(self.weights + a * dW, self.x.transpose()) ) for a in arange ]
+        min_error_indices = np.where(errors == np.amin(errors))[0]
+        return arange[ min_error_indices[0] ]
 
     def get_error( self, prediction: np.ndarray ) -> Tuple[float,float,np.ndarray]:
         diff = self.y - prediction
         return diff.max(axis=0), np.sqrt(np.mean(diff * diff, axis=0)), diff
 
     def get_mse( self, prediction: np.ndarray ) -> float:
-        return mean_squared_error( self.y, prediction )
+        diff = self.y - prediction
+        return np.sqrt(np.mean(diff * diff, axis=0))
 
     def predict( self, input_data: Optional[np.ndarray] = None ) -> np.ndarray:
         input = self.x.transpose() if input_data is None else input_data.transpose()
