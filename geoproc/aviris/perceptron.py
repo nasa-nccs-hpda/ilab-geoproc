@@ -67,7 +67,7 @@ if __name__ == '__main__':
     nbands = 106
     n_bins = 16
     n_samples_per_bin = 500
-    n_iter = 1e6
+    n_iter = int(1e6)
     learning_rate = 0.5
 
     save_weights_file = f"{outDir}/aviris.perceptron-{version}.pkl"

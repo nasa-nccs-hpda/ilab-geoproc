@@ -14,10 +14,10 @@ if __name__ == '__main__':
     DATA_DIR = "/Users/tpmaxwel/Dropbox/Tom/Data/Aviris"
     outDir = "/Users/tpmaxwel/Dropbox/Tom/InnovationLab/results/Aviris"
     aviris_tile = "ang20170714t213741"
-    version = "T2"
+    version = "R2"
     vrange = [ -1., 3. ]
-    modelType = "perceptron"
-    init_weights_file = f"{outDir}/aviris.perceptron-{version}.pkl"
+    modelType = "regression"
+    init_weights_file = f"{outDir}/aviris.{modelType}-{version}.pkl"
     init_weights_full = pickle.load( open( init_weights_file, "rb" ) )
     nbands = 110
     init_weights = init_weights_full[0:nbands]
@@ -29,13 +29,10 @@ if __name__ == '__main__':
         band_names = {ib: f"b{ib}" for ib in range(0, nbands, 10)}
         barplots = MultiBar( "Band weights", band_names )
 
-        ref_weights = get_ref_band_weights( f"{DATA_DIR}/ref_band_weights.csv", 2, nbands )
-        barplots.addPlot( "Ref Weights Norm", ref_weights/np.abs(ref_weights).mean() )
-
         ref_novn_weights = get_ref_band_weights( f"{DATA_DIR}/ref_band_weights_NoVN.csv", 8, nbands )
         barplots.addPlot( "Ref Weights NoVM", ref_novn_weights/np.abs(ref_novn_weights).mean() )
 
-        barplots.addPlot(f"ML_weights", init_weights/np.abs(init_weights).mean() )
+        barplots.addPlot(f"ML_weights-{modelType}", init_weights/np.abs(init_weights).mean() )
         barplots.show()
 
     if show_images:
