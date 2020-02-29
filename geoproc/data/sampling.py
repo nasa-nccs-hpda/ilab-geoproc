@@ -5,13 +5,14 @@ import os, sys, pickle
 
 def get_binned_sampling( x_data_full: xa.DataArray, y_data_full: xa.DataArray, n_bins: int, n_samples_per_bin: int = 1000 ) -> Tuple[xa.DataArray,xa.DataArray]:
     training_indices = []
-    for sbin in y_data_full[ y_data_full.dims[0] ].groupby_bins( y_data_full, n_bins ):
-        binned_indices: xa.DataArray = sbin[1]
+    samples_axis = y_data_full[ y_data_full.dims[0] ]
+    for sbin in samples_axis.groupby_bins( y_data_full, n_bins ):
+        binned_indices: xa.DataArray = sbin[1].astype( np.int64 )
         ns = binned_indices.size
         if ns <= n_samples_per_bin:
             training_indices.append(  binned_indices.values )
         else:
-            selection_indices = np.linspace( 0, ns-1, n_samples_per_bin ).astype( np.int )
+            selection_indices = np.linspace( 0, ns-1, n_samples_per_bin ).astype( np.int64 )
             sample_indices = binned_indices.isel( samples=selection_indices )
             training_indices.append( sample_indices.values )
         print( f"  *  Bin range = {sbin[0]}; NSamples total = {ns}, actual = {training_indices[-1].size} ")

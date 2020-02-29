@@ -5,6 +5,11 @@ import numpy as np
 import os, pickle
 from csv import reader as csv_reader
 
+def get_ref_band_weights( file: str, col: int, nbands: int ) -> np.array:
+    ref_band_weights_reader = csv_reader( open(file, "r") )
+    ban_data = {int(row[0][1:]): float(row[col]) for row in ref_band_weights_reader}
+    return np.array([ban_data.get(iW, 0.0) for iW in range(nbands)])
+
 if __name__ == '__main__':
     DATA_DIR = "/Users/tpmaxwel/Dropbox/Tom/Data/Aviris"
     outDir = "/Users/tpmaxwel/Dropbox/Tom/InnovationLab/results/Aviris"
@@ -13,19 +18,24 @@ if __name__ == '__main__':
     vrange = [ -1., 3. ]
     modelType = "perceptron"
     init_weights_file = f"{outDir}/aviris.perceptron-{version}.pkl"
-    init_weights = pickle.load( open( init_weights_file, "rb" ) )
-    ref_band_weights_reader = csv_reader(  open( f"{DATA_DIR}/band_weights.csv", "r") )
+    init_weights_full = pickle.load( open( init_weights_file, "rb" ) )
+    nbands = 110
+    init_weights = init_weights_full[0:nbands]
     show_weights = True
     show_images = False
 
     if show_weights:
         from geoproc.plot.bar import MultiBar
-        ban_data = { int(row[0][1:]): float(row[2]) for row in ref_band_weights_reader }
-        ref_weights = np.array( [ ban_data.get(iW,0.0) for iW in range( init_weights.size )] )
-        band_names = { ib: f"b{ib}" for ib in range( 0, init_weights.size, 10 ) }
+        band_names = {ib: f"b{ib}" for ib in range(0, nbands, 10)}
         barplots = MultiBar( "Band weights", band_names )
+
+        ref_weights = get_ref_band_weights( f"{DATA_DIR}/ref_band_weights.csv", 2, nbands )
+        barplots.addPlot( "Ref Weights Norm", ref_weights/np.abs(ref_weights).mean() )
+
+        ref_novn_weights = get_ref_band_weights( f"{DATA_DIR}/ref_band_weights_NoVN.csv", 8, nbands )
+        barplots.addPlot( "Ref Weights NoVM", ref_novn_weights/np.abs(ref_novn_weights).mean() )
+
         barplots.addPlot(f"ML_weights", init_weights/np.abs(init_weights).mean() )
-        barplots.addPlot(f"ref_weights", ref_weights/np.abs(ref_weights).mean() )
         barplots.show()
 
     if show_images:
