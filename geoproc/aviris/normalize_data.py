@@ -21,15 +21,17 @@ def get_aviris_input( filepath: str, nbands: int ) -> xa.DataArray:
 DATA_DIR = "/Users/tpmaxwel/Dropbox/Tom/Data/Aviris"
 outDir = "/Users/tpmaxwel/Dropbox/Tom/InnovationLab/results/Aviris"
 aviris_tile = "ang20170714t213741"
+n_input_bands = 106
 input_file = os.path.join( DATA_DIR, f"{aviris_tile}_rfl_v2p9", f"{aviris_tile}_corr_v2p9_img" )
+input_bands: xa.DataArray =  get_aviris_input( input_file, n_input_bands )
 
 norm_band_data = True
 norm_training_data = True
-n_input_bands = 106
+
 version = "R2"
 norm_method = "mean"
 uniform = True
-input_bands: xa.DataArray =  get_aviris_input( input_file, n_input_bands )
+
 
 if norm_band_data:
 

@@ -50,6 +50,8 @@ if __name__ == '__main__':
     x_train_data = x_binned_data.values  # [0:nbands]
     y_train_data = y_binned_data.values  # [0:nbands]
 
+    print(f"Using {y_train_data.size} samples out of {y_data.size}: {(y_train_data.size * 100.0) / y_data.size:.2f}%")
+
     estimator: LinearRegression = LinearRegression()
     reg = estimator.fit( x_train_data, y_train_data , **parameters )
 

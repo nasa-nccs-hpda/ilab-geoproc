@@ -361,6 +361,24 @@ class WaterMapGenerator(ConfigurableObject):
         patched_water_maps.name = "Patched_Water_Maps"
         return patched_water_maps.assign_attrs( roi = self.roi_bounds )
 
+    def write_patched_water_maps(self, lakeId: str, outfile_path: str, **kwargs ):
+        from geoproc.xext.xgeo import XGeo
+        interp_water_class = kwargs.get( 'interp_water_class', 4 )
+        water_classes = kwargs.get('water_classes', [2,4] )
+        patched_water_maps: xr.DataArray = self.get_patched_water_maps( lakeId, **kwargs )
+        time_axis = patched_water_maps.coords[ patched_water_maps.dims[0] ]
+        utm_patched_water_maps: xr.DataArray = patched_water_maps.xgeo.to_utm( [250.0, 250.0] )
+        water_counts, class_proportion = self.get_class_proportion(patched_water_maps, interp_water_class, water_classes)
+        with open( outfile_path, "a" ) as outfile:
+            lines = ["date water_area_km2 percent_interploated\n"]
+            for iTime in range( utm_patched_water_maps.shape[0] ):
+                percent_interp = class_proportion.values[iTime]
+                num_water_pixels = water_counts.values[iTime]
+                date = pd.Timestamp( time_axis.values[iTime] ).to_pydatetime()
+                lines.append( f"{str(date).split(' ')[0]} {num_water_pixels/16.0:.2f} {percent_interp:.1f}\n")
+            outfile.writelines(lines)
+            print( f"Wrote results to file {outfile_path}")
+
     def repatch_water_maps(self, lakeId: str, **kwargs) -> xr.DataArray:
         t0 = time.time()
         opspec = self.get_opspec( lakeId.lower() )
@@ -394,11 +412,11 @@ class WaterMapGenerator(ConfigurableObject):
         self.water_maps: xr.DataArray = self.get_water_maps( None, opspec, cache=True )
         return self.water_maps
 
-    def get_class_proportion(self, class_map: xr.DataArray, target_class: int, relevant_classes: List[int] ) -> xr.DataArray:
+    def get_class_proportion(self, class_map: xr.DataArray, target_class: int, relevant_classes: List[int] ) -> Tuple[xr.DataArray,xr.DataArray]:
         sdims = [ class_map.dims[-1], class_map.dims[-2] ]
         total_relevant_population = class_map.isin( relevant_classes ).sum( dim=sdims )
         class_population = (class_map == target_class).sum( dim=sdims )
-        return ( class_population / total_relevant_population ) * 100
+        return ( total_relevant_population,  ( class_population / total_relevant_population ) * 100 )
 
     def view_water_map_results(self, lake_id: str, **kwargs ):
         from geoproc.plot.animation import SliceAnimation
@@ -406,10 +424,9 @@ class WaterMapGenerator(ConfigurableObject):
         water_classes = kwargs.get('water_classes', [2,4] )
         water_maps =  self.get_cached_water_maps(  lake_id )
         patched_water_maps = self.get_patched_water_maps( lake_id, cache=True )
-        class_proportion = self.get_class_proportion( patched_water_maps, interp_water_class, water_classes )
+        water_counts, class_proportion = self.get_class_proportion( patched_water_maps, interp_water_class, water_classes )
         animation = SliceAnimation( patched_water_maps, metrics=dict(blue=class_proportion), auxplot=water_maps )
         animation.show()
-
 
 if __name__ == '__main__':
     from geoproc.plot.animation import SliceAnimation
