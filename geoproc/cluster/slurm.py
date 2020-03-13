@@ -1,12 +1,8 @@
-from typing import Dict, Any, Union, List, Callable, Optional
-import traceback, time, logging, xml, socket, abc, dask, threading, requests, json
-from dask.distributed import Client, Future, LocalCluster
+from typing import Dict, Any, Optional
+from dask.distributed import Client
 from dask_jobqueue import SLURMCluster
-from geoproc.util.logging import ILABLogger
-import random, string, os, queue, datetime, atexit, multiprocessing, errno, uuid, abc
 from geoproc.cluster.base import ClusterManagerBase
-from threading import Thread
-import xarray as xa
+
 
 class SlurmClusterManager(ClusterManagerBase):
 

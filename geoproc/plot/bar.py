@@ -15,8 +15,8 @@ class MultiBar:
         self.axes = []
         self.plots = []
 
-    def addPlot(self, title: str, data: np.ndarray):
-        self.plots.append( (title,data) )
+    def addPlot(self, title: str, data: np.ndarray, colors: List = None  ):
+        self.plots.append( (title,data,colors) )
 
     def addMeanPlot( self, title: str, **kwargs ):
         aggPlots: np.ndarray = np.stack( [ tup[1] for tup in self.plots ], axis=1 )
@@ -52,7 +52,7 @@ class MultiBar:
         if nPlots > 0:
             awidth = 0.88 / nPlots
             for plot_index in range( nPlots ):
-                title, data = self.plots[plot_index]
+                ( title, data, colors ) = self.plots[plot_index]
                 x0 = 0.1 + plot_index * awidth
                 if plot_index == 0:
                     ax: SubplotBase = self.fig.add_axes( [ x0, 0.1, awidth, 0.8 ], yticks=list(self.bar_labels.keys()), yticklabels=list(self.bar_labels.values())  )
@@ -60,11 +60,13 @@ class MultiBar:
                 else:
                     ax = self.fig.add_axes( [ x0, 0.1, awidth, 0.8 ], sharey = self.axes[0], sharex = self.axes[0] )
                     plt.setp( ax.get_yticklabels(), visible=False )
-
                 plt.setp( ax.get_xticklabels(), visible=False )
-                ax.barh( range( data.size ), data * self.scale, align='center')
+                kwargs = dict( align='center' )
+                if colors is not None: kwargs[ 'color' ] = colors
+                ax.barh( range( data.size ), data * self.scale, **kwargs )
                 ax.set_title(title)
                 self.axes.append( ax )
+                ax.plot([0, 0], [0,data.size], color="blue")
             self.plots = []
 
     def save(self, fname, **kwargs ):

@@ -2,10 +2,10 @@ import xarray as xa
 from matplotlib.colors import LinearSegmentedColormap, Normalize
 import matplotlib.pyplot as plt
 import os
-image_files = [ 'aviris-image.perceptron-R2-10.tif', "ang20170714t213741_Avg-Chl.tif", "aviris-image.rf-R2-100.tif" ]
+image_files = [ 'aviris-image.perceptron-R2-100.nc', "ang20170714t213741_Avg-Chl.tif", "aviris-image.rf-R2-100.tif" ]
 DATA_DIR = "/Users/tpmaxwel/Dropbox/Tom/InnovationLab/results/Aviris/constructed_images"
 
-figure, axes = plt.subplots(1,2)
+figure, axes = plt.subplots(1,0)
 norm=Normalize( 0.0, 500.0 )
 
 array: xa.DataArray = xa.open_rasterio( os.path.join(DATA_DIR, 'aviris-image.rf-R2-100.tif' ) ).squeeze()

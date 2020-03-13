@@ -1,10 +1,10 @@
 import xarray as xa
 import matplotlib.pyplot as plt
-from typing import List, Union, Tuple, Optional
 import numpy as np
 import os, pickle
 from csv import reader as csv_reader
-from geoproc.data.sampling import get_binned_sampling, add_bias_column
+from geoproc.data.sampling import get_binned_sampling
+
 
 def get_ref_band_weights( file: str, col: int, nbands: int ) -> np.array:
     ref_band_weights_reader = csv_reader( open(file, "r") )
@@ -60,7 +60,7 @@ if __name__ == '__main__':
         barplots.show()
 
     if show_images:
-        from geoproc.aviris.perceptron import LinearPerceptron
+        from geoproc.aviris.dev.perceptron import LinearPerceptron
         print("Reading Data")
         i_batch = 0
         init_weights_file = f"{outDir}/aviris.perceptron-{version}-{n_samples_per_bin}-{n_iter}.pkl"

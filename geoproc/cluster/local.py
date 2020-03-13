@@ -1,10 +1,6 @@
-from typing import Dict, Any, Union, List, Callable, Optional
-import traceback, time, logging, xml, socket, abc, dask, threading, requests, json
-from geoproc.util.logging import ILABLogger
-import random, string, os, queue, datetime, atexit, multiprocessing, errno, uuid, abc
+from typing import Dict, Any, Optional
 from geoproc.cluster.base import ClusterManagerBase
-from threading import Thread
-import xarray as xa
+
 
 class LocalClusterManager(ClusterManagerBase):
 
@@ -15,7 +11,7 @@ class LocalClusterManager(ClusterManagerBase):
       self.logger.info(f"Initializing Local Dask cluster with {self.nWorkers} workers,  scheduler address = {self.scheduler_address}")
 
     def getClient(self):
-      from dask.distributed import Client, Future, LocalCluster
+      from dask.distributed import Client, LocalCluster
       return Client( LocalCluster(n_workers=self.nWorkers) )
 
 class PersistentLocalClusterManager(LocalClusterManager):

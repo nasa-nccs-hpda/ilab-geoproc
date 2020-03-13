@@ -2,10 +2,9 @@ from shapely.geometry import Point
 import xarray as xr
 import string, random, json
 import pandas as pd
-from os.path import dirname, abspath, join
-import logging, os
-from typing import Sequence, List, Dict, Mapping, Optional
-from geoproc.util.logging import ILABLogger
+import os
+from typing import List, Dict
+from geoproc.util.scrap.logging import ILABLogger
 
 def argfilter( args: Dict, **kwargs ) -> Dict:
     return { key: args.get(key,value) for key,value in kwargs.items() }

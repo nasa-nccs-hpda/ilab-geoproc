@@ -1,6 +1,7 @@
-from geoproc.util.logging import ILABLogger
+from geoproc.util.scrap.logging import ILABLogger
 import traceback
-from typing import Dict, Any, Union, List, Callable, Optional
+from typing import Dict, Any
+
 
 class ClusterManager:
 

@@ -1,11 +1,8 @@
 import xarray as xa
-import matplotlib.pyplot as plt
 import numpy as np
-from typing import List, Tuple, Union
 from geoproc.data.sampling import get_binned_sampling
-from framework.estimator.base import EstimatorBase
-from geoproc.aviris.perceptron import LinearPerceptron
-import os, sys, pickle
+from geoproc.aviris.dev.perceptron import LinearPerceptron
+import os, pickle
 
 def get_indices(valid_mask: np.ndarray) -> np.ndarray:
     return np.extract(valid_mask, np.array(range(valid_mask.size)))
