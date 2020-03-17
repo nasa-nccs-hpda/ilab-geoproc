@@ -15,8 +15,8 @@ if __name__ == '__main__':
     init_weights = None
     modelType = "regression"
     verbose = False
-    make_plots = False
-    show_plots = False
+    make_plots = True
+    show_plots = True
     nbands = 106
     n_bins = 16
     n_samples_per_bin = 10

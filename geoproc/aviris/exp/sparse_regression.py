@@ -18,9 +18,9 @@ n_input_bands = 106
 plot_components = True
 plot_images = True
 n_bins = 16
-n_samples_per_bin = 20
+n_samples_per_bin = 100
 full_selected_bands = [ 104, 87,68, 60, 54, 37, 20 ]
-selected_bands = [ 68, 104, 87 ]
+selected_bands = [ 6, 61, 86 ] # [ 68, 104, 87 ]
 selected_band_stats = [ (68, -1.1257342), (104, -0.9761612), (87, 0.5391385), (54, -0.14595145), (37, 0.14316636), (20, -0.04348179), (60, 0.079601854) ]
 
 input_file = os.path.join( DATA_DIR, f"{aviris_tile}_rfl_v2p9", f"{aviris_tile}_corr_v2p9_img" )
@@ -70,6 +70,8 @@ if plot_images:
     sparse_image.plot.imshow( ax=ax[1], yincrease=False, cmap="jet", vmin=-3, vmax=3 )
     full_image.plot.imshow( ax=ax[0], yincrease=False, cmap="jet", vmin=-3, vmax=3 )
     plt.show()
+
+
 
 
 

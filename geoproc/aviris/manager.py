@@ -57,15 +57,16 @@ class AvirisDataManager:
         print(f"Using {y_data_binned.size} samples out of {y_data_train.size}: {(y_data_binned.size * 100.0) / y_data_train.size:.2f}%")
         return x_data_binned, y_data_binned
 
-    def restructure_for_training(self, x_data_array: xa.DataArray, y_data_array: xa.DataArray ) ->  Tuple[xa.DataArray, xa.DataArray]:
+    def restructure_for_training(self, x_data_array: xa.DataArray, y_data_array: xa.DataArray, transpose = True ) ->  Tuple[xa.DataArray, xa.DataArray]:
         dims = x_data_array.dims[1:]
         x_stacked_data, y_stacked_data = x_data_array.stack( samples=dims ), y_data_array.stack( samples=dims ).squeeze()
         x_undef = np.isnan( x_stacked_data.values.sum( axis=0 ) )
         y_undef = np.isnan( y_stacked_data.values )
         valid_mask = np.logical_not( np.logical_or( x_undef, y_undef ) )
-        x_stacked_data_masked = x_stacked_data.isel(samples=self.get_indices(valid_mask)).transpose()
+        x_stacked_data_masked = x_stacked_data.isel(samples=self.get_indices(valid_mask))
         y_stacked_data_masked = y_stacked_data.isel(samples=self.get_indices(valid_mask))
-        samples_coord = np.array(range(x_stacked_data_masked.shape[0]))
+        samples_coord = np.array(range(x_stacked_data_masked.shape[1]))
+        if transpose: x_stacked_data_masked = x_stacked_data_masked.transpose()
         return x_stacked_data_masked.assign_coords(samples=samples_coord), y_stacked_data_masked.assign_coords(samples=samples_coord)
 
     def regress( self, x_data_train: xa.DataArray, y_data_train: xa.DataArray, **kwargs ) -> Tuple[np.ndarray,float,LinearRegression]:
@@ -81,6 +82,8 @@ class AvirisDataManager:
     def plot_components(self, comps: np.ndarray, titles: List[str], **kwargs ):
         from geoproc.plot.bar import MultiBar
         highlights = kwargs.get( "highlight", None )
+        title = kwargs.get( "title", "Band weighting" )
+        if comps.ndim == 1: comps = comps.reshape( [1,comps.size] )
         colors = None
         if highlights is not None:
             colors_list = ['g'] * comps.shape[1]
@@ -88,7 +91,7 @@ class AvirisDataManager:
             colors = np.array(colors_list)
         normalize = kwargs.get("normalize", True )
         band_names = {ib: f"b{ib}" for ib in range(0, comps.shape[1], 10)}
-        barplots = MultiBar("Band weighting", band_names)
+        barplots = MultiBar( title, band_names )
         if normalize: comps = comps / np.abs(comps).max( axis=1, keepdims=True )
         for iC in range(comps.shape[0]):
             barplots.addPlot(titles[iC], comps[iC, :], colors )
