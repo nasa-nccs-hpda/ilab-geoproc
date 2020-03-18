@@ -46,11 +46,4 @@ def main(argv):
     awarp.process_files( files_glob )
 
 if __name__ == '__main__':
-#    main(sys.argv)
-
-    output_dir = "/tmp/"
-    files_glob = "/Users/tpmaxwel/Dropbox/Tom/Data/Aviris/ang20170714t213741_rdn_v2p9/ang*_rdn_v2p9_img"
-    awarp = AvirisWarp( output_dir )
-    awarp.process_files( files_glob )
-
-#    gdalwarp ang20170731t224547_corr_v2p9_img ang20170731t224547_corr_v2p9.tif
+    main(sys.argv)
