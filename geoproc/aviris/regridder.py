@@ -37,14 +37,17 @@ class AvirisWarp:
 def main(argv):
     if len(argv) < 3:
         binary = os.path.basename(argv[0])
-        print( "Usage: {} <files_glob> <output_dir> ".format(binary) )
+        print( "Usage: {} <files_glob> <output_dir> [ <nproc> ]".format(binary) )
         sys.exit(0)
 
+    kwargs = {}
     files_glob = argv[1]
     output_dir = argv[2]
+    if len(argv) > 3:
+        kwargs['np'] = argv[3]
 
     awarp = AvirisWarp( output_dir )
-    awarp.process_files( files_glob )
+    awarp.process_files( files_glob, **kwargs )
 
 if __name__ == '__main__':
     main(sys.argv)
