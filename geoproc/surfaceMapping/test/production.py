@@ -8,7 +8,7 @@ import os, time, collections
 
 CURDIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = '/Users/tpmaxwel/Dropbox/Tom/InnovationLab/results/Birkett'
-opspec_file = os.path.join(CURDIR, "specs", "lakes1.yml")
+opspec_file = os.path.join(CURDIR, "specs", "lakes-test.yml")
 with open(opspec_file) as f:
     opspecs = yaml.load(f, Loader=yaml.FullLoader)
     waterMapGenerator = WaterMapGenerator(opspecs)

@@ -1,0 +1,21 @@
+
+defaults:
+    results_dir: "/tmp/"
+    year_range: [ 2017, 2018 ]
+    day_range: [ 0, 10 ]
+    water_class_thresholds: [ 0.02, 0.93 ]
+    lake_masks:
+        basedir: "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/MOD44W"
+        subdir: "{year}"
+        file: "lake{lake_index}_{year}.tif"
+        lake_index_range: [0,2000]
+
+    source:
+      type: 'MPW'
+      url:  'https://floodmap.modaps.eosdis.nasa.gov/Products'
+      product:  '2D2OT'
+
+    water_maps:
+        threshold: 0.5
+        bin_size: 8
+

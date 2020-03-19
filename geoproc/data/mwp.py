@@ -92,6 +92,8 @@ class MWPDataManager(ConfigurableObject):
                     files.append( target_file_path )
         return files
 
+#   https: // floodmap.modaps.eosdis.nasa.gov / Products / 120W050N / 2020 / MWP_2020051_120W050N_3D3OT.tif
+
     def get_array_data(self, files: List[str], merge=False ) ->  Union[xr.DataArray,List[xr.DataArray]]:
         arrays = XGeo.loadRasterFiles( files, region = self.getParameter("bbox") )
         return self.time_merge(arrays) if merge else arrays
