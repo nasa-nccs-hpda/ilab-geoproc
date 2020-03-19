@@ -4,7 +4,6 @@ import string, random, json
 import pandas as pd
 import os
 from typing import List, Dict
-from geoproc.util.scrap.logging import ILABLogger
 
 def argfilter( args: Dict, **kwargs ) -> Dict:
     return { key: args.get(key,value) for key,value in kwargs.items() }
@@ -84,7 +83,6 @@ class ILABParameterManager:
 
     def __init__(self):
         self._parms = {}
-        self.logger =  ILABLogger.getLogger()
         self.HOME = os.environ.get('ILAB_HOME' )
         self.TRANSIENTS =  os.environ.get('ILSCRATCH', os.path.join( self.HOME, "scratch" ) )
         self.COLLECTIONS = os.environ.get('ILCOL', os.path.join( self.HOME, "data", "collections" ) )
@@ -93,7 +91,7 @@ class ILABParameterManager:
 
     def update(self, parms: Dict[str,str] = None, **kwargs ):
         self._parms.update( parms if parms else {}, **kwargs )
-        self.logger.info( f"@PM-> Update parms: {self._parms}")
+        print( f"@PM-> Update parms: {self._parms}")
 
     @property
     def parms(self)-> Dict[str,str]: return self._parms
