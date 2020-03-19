@@ -1,0 +1,11 @@
+import yaml, os
+from geoproc.surfaceMapping.processing import LakeMaskProcessor
+
+CURDIR = os.path.dirname(os.path.abspath(__file__))
+opspec_file = os.path.join(CURDIR, "specs", "lakes2.yml")
+with open(opspec_file) as f:
+    opspecs = yaml.load(f, Loader=yaml.FullLoader)
+    lakeMaskProcessor = LakeMaskProcessor(opspecs)
+    lakeMaskProcessor.process_lakes()
+
+

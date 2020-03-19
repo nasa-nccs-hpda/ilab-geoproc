@@ -2,7 +2,7 @@
 defaults:
     results_dir: "/tmp/"
     year_range: [ 2017, 2018 ]
-    day_range: [ 0, 80 ]
+    day_range: [ 0, 360 ]
     water_class_thresholds: [ 0.05, 0.93 ]
     lake_masks:
         basedir: "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/MOD44W"
