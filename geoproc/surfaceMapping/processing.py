@@ -1,19 +1,8 @@
-import geopandas as gpd
-import pandas as pd
-from shapely.geometry import *
 from typing import List, Union, Tuple, Dict, Optional
 from geoproc.xext.xrio import XRio
 import xarray as xr
-from glob import glob
-import functools
-from  xarray.core.groupby import DatasetGroupBy
-from geoproc.util.configuration import sanitize, ConfigurableObject
-from geoproc.surfaceMapping.util import TileLocator
-import matplotlib.pyplot as plt
 import numpy as np
 import os, time, collections
-
-
 
 class LakeMaskProcessor:
 
@@ -21,7 +10,7 @@ class LakeMaskProcessor:
         self._opspecs = { key.lower(): value for key,value in opspecs.items() }
         self._defaults = self._opspecs.get( "defaults", None )
 
-    def process_lakes(self):
+    def process_lakes(self) -> Dict[ int, xr.DataArray ]:
         year_range = self._defaults['year_range']
         lakeMaskSpecs = self._defaults.get( "lake_masks", None )
         data_dir = lakeMaskSpecs["basedir"]
@@ -43,15 +32,18 @@ class LakeMaskProcessor:
                 else:
                     lake_masks[lake_index][year]= file_path
 
+        results = {}
         for lake_index, sorted_file_paths in lake_masks.items():
             time_values = np.array( [ self.get_date_from_year(year) for year in sorted_file_paths.keys()], dtype='datetime64[ns]' )
             yearly_lake_masks: xr.DataArray = XRio.load(list(sorted_file_paths.values()),  band=0, index=time_values)
-            self.process_lake_masks( lake_index, yearly_lake_masks )
+            results[lake_index] = self.process_lake_masks( lake_index, yearly_lake_masks )
 
-    def process_lake_masks(self, lake_index: int, mask_files: xr.DataArray ):
+        return results
+
+    def process_lake_masks(self, lake_index: int, mask_files: xr.DataArray ) -> xr.DataArray:
         from geoproc.surfaceMapping.lakeExtentMapping import WaterMapGenerator
         waterMapGenerator = WaterMapGenerator( { 'lake_index': lake_index, **self._defaults } )
-        waterMapGenerator.process_yearly_lake_masks( lake_index, mask_files )
+        return waterMapGenerator.process_yearly_lake_masks( lake_index, mask_files )
 
     def fuzzy_where( cond: xr.DataArray, x, y, join="left" ) -> xr.DataArray:
         from xarray.core import duck_array_ops
@@ -69,10 +61,14 @@ class LakeMaskProcessor:
         return array.assign_coords( rounded_coords )
 
 if __name__ == '__main__':
+    from geoproc.plot.animation import SliceAnimation
     import yaml
     CURDIR = os.path.dirname(os.path.abspath(__file__))
     opspec_file = os.path.join( CURDIR, "specs", "lakes-test.yml")
     with open(opspec_file) as f:
         opspecs = yaml.load( f, Loader=yaml.FullLoader )
         lakeMaskProcessor = LakeMaskProcessor( opspecs )
-        lakeMaskProcessor.process_lakes()
+        results = lakeMaskProcessor.process_lakes()
+        animation = SliceAnimation( list(results.values()) )
+        animation.show()
+

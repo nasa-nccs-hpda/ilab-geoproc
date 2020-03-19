@@ -2,8 +2,8 @@
 defaults:
     results_dir: "/tmp/"
     year_range: [ 2017, 2018 ]
-    day_range: [ 0, 10 ]
-    water_class_thresholds: [ 0.02, 0.93 ]
+    day_range: [ 0, 80 ]
+    water_class_thresholds: [ 0.05, 0.93 ]
     lake_masks:
         basedir: "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/MOD44W"
         subdir: "{year}"
