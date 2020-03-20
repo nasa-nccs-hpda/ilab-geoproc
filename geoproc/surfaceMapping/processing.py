@@ -38,7 +38,7 @@ class LakeMaskProcessor:
             time_values = np.array( [ self.get_date_from_year(year) for year in sorted_file_paths.keys()], dtype='datetime64[ns]' )
             yearly_lake_masks: xr.DataArray = XRio.load(list(sorted_file_paths.values()),  band=0, index=time_values)
             nx, ny = yearly_lake_masks.shape[-1], yearly_lake_masks.shape[-2]
-            lake_results = self.process_lake_masks( lake_index, yearly_lake_masks.xgeo.reproject( nx=nx, ny=ny ) )
+            lake_results = self.process_lake_masks( lake_index, yearly_lake_masks )
             if lake_results is not None: results[lake_index] = lake_results
             else: print( f"Skipping lake {lake_index} due to errors ")
 
