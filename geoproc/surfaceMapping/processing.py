@@ -29,7 +29,7 @@ class LakeMaskProcessor:
                         lake_masks[lake_index] = collections.OrderedDict( )
                         lake_masks[lake_index][year] = file_path
                         lake_indices.append( lake_index )
-                else:
+                elif os.path.isfile( file_path ):
                     lake_masks[lake_index][year]= file_path
 
         results = {}
