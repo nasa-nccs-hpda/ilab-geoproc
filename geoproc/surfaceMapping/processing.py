@@ -28,7 +28,7 @@ class LakeMaskProcessor:
                 if year == year_range[0]:
                     if os.path.isfile( file_path ):
                         lake_masks[lake_index] = collections.OrderedDict( )
-                        lake_masks[lake_index][year] = file_path #  self.convert( file_path )
+                        lake_masks[lake_index][year] = self.convert( file_path )
                         lake_indices.append( lake_index )
                 elif os.path.isfile( file_path ):
                     lake_masks[lake_index][year]= file_path
