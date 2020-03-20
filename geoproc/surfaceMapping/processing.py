@@ -1,5 +1,6 @@
 from typing import List, Union, Tuple, Dict, Optional
 from geoproc.xext.xrio import XRio
+from geoproc.xext.xgeo import XGeo
 import xarray as xr
 import numpy as np
 import os, time, collections
