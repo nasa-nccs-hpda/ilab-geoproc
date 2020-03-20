@@ -75,6 +75,7 @@ class XRio(XExtension):
         dst_crs = f'EPSG:{espg}'
 
         with rasterio.open( source_file_path ) as src:
+            print( f"PROFILE: {src.profile}" )
             src_crs = src.spatial_ref.crs_wkt
             transform, width, height = calculate_default_transform( src_crs, dst_crs, src.width, src.height, *src.bounds )
             kwargs = src.meta.copy()
