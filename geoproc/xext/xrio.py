@@ -72,10 +72,11 @@ class XRio(XExtension):
 
     @classmethod
     def convert(self, source_file_path: str, dest_file_path: str, espg = 4236 ):
-        dst_crs = f'EPSG:{4236}'
+        dst_crs = f'EPSG:{espg}'
 
         with rasterio.open( source_file_path ) as src:
-            transform, width, height = calculate_default_transform( src.crs, dst_crs, src.width, src.height, *src.bounds )
+            src_crs = src.spatial_ref.crs_wkt
+            transform, width, height = calculate_default_transform( src_crs, dst_crs, src.width, src.height, *src.bounds )
             kwargs = src.meta.copy()
             kwargs.update({
                 'crs': dst_crs,
@@ -90,7 +91,7 @@ class XRio(XExtension):
                         source=rasterio.band(src, i),
                         destination=rasterio.band(dst, i),
                         src_transform=src.transform,
-                        src_crs=src.crs,
+                        src_crs=src_crs,
                         dst_transform=transform,
                         dst_crs=dst_crs,
                         resampling=Resampling.nearest)
