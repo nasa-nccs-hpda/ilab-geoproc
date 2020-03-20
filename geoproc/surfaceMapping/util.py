@@ -30,6 +30,7 @@ class TileLocator:
 
     @classmethod
     def infer_tile_xa( cls, array: xa.DataArray ) -> str:
+        print( f" --> infer_tile_xa, CRS = {array.crs}, attrs = {array.attrs}")
         x_coord = array.coords[array.dims[-1]].values
         y_coord = array.coords[array.dims[-2]].values
         return cls.get_tile( x_coord[0], x_coord[-1], y_coord[0], y_coord[-1]  )
@@ -55,7 +56,6 @@ class TileLocator:
 
     @classmethod
     def get_bounds(cls, array: xa.DataArray ) -> List:
-        print( f"GET BOUNDS, CRS = {array.crs}")
         x_coord = array.coords[array.dims[-1]].values
         y_coord = array.coords[array.dims[-2]].values
         return [ x_coord[0], x_coord[-1], y_coord[0], y_coord[-1] ]
