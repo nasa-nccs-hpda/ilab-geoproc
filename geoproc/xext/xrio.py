@@ -76,7 +76,7 @@ class XRio(XExtension):
 
         with rasterio.open( source_file_path ) as src:
             print( f"PROFILE: {src.profile}" )
-            src_crs = src.profile['crs'].wkt
+            src_crs = ''.join(src.profile['crs'].wkt.split())
             print(f"CRS: {src_crs}")
             transform, width, height = calculate_default_transform( src_crs, dst_crs, src.width, src.height, *src.bounds )
             kwargs = src.meta.copy()
