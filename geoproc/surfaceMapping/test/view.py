@@ -20,7 +20,7 @@ dest_file = "/tmp/test.tif"
 
 
 # rxds = xds.xgeo.reproject( nx=xds.shape[-1], ny=xds.shape[-2])
-# XRio.convert( lake_file, dest_file )
+XRio.convert( lake_file, dest_file )
 
 xds = rioxarray.open_rasterio(dest_file)
 
