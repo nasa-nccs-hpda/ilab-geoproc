@@ -8,7 +8,8 @@ import numpy as np
 from shapely.geometry import box, mapping
 from geoproc.util.configuration import argfilter
 import rioxarray
-
+import rasterio
+from rasterio.warp import calculate_default_transform, reproject, Resampling
 
 @xr.register_dataarray_accessor('xrio')
 class XRio(XExtension):
@@ -67,6 +68,32 @@ class XRio(XExtension):
             result = cls.merge( array_list, **kwargs )
             return result
         return array_list if (len(array_list) > 1) else array_list[0]
+
+
+    @classmethod
+    def convert(self, source_file_path: str, dest_file_path: str, espg = 4236 ):
+        dst_crs = f'EPSG:{4236}'
+
+        with rasterio.open( source_file_path ) as src:
+            transform, width, height = calculate_default_transform( src.crs, dst_crs, src.width, src.height, *src.bounds )
+            kwargs = src.meta.copy()
+            kwargs.update({
+                'crs': dst_crs,
+                'transform': transform,
+                'width': width,
+                'height': height
+            })
+
+            with rasterio.open(dest_file_path, 'w', **kwargs) as dst:
+                for i in range(1, src.count + 1):
+                    reproject(
+                        source=rasterio.band(src, i),
+                        destination=rasterio.band(dst, i),
+                        src_transform=src.transform,
+                        src_crs=src.crs,
+                        dst_transform=transform,
+                        dst_crs=dst_crs,
+                        resampling=Resampling.nearest)
 
     @classmethod
     def merge( cls, data_arrays: List[xr.DataArray], **kwargs ) -> xr.DataArray:

@@ -36,7 +36,8 @@ class GDALGrid(object):
                 self.projection.ImportFromWkt(pro_file.read())
         else:
             self.projection = osr.SpatialReference()
-            self.projection.ImportFromWkt(self.dataset.GetProjection())
+            projection = self.dataset.GetProjection()
+            self.projection.ImportFromWkt(projection)
 
         self.affine = Affine.from_gdal(*self.dataset.GetGeoTransform())
 

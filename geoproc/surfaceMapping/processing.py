@@ -28,7 +28,7 @@ class LakeMaskProcessor:
                 if year == year_range[0]:
                     if os.path.isfile( file_path ):
                         lake_masks[lake_index] = collections.OrderedDict( )
-                        lake_masks[lake_index][year] = file_path
+                        lake_masks[lake_index][year] = self.convert( file_path )
                         lake_indices.append( lake_index )
                 elif os.path.isfile( file_path ):
                     lake_masks[lake_index][year]= file_path
@@ -43,6 +43,12 @@ class LakeMaskProcessor:
             else: print( f"Skipping lake {lake_index} due to errors ")
 
         return results
+
+    def convert(self, src_file: str ) -> str:
+        dest_file = src_file[:-4] + ".geo.tif"
+        if not os.path.exists(dest_file):
+            XRio.convert( src_file, dest_file )
+        return dest_file
 
     def process_lake_masks(self, lake_index: int, mask_files: xr.DataArray ) -> Optional[xr.DataArray]:
         from geoproc.surfaceMapping.lakeExtentMapping import WaterMapGenerator

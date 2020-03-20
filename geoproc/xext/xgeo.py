@@ -84,7 +84,7 @@ class XGeo(XExtension):
         if proj4 is not None:  sref.ImportFromProj4( proj4 )
         else:                  sref.ImportFromEPSG( espg )
         gdalGrid: GDALGrid = self.to_gdalGrid()
-        rGdalGrid = gdalGrid.reproject( sref, **kwargs )
+        rGdalGrid = gdalGrid.to_projection( sref )
         result =  rGdalGrid.xarray( f"{self._obj.name}" )
         result.attrs['SpatialReference'] = sref
         return result

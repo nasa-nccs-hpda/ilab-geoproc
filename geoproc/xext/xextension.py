@@ -47,7 +47,13 @@ class XExtension(object):
         sref = osr.SpatialReference()
         crs = self._obj.attrs.get('crs')
         if crs is None:
-            sref.ImportFromEPSG(4326)
+            if hasattr( self._obj, 'spatial_ref'):
+                sr = self._obj.spatial_ref
+                crs_wkt = sr.attrs.get( "crs_wkt", sr.attrs.get( "spatial_ref", None ) )
+                if crs_wkt: sref.ImportFromWkt( crs_wkt )
+                else: sref.ImportFromEPSG(4326)
+            else:
+                sref.ImportFromEPSG(4326)
         else:
             if "epsg" in crs.lower():
                 espg = int(crs.split(":")[-1])
