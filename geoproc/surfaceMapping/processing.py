@@ -47,6 +47,7 @@ class LakeMaskProcessor:
     def convert(self, src_file: str ) -> str:
         dest_file = src_file[:-4] + ".geo.tif"
         if not os.path.exists(dest_file):
+            print( f"Saving converted input to {dest_file}")
             XRio.convert( src_file, dest_file )
         return dest_file
 
