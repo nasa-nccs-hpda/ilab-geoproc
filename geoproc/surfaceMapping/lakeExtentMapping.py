@@ -365,11 +365,11 @@ class WaterMapGenerator(ConfigurableObject):
     def process_yearly_lake_masks(self, lake_index: int,  yearly_lake_masks: xr.DataArray, **kwargs ) -> Optional[xr.DataArray]:
         results_dir = self._opspecs.get('results_dir')
         patched_water_maps_file = f"{results_dir}/lake_{lake_index}_patched_water_masks.nc"
-        self.yearly_lake_masks: xr.DataArray = yearly_lake_masks
-        y_coord, x_coord = self.yearly_lake_masks.coords[  self.yearly_lake_masks.dims[-2]].values, self.yearly_lake_masks.coords[  self.yearly_lake_masks.dims[-1]].values
+        y_coord, x_coord = yearly_lake_masks.coords[ yearly_lake_masks.dims[-2]].values, yearly_lake_masks.coords[yearly_lake_masks.dims[-1]].values
         self.roi_bounds = [x_coord[0], x_coord[-1], y_coord[0], y_coord[-1]]
-        water_mapping_data = self.get_mpw_data( **self._opspecs )
+        water_mapping_data: Optional[xr.DataArray] = self.get_mpw_data( **self._opspecs )
         if water_mapping_data is None: return None
+        self.yearly_lake_masks: xr.DataArray = yearly_lake_masks.interp_like( water_mapping_data )
         self.water_maps: xr.DataArray =  self.get_water_maps( water_mapping_data, self._opspecs )
         patched_water_maps = self.patch_water_maps( self._opspecs, **kwargs )
         patched_water_maps.name = "Patched_Water_Maps"
