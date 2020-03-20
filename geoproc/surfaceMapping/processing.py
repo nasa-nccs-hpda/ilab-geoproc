@@ -36,11 +36,13 @@ class LakeMaskProcessor:
         for lake_index, sorted_file_paths in lake_masks.items():
             time_values = np.array( [ self.get_date_from_year(year) for year in sorted_file_paths.keys()], dtype='datetime64[ns]' )
             yearly_lake_masks: xr.DataArray = XRio.load(list(sorted_file_paths.values()),  band=0, index=time_values)
-            results[lake_index] = self.process_lake_masks( lake_index, yearly_lake_masks )
+            lake_results = self.process_lake_masks( lake_index, yearly_lake_masks )
+            if lake_results is not None: results[lake_index] = lake_results
+            else: print( f"Skipping lake {lake_index} due to errors ")
 
         return results
 
-    def process_lake_masks(self, lake_index: int, mask_files: xr.DataArray ) -> xr.DataArray:
+    def process_lake_masks(self, lake_index: int, mask_files: xr.DataArray ) -> Optional[xr.DataArray]:
         from geoproc.surfaceMapping.lakeExtentMapping import WaterMapGenerator
         waterMapGenerator = WaterMapGenerator( { 'lake_index': lake_index, **self._defaults } )
         return waterMapGenerator.process_yearly_lake_masks( lake_index, mask_files )

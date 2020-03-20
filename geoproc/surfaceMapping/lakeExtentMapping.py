@@ -267,7 +267,7 @@ class WaterMapGenerator(ConfigurableObject):
                 return TileLocator.infer_tile_gpd( self.roi_bounds )
         raise Exception( "Must supply either source.location, roi, or lake masks in order to locate region")
 
-    def get_mpw_data(self, **kwargs ) -> xr.DataArray:
+    def get_mpw_data(self, **kwargs ) -> Optional[xr.DataArray]:
         print( "reading mpw data")
         t0 = time.time()
         results_dir = kwargs.get('results_dir')
@@ -285,6 +285,7 @@ class WaterMapGenerator(ConfigurableObject):
             data_url = source_spec.get('url')
             product = source_spec.get('product')
             location = source_spec.get( 'location', self.infer_tile_location() )
+            if location is None: return None
 
             year_range = kwargs.get('year_range')
             day_range = kwargs.get('day_range',[0,365])
@@ -361,13 +362,14 @@ class WaterMapGenerator(ConfigurableObject):
         patched_water_maps.name = "Patched_Water_Maps"
         return patched_water_maps.assign_attrs( roi = self.roi_bounds )
 
-    def process_yearly_lake_masks(self, lake_index: int,  yearly_lake_masks: xr.DataArray, **kwargs ) -> xr.DataArray:
+    def process_yearly_lake_masks(self, lake_index: int,  yearly_lake_masks: xr.DataArray, **kwargs ) -> Optional[xr.DataArray]:
         results_dir = self._opspecs.get('results_dir')
         patched_water_maps_file = f"{results_dir}/lake_{lake_index}_patched_water_masks.nc"
         self.yearly_lake_masks: xr.DataArray = yearly_lake_masks
         y_coord, x_coord = self.yearly_lake_masks.coords[  self.yearly_lake_masks.dims[-2]].values, self.yearly_lake_masks.coords[  self.yearly_lake_masks.dims[-1]].values
         self.roi_bounds = [x_coord[0], x_coord[-1], y_coord[0], y_coord[-1]]
         water_mapping_data = self.get_mpw_data( **self._opspecs )
+        if water_mapping_data is None: return None
         self.water_maps: xr.DataArray =  self.get_water_maps( water_mapping_data, self._opspecs )
         patched_water_maps = self.patch_water_maps( self._opspecs, **kwargs )
         patched_water_maps.name = "Patched_Water_Maps"

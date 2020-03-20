@@ -1,7 +1,7 @@
 import xarray as xa
 import geopandas as gpd
 from math import floor, ceil
-from typing import List, Union, Tuple
+from typing import List, Union, Tuple, Optional
 
 class TileLocator:
 
@@ -40,11 +40,15 @@ class TileLocator:
         return cls.get_tile( xmin, xmax, ymin, ymax )
 
     @classmethod
-    def get_tile( cls, xmin, xmax, ymin, ymax ) -> str :
+    def get_tile( cls, xmin, xmax, ymin, ymax ) -> Optional[str]:
         xc0, xc1 = cls.lon_label( xmin ), cls.lon_label( xmax )
         yc0, yc1 = cls.lat_label( ymin ), cls.lat_label( ymax )
-        assert xc0 == xc1, f"Lake mask straddles lon tiles: {xc0} {xc1}"
-        assert yc0 == yc1, f"Lake mask straddles lat tiles: {yc0} {yc1}"
+        if xc0 != xc1:
+            print( f"Lake mask straddles lon tiles: {xc0} {xc1}" )
+            return None
+        if yc0 != yc1:
+            print( f"Lake mask straddles lat tiles: {yc0} {yc1}" )
+            return None
         result = f"{xc0}{yc0}"
         print( f"Inferring tile {result} from xbounds = {[xmin,xmax]}, ybounds = {[ymin,ymax]}" )
         return result
