@@ -59,7 +59,9 @@ class XRio(XExtension):
         array_list: List[xr.DataArray] = []
         for iF, file in enumerate(filePaths):
             data_array = cls.open( iF, file, **kwargs )
-            if data_array is not None: array_list.append( data_array )
+            if data_array is not None:
+                crs = data_array.spatial_ref.crs_wkt
+                array_list.append( data_array )
         if merge and (len(array_list) > 1):
             assert cls.mergable( array_list ), f"Attempt to merge arrays with different shapes"
             result = cls.merge( array_list, **kwargs )

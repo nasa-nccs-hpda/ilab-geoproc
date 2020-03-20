@@ -310,12 +310,18 @@ class GDALGrid(object):
                                      delimiter=" ")
             grid_writer.writerows(self.np_array(band, masked=False))
 
-    def reproject( self, dstSRS: osr.SpatialReference, resolution: Tuple[float,float],  resampling=gdalconst.GRA_NearestNeighbour ):
+    def reproject( self, dstSRS: osr.SpatialReference, **kwargs ):
+        resampling = kwargs.get( 'resampling', gdalconst.GRA_NearestNeighbour  )
+        nx =  kwargs.get( 'nx',None  )
+        ny = kwargs.get( 'ny', None )
+        resolution = kwargs.get('resolution', None)
         newbounds = self.bounds( as_projection=dstSRS )
         mem_drv = gdal.GetDriverByName('MEM')
         nBands = self.dataset.RasterCount
-        nx = int((newbounds[1] - newbounds[0]) / resolution[0])
-        ny = int((newbounds[3] - newbounds[2]) / resolution[1])
+        if resolution is not None:
+            nx, ny = int(round((newbounds[1] - newbounds[0]) / resolution[0])), int(round((newbounds[3] - newbounds[2]) / resolution[1]))
+        elif nx is not None and ny is not None:
+            resolution = [ (newbounds[1] - newbounds[0]) / nx, (newbounds[3] - newbounds[2]) / ny ]
         dest: gdal.Dataset = mem_drv.Create('', nx, ny, nBands, gdal.GDT_Float32)
         new_geo = (newbounds[0], resolution[0], 0.0,  newbounds[3], 0.0, -resolution[1] )
         srcWkt = self.wkt
@@ -324,6 +330,7 @@ class GDALGrid(object):
         dest.SetProjection ( destWkt )
         res = gdal.ReprojectImage( self.dataset, dest, srcWkt, destWkt, resampling )
         return GDALGrid( dest )
+
 
     def to_grass_ascii(self, file_path: str, band: int =1, print_nodata: bool =True):
         """ Writes data to GRASS ASCII file format. """

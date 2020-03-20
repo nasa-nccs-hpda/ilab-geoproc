@@ -71,10 +71,22 @@ class XGeo(XExtension):
     def to_utm( self, resolution: Tuple[float,float], **kwargs ) -> xr.DataArray:
         utm_sref: osr.SpatialReference = kwargs.get( 'sref', self.getUTMProj() )
         gdalWaterMask: GDALGrid = self.to_gdalGrid()
-        utmGdalWaterMask = gdalWaterMask.reproject( utm_sref, resolution )
+        utmGdalWaterMask = gdalWaterMask.reproject( utm_sref, resolution=resolution )
         result =  utmGdalWaterMask.xarray( f"{self._obj.name}-utm" )
         result.attrs['SpatialReference'] = utm_sref
         result.attrs['resolution'] = resolution
+        return result
+
+    def reproject( self, **kwargs ) -> xr.DataArray:
+        sref = osr.SpatialReference()
+        proj4 = kwargs.get( 'proj4', None )
+        espg =  kwargs.get( 'espg',  4326 )
+        if proj4 is not None:  sref.ImportFromProj4( proj4 )
+        else:                  sref.ImportFromEPSG( espg )
+        gdalGrid: GDALGrid = self.to_gdalGrid()
+        rGdalGrid = gdalGrid.reproject( sref, **kwargs )
+        result =  rGdalGrid.xarray( f"{self._obj.name}" )
+        result.attrs['SpatialReference'] = sref
         return result
 
     @property
@@ -146,7 +158,7 @@ if __name__ == '__main__':
     dset: GDALGrid = data_array.xgeo.to_gdalGrid()
 
     new_proj: osr.SpatialReference = dset.get_utm_proj()
-    reprojected_dset: GDALGrid  = dset.reproject( new_proj, (250,250) )
+    reprojected_dset: GDALGrid  = dset.reproject( new_proj, resolution=(250,250) )
     grid_data = reprojected_dset.xarray( "UTM_Result")
 
     fig = plt.figure(figsize=[10, 5])

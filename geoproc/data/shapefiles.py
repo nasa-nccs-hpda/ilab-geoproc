@@ -127,7 +127,7 @@ if __name__ == '__main__':
     print("Downloaded tile data")
     utm_sref: osr.SpatialReference = waterMask.xgeo.getUTMProj()
     gdalGrid: GDALGrid = waterMask.xgeo.to_gdalGrid()
-    utmGdalGrid = gdalGrid.reproject( utm_sref, (250,250) )
+    utmGdalGrid = gdalGrid.reproject( utm_sref, resolution=(250,250) )
     utmDataArray = utmGdalGrid.xarray( "utmDataArray" )
     print( "Reprojected tile data")
 

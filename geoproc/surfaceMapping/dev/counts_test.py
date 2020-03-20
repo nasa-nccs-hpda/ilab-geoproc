@@ -54,11 +54,11 @@ print("waterMask.shape = " + str(waterMask.shape))
 print("Downloaded tile data")
 utm_sref: osr.SpatialReference = waterMask.xgeo.getUTMProj()
 gdalWaterMask: GDALGrid = waterMask.xgeo.to_gdalGrid()
-utmGdalWaterMask = gdalWaterMask.reproject(utm_sref, (250, 250))
+utmGdalWaterMask = gdalWaterMask.reproject(utm_sref, resolution=(250, 250))
 utmWaterMask = utmGdalWaterMask.xarray("utmWaterMask")
 
 gdalReliability: GDALGrid = reliability.xgeo.to_gdalGrid()
-reliabilityMap = gdalReliability.reproject(utm_sref, (250, 250))
+reliabilityMap = gdalReliability.reproject(utm_sref, resolution=(250, 250))
 utmReliability = reliabilityMap.xarray("utmReliability")
 
 print( "Reprojected tile data")
