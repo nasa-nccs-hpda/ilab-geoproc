@@ -3,7 +3,7 @@ from geoproc.xext.xrio import XRio
 from geoproc.xext.xgeo import XGeo
 import xarray as xr
 import numpy as np
-import os, time, collections
+import os, time, collections, traceback
 
 class LakeMaskProcessor:
 
@@ -35,12 +35,17 @@ class LakeMaskProcessor:
 
         results = {}
         for lake_index, sorted_file_paths in lake_masks.items():
-            time_values = np.array( [ self.get_date_from_year(year) for year in sorted_file_paths.keys()], dtype='datetime64[ns]' )
-            yearly_lake_masks: xr.DataArray = XRio.load(list(sorted_file_paths.values()),  band=0, index=time_values)
-            nx, ny = yearly_lake_masks.shape[-1], yearly_lake_masks.shape[-2]
-            lake_results = self.process_lake_masks( lake_index, yearly_lake_masks )
-            if lake_results is not None: results[lake_index] = lake_results
-            else: print( f"Skipping lake {lake_index} due to errors ")
+            try:
+                time_values = np.array( [ self.get_date_from_year(year) for year in sorted_file_paths.keys()], dtype='datetime64[ns]' )
+                yearly_lake_masks: xr.DataArray = XRio.load(list(sorted_file_paths.values()),  band=0, index=time_values)
+                nx, ny = yearly_lake_masks.shape[-1], yearly_lake_masks.shape[-2]
+                lake_results = self.process_lake_masks( lake_index, yearly_lake_masks )
+                assert lake_results is not None, "NULL results from process_lake_masks"
+                results[lake_index] = lake_results
+                print(f"Completed processing lake {lake_index}")
+            except Exception as err:
+                print( f"Skipping lake {lake_index} due to errors ")
+                traceback.print_exc()
 
         return results
 
