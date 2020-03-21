@@ -11,8 +11,9 @@ SHAPEFILE = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/saltLake/GreatSalt.shp"
 
 lake_boundary: gpd.GeoSeries = gpd.read_file( SHAPEFILE )
 
-lake_file = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/MOD44W/new/lake1341_MOD44W_2000_C6.tif"
+lake_file2 = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/MOD44W/new/lake1341_MOD44W_2000_C6.tif"
 lake_file1 = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/MOD44W/2000/334_2000.tif"
+lake_file = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/MOD44W/new/lake4_MOD44W_2000_C6.tif"
 
 dest_file = "/tmp/test.tif"
 # dataset = XRio.open( raster_file, mask=lake_boundary )

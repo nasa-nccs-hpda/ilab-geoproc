@@ -19,7 +19,7 @@ class XRio(XExtension):
         XExtension.__init__( self, xarray_obj )
 
     @classmethod
-    def open( cls, iFile: int, filename: str, **kwargs ):
+    def open( cls, iFile: int, filename: str, **kwargs )-> xr.DataArray:
         mask = kwargs.pop("mask", None)
         oargs = argfilter( kwargs, parse_coordinates = None, chunks = None, cache = None, lock = None )
         result: xr.DataArray = rioxarray.open_rasterio( filename, **oargs )
@@ -35,7 +35,7 @@ class XRio(XExtension):
         else:
             raise Exception( f"Unrecognized mask type: {mask.__class__.__name__}")
 
-    def subset(self, iFile: int, xbounds: List, ybounds: List ):
+    def subset(self, iFile: int, xbounds: List, ybounds: List )-> xr.DataArray:
         from geoproc.surfaceMapping.util import TileLocator
         tile_bounds = TileLocator.get_bounds(self._obj)
         xbounds.sort(), ybounds.sort( reverse = (tile_bounds[2] > tile_bounds[3]) )
@@ -44,7 +44,7 @@ class XRio(XExtension):
         sel_args = { self._obj.dims[-1]: slice(*xbounds), self._obj.dims[-2]: slice(*ybounds) }
         return self._obj.sel(**sel_args)
 
-    def clip(self, geodf: GeoDataFrame, **kwargs ):
+    def clip(self, geodf: GeoDataFrame, **kwargs )-> xr.DataArray:
         cargs = argfilter( kwargs, all_touched = True, drop = True )
         mask_value = int( kwargs.pop( 'mask_value', 255  ) )
         self._obj.rio.set_nodata(mask_value)
@@ -59,12 +59,12 @@ class XRio(XExtension):
         if isinstance( filePaths, str ): filePaths = [ filePaths ]
         array_list: List[xr.DataArray] = []
         for iF, file in enumerate(filePaths):
-            data_array = cls.open( iF, file, **kwargs )
+            data_array: xr.DataArray = cls.open( iF, file, **kwargs )
             if data_array is not None:
-                crs = data_array.spatial_ref.crs_wkt
+ #               crs = data_array.spatial_ref.crs_wkt
                 array_list.append( data_array )
         if merge and (len(array_list) > 1):
-            assert cls.mergable( array_list ), f"Attempt to merge arrays with different shapes"
+            assert cls.mergable( array_list ), f"Attempt to merge arrays with different shapes: {[ str(arr.shape) for arr in array_list ]}"
             result = cls.merge( array_list, **kwargs )
             return result
         return array_list if (len(array_list) > 1) else array_list[0]
