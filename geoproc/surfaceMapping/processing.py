@@ -31,7 +31,7 @@ class LakeMaskProcessor:
                         lake_masks[lake_index][year] = self.convert( file_path )
                         lake_indices.append( lake_index )
                 elif os.path.isfile( file_path ):
-                    lake_masks[lake_index][year]= file_path
+                    lake_masks[lake_index][year]= self.convert( file_path )
 
         results = {}
         for lake_index, sorted_file_paths in lake_masks.items():
@@ -44,9 +44,9 @@ class LakeMaskProcessor:
 
         return results
 
-    def convert(self, src_file: str ) -> str:
+    def convert(self, src_file: str, overwrite = True ) -> str:
         dest_file = src_file[:-4] + ".geo.tif"
-        if not os.path.exists(dest_file):
+        if overwrite or not os.path.exists(dest_file):
             print( f"Saving converted input to {dest_file}")
             XRio.convert( src_file, dest_file )
         return dest_file
