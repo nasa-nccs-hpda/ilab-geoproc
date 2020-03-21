@@ -1,7 +1,7 @@
 
 defaults:
     results_dir: "/att/pubrepo/ILAB/projects/Birkett/MOD44W/results"
-    year_range: [ 2000, 2018 ]
+    year_range: [ 2001, 2018 ]
     water_class_thresholds: [ 0.02, 0.93 ]
     lake_masks:
         basedir: "/att/pubrepo/ILAB/projects/Birkett/MOD44W"
