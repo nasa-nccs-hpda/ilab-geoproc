@@ -369,7 +369,13 @@ class WaterMapGenerator(ConfigurableObject):
         self.roi_bounds = [x_coord[0], x_coord[-1], y_coord[0], y_coord[-1]]
         water_mapping_data: Optional[xr.DataArray] = self.get_mpw_data( **self._opspecs )
         if water_mapping_data is None: return None
-        self.yearly_lake_masks: xr.DataArray = yearly_lake_masks.interp_like( water_mapping_data )
+        wmd_y_coord, wmd_x_coord = water_mapping_data.coords[ water_mapping_data.dims[-2]].values, water_mapping_data.coords[water_mapping_data.dims[-1]].values
+        self.roi_bounds = [x_coord[0], x_coord[-1], y_coord[0], y_coord[-1]]
+        wmd_roi_bounds = [wmd_x_coord[0], wmd_x_coord[-1], wmd_y_coord[0], wmd_y_coord[-1]]
+        self.yearly_lake_masks: xr.DataArray = yearly_lake_masks  # .interp_like( water_mapping_data )
+        print( f"process_yearly_lake_masks: water_mapping_data shape = {water_mapping_data.shape}, yearly_lake_masks shape = {yearly_lake_masks.shape}")
+        print(f"yearly_lake_masks roi_bounds = {self.roi_bounds}")
+        print(f"wmd roi bounds = {wmd_roi_bounds}")
         self.water_maps: xr.DataArray =  self.get_water_maps( water_mapping_data, self._opspecs )
         patched_water_maps = self.patch_water_maps( self._opspecs, **kwargs )
         patched_water_maps.name = "Patched_Water_Maps"
