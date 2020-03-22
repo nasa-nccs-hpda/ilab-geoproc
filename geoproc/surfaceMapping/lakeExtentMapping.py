@@ -170,7 +170,7 @@ class WaterMapGenerator(ConfigurableObject):
             centroid_indices = list(range(binSize//2, bin_indices[-1], binSize))
             time_axis = data_array.coords[ data_array.dims[0] ].values
             time_bins = np.array( [ time_axis[iT] for iT in bin_indices ], dtype='datetime64[ns]' )
-            grouped_data: DatasetGroupBy = data_array.groupby_bins( 'time', time_bins, right = False )
+            grouped_data: DatasetGroupBy = data_array.groupby_bins( data_array.dims[0], time_bins, right = False )
             get_water_map_partial = functools.partial( self.get_water_map, water_maps_opspec )
             water_maps_dset:  xr.Dataset = grouped_data.map( get_water_map_partial )
             water_maps_dset = water_maps_dset.assign( time_bins = [ time_axis[i] for i in centroid_indices ]  ).rename( time_bins='time' ).persist()
@@ -375,7 +375,7 @@ class WaterMapGenerator(ConfigurableObject):
         self.yearly_lake_masks: xr.DataArray = yearly_lake_masks  # .interp_like( water_mapping_data )
         print( f"process_yearly_lake_masks: water_mapping_data shape = {water_mapping_data.shape}, yearly_lake_masks shape = {yearly_lake_masks.shape}")
         print(f"yearly_lake_masks roi_bounds = {self.roi_bounds}")
-        print(f"wmd roi bounds = {wmd_roi_bounds}")
+        print(f"wmd roi bounds = {wmd_roi_bounds}, wmd dims = {water_mapping_data.dims}")
         self.water_maps: xr.DataArray =  self.get_water_maps( water_mapping_data, self._opspecs )
         patched_water_maps = self.patch_water_maps( self._opspecs, **kwargs )
         patched_water_maps.name = "Patched_Water_Maps"
