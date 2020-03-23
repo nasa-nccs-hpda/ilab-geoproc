@@ -213,7 +213,7 @@ class SliceAnimation:
         self.ptstats = kwargs.get( "ptstats", {} )
         self.metrics_alpha = kwargs.get( "metrics_alpha", 0.7 )
         self.figure: Figure = None
-        self.images: Dict[int,AxesImage] = {}
+        self.images: Dict[int,Tuple[str,AxesImage]] = {}
         self.nPlots = len(self.data)
         self.metrics: Dict = kwargs.get("metrics", {})
         self.frame_marker: Line2D = None
@@ -326,9 +326,10 @@ class SliceAnimation:
 
     def update_aux_plot( self, iFrame: int ):
         if (self.auxplot is not None) and (self.auxplot.shape[0] == self.nFrames):
-            self.images[self.nPlots].set_data( self.auxplot[iFrame] )
+            ( aname, image ) = self.images[self.nPlots]
+            image.set_data( self.auxplot[iFrame] )
 
-    def create_image(self, iPlot: int, **kwargs ) -> AxesImage:
+    def create_image(self, iPlot: int, **kwargs ) -> Tuple[str,AxesImage]:
         data: xa.DataArray = self.data[iPlot]
         subplot: Axes = self.getSubplot( iPlot )
         cm = self.create_cmap( data.attrs.get("cmap",{}) )
@@ -336,11 +337,10 @@ class SliceAnimation:
         color_tick_labels = cm.pop( 'tick_labels', None )
         image: AxesImage = z.plot.imshow( ax=subplot, **cm )
         if color_tick_labels is not None: image.colorbar.ax.set_xticklabels( color_tick_labels )
-        subplot.title.set_text( data.name )
         overlays = kwargs.get( "overlays", {} )
         for color, overlay in overlays.items():
             overlay.plot( ax=subplot, color=color, linewidth=2 )
-        return image
+        return ( str(data.name), image )
 
     def create_metrics_plot(self):
         if len( self.metrics ):
@@ -365,7 +365,8 @@ class SliceAnimation:
             cm = self.create_cmap( self.auxplot.attrs.get("cmap", {}) )
             color_tick_labels = cm.pop('tick_labels', None)
             z: xa.DataArray = self.auxplot[0]
-            self.images[self.nPlots]  = z.plot.imshow( ax=axis, **cm )
+            aux_image = z.plot.imshow( ax=axis, **cm )
+            self.images[self.nPlots]  = ( z.name, aux_image )
             if color_tick_labels is not None: self.images[self.nPlots].colorbar.ax.set_yticklabels(color_tick_labels)
             axis.legend()
 
@@ -377,9 +378,10 @@ class SliceAnimation:
             frame_image = data.sel( **{ data.dims[0]: tval }, method='nearest' )
             try:                tval1 = frame_image.time.values
             except Exception:   tval1 = tval
-            self.images[iPlot].set_data( frame_image )
+            aname, current_image = self.images[iPlot]
+            current_image.set_data( frame_image )
             stval = str(tval1).split("T")[0]
-            subplot.title.set_text( f"F-{iFrame} [{stval}]" )
+            subplot.title.set_text( f"{aname}: F-{iFrame} [{stval}]" )
         self.update_metrics( iFrame )
         self.update_aux_plot(iFrame)
 

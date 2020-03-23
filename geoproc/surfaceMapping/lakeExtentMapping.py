@@ -91,11 +91,11 @@ class WaterMapGenerator(ConfigurableObject):
                                      xr.where(perm_land_mask, 1, 0)))
         else:
             yearly_lake_masks = self.yearly_lake_masks.interp_like(self.water_probability, method='nearest')
-            perm_land_mask: xr.DataArray = (yearly_lake_masks == 0)
-            roi_mask: xr.DataArray = np.logical_or( ( yearly_lake_masks == self.mask_value ), boundaries_mask )
-            result = xr.where( roi_mask, self.mask_value,
-                                  xr.where(perm_water_mask, 2,
-                                     xr.where(perm_land_mask, 1, 0)))
+            mask_value = yearly_lake_masks.attrs['mask']
+            water_value = yearly_lake_masks.attrs['water']
+            perm_land_mask: xr.DataArray = self.water_probability < thresholds[0]
+            roi_mask: xr.DataArray = np.logical_or( ( yearly_lake_masks == mask_value ), boundaries_mask )
+            result = xr.where( roi_mask, self.mask_value, xr.where(perm_water_mask, 2, xr.where(perm_land_mask, 1, 0)))
         result = result.persist()
         result.name = "Persistent_Classes"
         print(f"Done get_persistent_classes in time {time.time() - t0}")
@@ -105,7 +105,7 @@ class WaterMapGenerator(ConfigurableObject):
         from datetime import datetime
         print(f"Executing get_water_probability" )
         t0 = time.time()
-        cache = kwargs.get( "cache", "update" )
+        cache = kwargs.get( "cache", False )
         yearly = 'water_masks' in opspec
         data_dir = opspec.get('results_dir')
         lake_index = opspec['lake_index']
@@ -160,7 +160,7 @@ class WaterMapGenerator(ConfigurableObject):
         data_dir = opspec.get('results_dir')
         lake_index = opspec['lake_index']
         water_maps_file = os.path.join(data_dir, f"lake_{lake_index}_water_maps.nc")
-        cache = kwargs.get( "cache", "update" )
+        cache = kwargs.get( "cache", False )
         if cache==True and os.path.isfile( water_maps_file ):
             water_maps_dset: xr.Dataset = xr.open_dataset(water_maps_file)
         else:
@@ -273,8 +273,8 @@ class WaterMapGenerator(ConfigurableObject):
         results_dir = kwargs.get('results_dir')
         lake_id = kwargs.get('lake_index')
         cropped_data_file = os.path.join(results_dir, f"{lake_id}_cropped_data.nc")
-        cache = kwargs.get("cache", True)
-        download = kwargs.get('download', cache)
+        cache = kwargs.get("cache", False)
+        download = kwargs.get( 'download', True )
         if cache==True and os.path.isfile( cropped_data_file ):
             cropped_data_dataset: xr.Dataset = xr.open_dataset(cropped_data_file)
             cropped_data: xr.DataArray = cropped_data_dataset.cropped_data
@@ -342,7 +342,7 @@ class WaterMapGenerator(ConfigurableObject):
         data_dir = opspec.get('data_dir')
         lake_id = opspec['id']
         patched_water_maps_file = f"{data_dir}/{lake_id}_patched_water_masks.nc"
-        cache = kwargs.get("cache", "update" )
+        cache = kwargs.get("cache", False )
 
         if cache==True and os.path.isfile(patched_water_maps_file):
             patched_water_maps: xr.DataArray = xr.open_dataset(patched_water_maps_file).Water_Maps
@@ -359,7 +359,7 @@ class WaterMapGenerator(ConfigurableObject):
             print( f"Saving patched_water_maps to {patched_water_maps_file}")
 
         print(f"Completed get_patched_water_maps in time {(time.time() - t0)/60.0} minutes")
-        patched_water_maps.name = "Patched_Water_Maps"
+        patched_water_maps.name = lake_id
         return patched_water_maps.assign_attrs( roi = self.roi_bounds )
 
     def process_yearly_lake_masks(self, lake_index: int,  yearly_lake_masks: xr.DataArray, **kwargs ) -> Optional[xr.DataArray]:
@@ -378,7 +378,7 @@ class WaterMapGenerator(ConfigurableObject):
         print(f"wmd roi bounds = {wmd_roi_bounds}, wmd dims = {water_mapping_data.dims}")
         self.water_maps: xr.DataArray =  self.get_water_maps( water_mapping_data, self._opspecs )
         patched_water_maps = self.patch_water_maps( self._opspecs, **kwargs )
-        patched_water_maps.name = "Patched_Water_Maps"
+        patched_water_maps.name = f"Lake {lake_index}"
         sanitize(patched_water_maps).to_netcdf( patched_water_maps_file )
         print( f"Saving patched_water_maps for lake {lake_index} to {patched_water_maps_file}")
         return patched_water_maps.assign_attrs( roi = self.roi_bounds )
@@ -425,7 +425,7 @@ class WaterMapGenerator(ConfigurableObject):
         data_dir = opspec.get('data_dir')
         lake_id = opspec['id']
         patched_water_maps_file = f"{data_dir}/{lake_id}_patched_water_masks.nc"
-        cache = kwargs.get("cache", "update" )
+        cache = kwargs.get("cache", False )
 
         self.yearly_lake_masks: xr.DataArray = self.get_yearly_lake_area_masks(opspec, **kwargs)
         self.get_roi_bounds( opspec )
@@ -437,7 +437,7 @@ class WaterMapGenerator(ConfigurableObject):
             print( f"Saving patched_water_maps to {patched_water_maps_file}")
 
         print(f"Completed get_patched_water_maps in time {(time.time() - t0)/60.0} minutes")
-        patched_water_maps.name = "Patched_Water_Maps"
+        patched_water_maps.name = lake_id
         return patched_water_maps.assign_attrs( roi = self.roi_bounds )
 
     def patch_water_maps( self, opspec: Dict, **kwargs ) -> xr.DataArray:

@@ -1,14 +1,15 @@
-
 defaults:
     results_dir: "/tmp/"
-    year_range: [ 2017, 2018 ]
+    year_range: [ 2016, 2016 ]
     day_range: [ 0, 360 ]
-    water_class_thresholds: [ 0.05, 0.93 ]
+    water_class_thresholds: [ 0.05, 0.90 ]
     lake_masks:
         basedir: "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/MOD44W"
-        subdir: "{year}"
-        file: "lake{lake_index}_{year}.tif"
-        lake_index_range: [0,2000]
+        subdir: "lakes_{year}"
+        file: "lake{lake_index}_MOD44W_{year}_C6.tif"
+        lake_index_range: [43,43]
+        mask: 3
+        water: 1
 
     source:
       type: 'MPW'
@@ -18,4 +19,5 @@ defaults:
     water_maps:
         threshold: 0.5
         bin_size: 8
+
 

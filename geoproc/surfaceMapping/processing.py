@@ -11,7 +11,7 @@ class LakeMaskProcessor:
         self._opspecs = { key.lower(): value for key,value in opspecs.items() }
         self._defaults = self._opspecs.get( "defaults", None )
 
-    def process_lakes(self) -> Dict[ int, xr.DataArray ]:
+    def process_lakes(self) -> Dict[ int, List[ xr.DataArray ] ]:
         year_range = self._defaults['year_range']
         lakeMaskSpecs = self._defaults.get( "lake_masks", None )
         data_dir = lakeMaskSpecs["basedir"]
@@ -38,10 +38,12 @@ class LakeMaskProcessor:
             try:
                 time_values = np.array( [ self.get_date_from_year(year) for year in sorted_file_paths.keys()], dtype='datetime64[ns]' )
                 yearly_lake_masks: xr.DataArray = XRio.load(list(sorted_file_paths.values()),  band=0, index=time_values)
+                yearly_lake_masks.attrs.update( lakeMaskSpecs )
+                yearly_lake_masks.name = f"Lake {lake_index} Mask"
                 nx, ny = yearly_lake_masks.shape[-1], yearly_lake_masks.shape[-2]
                 lake_results = self.process_lake_masks( lake_index, yearly_lake_masks )
                 assert lake_results is not None, "NULL results from process_lake_masks"
-                results[lake_index] = lake_results
+                results[lake_index] = [ lake_results, yearly_lake_masks ]
                 print(f"Completed processing lake {lake_index}")
             except Exception as err:
                 print( f"Skipping lake {lake_index} due to errors ")
