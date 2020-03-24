@@ -30,7 +30,7 @@ def show_tile_bounds( location: str, year, time_range, download = True ):
     data_arrays: List[xr.DataArray ] =  XGeo.loadRasterFiles(file_paths[0:2], band=1 )
     print( f"Reading location: {location}")
     print( TileLocator.get_bounds(data_arrays[0]) )
-    print( TileLocator.infer_tile_xa( data_arrays[0] ) )
+    print( TileLocator.infer_tiles_xa( data_arrays[0] ) )
 
 def show_lake_mask_bounds( lake_id: int ):
     lake_mask_file = f"{DATA_DIR}/MOD44W/2005/{lake_id}_2005.tif"
@@ -38,7 +38,7 @@ def show_lake_mask_bounds( lake_id: int ):
     bounds = TileLocator.get_bounds(array)
     print( f" X Bounds: {bounds[:2]}")
     print( f" Y Bounds: {bounds[2:]}")
-    print( TileLocator.infer_tile_xa(array) )
+    print( TileLocator.infer_tiles_xa(array) )
 
 # show_tile_bounds( "020E020S", 2014, [0, 3] )
 

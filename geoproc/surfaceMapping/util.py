@@ -29,32 +29,27 @@ class TileLocator:
         else:       return f"{cls.ceil10(lat):03d}S"
 
     @classmethod
-    def infer_tile_xa( cls, array: xa.DataArray ) -> str:
-        print( f" --> infer_tile_xa, attrs = {array.attrs}")
+    def infer_tiles_xa( cls, array: xa.DataArray ) -> List[str]:
+        print( f" --> infer_tiles_xa, attrs = {array.attrs}")
         x_coord = array.coords[array.dims[-1]].values
         y_coord = array.coords[array.dims[-2]].values
         x0, y0 = array.xgeo.project_to_geographic( x_coord[0], y_coord[0] )
         x1, y1 = array.xgeo.project_to_geographic(x_coord[-1], y_coord[-1])
-        return cls.get_tile( x0, x1, y0, y1 )
+        return cls.get_tiles( x0, x1, y0, y1 )
 
     @classmethod
-    def infer_tile_gpd( cls, series: gpd.GeoSeries ) -> str:
+    def infer_tiles_gpd( cls, series: gpd.GeoSeries ) -> List[str]:
         [xmin, ymin, xmax, ymax] = series.geometry.boundary.bounds.values[0]
-        return cls.get_tile( xmin, xmax, ymin, ymax )
+        return cls.get_tiles( xmin, xmax, ymin, ymax )
+
 
     @classmethod
-    def get_tile( cls, xmin, xmax, ymin, ymax ) -> Optional[str]:
-        xc0, xc1 = cls.lon_label( xmin ), cls.lon_label( xmax )
-        yc0, yc1 = cls.lat_label( ymin ), cls.lat_label( ymax )
-        if xc0 != xc1:
-            print( f"Lake mask straddles lon tiles: {xc0} {xc1}" )
-            return None
-        if yc0 != yc1:
-            print( f"Lake mask straddles lat tiles: {yc0} {yc1}" )
-            return None
-        result = f"{xc0}{yc0}"
-        print( f"Inferring tile {result} from xbounds = {[xmin,xmax]}, ybounds = {[ymin,ymax]}" )
-        return result
+    def get_tiles( cls, xmin, xmax, ymin, ymax ) -> List[str]:
+        xvals = { cls.lon_label( xmin ), cls.lon_label( xmax ) }
+        yvals = { cls.lat_label( ymin ), cls.lat_label( ymax ) }
+        results = [ f"{xval}{yval}" for xval in xvals for yval in yvals ]
+        print( f"Inferring tiles {results} from xbounds = {[xmin,xmax]}, ybounds = {[ymin,ymax]}" )
+        return results
 
     @classmethod
     def get_bounds(cls, array: xa.DataArray ) -> List:
@@ -66,8 +61,8 @@ if __name__ == '__main__':
     lake_id = 334
     lake_mask_file = f"/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/MOD44W/2005/{lake_id}_2005.tif"
     array: xa.DataArray = xa.open_rasterio( lake_mask_file )
-    print( TileLocator.infer_tile_xa(array) )
+    print( TileLocator.infer_tiles_xa(array) )
 
     roi = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/saltLake/GreatSalt.shp"
     roi_bounds: gpd.GeoSeries = gpd.read_file(roi)
-    print(TileLocator.infer_tile_gpd(roi_bounds))
+    print(TileLocator.infer_tiles_gpd(roi_bounds))

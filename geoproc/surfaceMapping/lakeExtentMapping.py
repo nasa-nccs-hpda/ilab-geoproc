@@ -257,14 +257,14 @@ class WaterMapGenerator(ConfigurableObject):
         result = datetime.strptime(toks[1], '%Y%j').date()
         return np.datetime64(result)
 
-    def infer_tile_location(self) -> str:
+    def infer_tile_locations(self) -> List[str]:
         if self.yearly_lake_masks is not None:
-            return TileLocator.infer_tile_xa( self.yearly_lake_masks )
+            return TileLocator.infer_tiles_xa( self.yearly_lake_masks )
         if self.roi_bounds is not None:
             if isinstance( self.roi_bounds, list ):
-                return TileLocator.get_tile( *self.roi_bounds )
+                return TileLocator.get_tiles( *self.roi_bounds )
             else:
-                return TileLocator.infer_tile_gpd( self.roi_bounds )
+                return TileLocator.infer_tiles_gpd( self.roi_bounds )
         raise Exception( "Must supply either source.location, roi, or lake masks in order to locate region")
 
     def get_mpw_data(self, **kwargs ) -> Optional[xr.DataArray]:
@@ -284,8 +284,8 @@ class WaterMapGenerator(ConfigurableObject):
             source_spec = kwargs.get('source')
             data_url = source_spec.get('url')
             product = source_spec.get('product')
-            location = source_spec.get( 'location', self.infer_tile_location() )
-            if location is None: return None
+            locations = source_spec.get( 'location', self.infer_tile_locations() )
+            if not locations: return None
 
             year_range = kwargs.get('year_range')
             day_range = kwargs.get('day_range',[0,365])
