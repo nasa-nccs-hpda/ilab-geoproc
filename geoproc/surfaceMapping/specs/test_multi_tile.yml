@@ -1,0 +1,27 @@
+defaults:
+    data_dir: "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt"
+    results_dir: "/tmp/"
+    year_range: [ 2017, 2017 ]
+    day_range: [ 32, 64 ]
+    water_class_thresholds: [ 0.05, 0.90 ]
+
+    source:
+      type: 'MPW'
+      url:  'https://floodmap.modaps.eosdis.nasa.gov/Products'
+      product:  '2D2OT'
+
+    water_maps:
+        threshold: 0.5
+        bin_size: 8
+
+MultiTileLake:
+    roi: 89.5, 90.51, 59.52, 60.6
+    lake_index: 9999
+
+SingleTileLake:
+    roi: 89.26, 89.86, 59.12, 59.92
+    lake_index: 9999
+
+MosulDamLake:
+    roi: 42.443281, 42.992598, 36.59876, 36.8855984
+    lake_index: 1534

@@ -13,24 +13,24 @@ defaults:
         bin_size: 8
 
 SaltLakeMasked:
-    index: 19
+    lake_index: 19
     water_masks:
         location: '{data_dir}/MOD44W'
         nodata: 256
 
 SaltLake:
-    index: 19
+    lake_index: 19
     roi: '{data_dir}/saltLake/GreatSalt.shp'
 
 Lake1295:
-    index: 1295
+    lake_index: 1295
     water_class_thresholds: [ 0.02, 0.95 ]
     water_masks:
         location: '{data_dir}/MOD44W'
         nodata: 256
 
 Lake334:
-    index: 334
+    lake_index: 334
     water_class_thresholds: [ 0.02, 0.90 ]
     water_masks:
         location: '{data_dir}/MOD44W'
@@ -39,4 +39,4 @@ Lake334:
 
 MosulDamLake:
     roi: 42.443281, 42.992598, 36.59876, 36.8855984
-    index: 1534
+    lake_index: 1534

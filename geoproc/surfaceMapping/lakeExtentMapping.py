@@ -32,6 +32,12 @@ class WaterMapGenerator(ConfigurableObject):
                (4, 'int-water', (0, 0, 0.6)),
                (self.mask_value, 'mask', (1, 1, 0.7)) ]
 
+    def get_input_colors( self, mask_value=5 ) -> List[Tuple]:
+        return [(0, 'undetermined', (1, 1, 0)),
+               (1, 'land', (0, 1, 0)),
+               (2, 'water', (0, 0, 1)),
+               (mask_value, 'mask', (0.25, 0.25, 0.25))]
+
     @classmethod
     def get_date_from_year(cls, year: int):
         from datetime import datetime
@@ -187,10 +193,12 @@ class WaterMapGenerator(ConfigurableObject):
         metrics.update( **kwargs )
         data_array.attrs['metrics'] = metrics
 
-    def interpolate(self ) -> xr.DataArray:
+    def interpolate( self, **kwargs ) -> xr.DataArray:
+        highlight = kwargs.get( "highlight", True )
+        ffill =  kwargs.get( "ffill", True )
         spatially_patched_water_maps: xr.DataArray = self.spatial_interpolate( )
-        result = self.temporal_interpolate( spatially_patched_water_maps )
-        patched_result: xr.DataArray = result.where( result == self.water_maps, result + 2 )
+        result = self.temporal_interpolate( spatially_patched_water_maps, **kwargs ) if ffill else spatially_patched_water_maps
+        patched_result: xr.DataArray = result if not highlight else result.where( result == self.water_maps, result + 2 )
         return patched_result
 
     # def spatial_interpolate_slow(self, dynamics_class: int = 0) -> xr.DataArray:
@@ -218,8 +226,7 @@ class WaterMapGenerator(ConfigurableObject):
     def spatial_interpolate_slice(self, persistent_classes: xr.DataArray, water_maps_slice: xr.DataArray, **kwargs ) -> xr.DataArray:
         dynamics_class = kwargs.get( "dynamics_class", 0 )
         tval = water_maps_slice.coords[ water_maps_slice.dims[0] ].values[0]
-        persistent_classes_slice = persistent_classes if persistent_classes.ndim == 2 \
-            else persistent_classes.sel( **{persistent_classes.dims[0]:tval}, method="nearest" ).drop_vars( persistent_classes.dims[0] )
+        persistent_classes_slice = persistent_classes if persistent_classes.ndim == 2 else persistent_classes.sel( **{persistent_classes.dims[0]:tval}, method="nearest" ).drop_vars( persistent_classes.dims[0] )
         dynamics_mask: xr.DataArray = persistent_classes_slice.isin( [dynamics_class] )
         return water_maps_slice.where( dynamics_mask, persistent_classes_slice  )
 
@@ -235,14 +242,13 @@ class WaterMapGenerator(ConfigurableObject):
         else:
             print( f"Error, can't show '{name}' data with {len(data.dims)} dimensions")
 
-    def temporal_interpolate( self, water_maps: xr.DataArray  ) -> xr.DataArray:
-        print( "Temporal Interpolate")
+    def temporal_interpolate( self, water_maps: xr.DataArray, **kwargs  ) -> xr.DataArray:
         t0 = time.time()
         nodata_mask = water_maps == 0
         water_maps = xr.where( nodata_mask, np.nan, water_maps )
-        result = water_maps.ffill( water_maps.dims[0] ).bfill( water_maps.dims[0] )
-        print(f"Done interpolate in time {time.time() - t0}")
-        return result
+        result: xr.DataArray = water_maps.ffill( water_maps.dims[0] ).bfill( water_maps.dims[0] )
+        print( f"Done interpolate in time {time.time() - t0}" )
+        return xr.where( nodata_mask, 0, result )
 
     def time_merge( cls, data_arrays: List[xr.DataArray], **kwargs ) -> xr.DataArray:
         time_axis = kwargs.get('time',None)
@@ -272,38 +278,48 @@ class WaterMapGenerator(ConfigurableObject):
         t0 = time.time()
         results_dir = kwargs.get('results_dir')
         lake_id = kwargs.get('lake_index')
-        cropped_data_file = os.path.join(results_dir, f"{lake_id}_cropped_data.nc")
-        cache = kwargs.get("cache", False)
         download = kwargs.get( 'download', True )
-        if cache==True and os.path.isfile( cropped_data_file ):
-            cropped_data_dataset: xr.Dataset = xr.open_dataset(cropped_data_file)
-            cropped_data: xr.DataArray = cropped_data_dataset.cropped_data
-        else:
-            from geoproc.data.mwp import MWPDataManager
-            from geoproc.xext.xrio import XRio
-            source_spec = kwargs.get('source')
-            data_url = source_spec.get('url')
-            product = source_spec.get('product')
-            locations = source_spec.get( 'location', self.infer_tile_locations() )
-            if not locations: return None
 
-            year_range = kwargs.get('year_range')
-            day_range = kwargs.get('day_range',[0,365])
-            dataMgr = MWPDataManager(results_dir, data_url)
+        from geoproc.data.mwp import MWPDataManager
+        from geoproc.xext.xrio import XRio
+        source_spec = kwargs.get('source')
+        data_url = source_spec.get('url')
+        product = source_spec.get('product')
+        locations = source_spec.get( 'location', self.infer_tile_locations() )
+        if not locations: return None
 
+        year_range = kwargs.get('year_range')
+        day_range = kwargs.get('day_range',[0,365])
+        dataMgr = MWPDataManager(results_dir, data_url)
+
+        cropped_tiles: Dict[str,xr.DataArray] = {}
+        for location in locations:
             dataMgr.setDefaults(product=product, download=download, years=range(int(year_range[0]),int(year_range[1])+1), start_day=int(day_range[0]), end_day=int(day_range[1]))
             file_paths = dataMgr.get_tile(location)
             time_values = np.array([ self.get_date_from_filename(os.path.basename(path)) for path in file_paths], dtype='datetime64[ns]')
-            cropped_data: xr.DataArray = XRio.load( file_paths, mask=self.roi_bounds, band=0, mask_value=self.mask_value, index=time_values )
-            if cache in [True,"update"]:
-                cropped_data_dset = xr.Dataset(dict(cropped_data=sanitize(cropped_data)))
-                cropped_data_dset.to_netcdf(cropped_data_file)
-                print(f"Cached cropped_data to {cropped_data_file}")
+            cropped_tiles[location] =  XRio.load( file_paths, mask=self.roi_bounds, band=0, mask_value=self.mask_value, index=time_values )
 
+        cropped_data = self.merge_tiles( cropped_tiles)
         cropped_data.attrs.update( roi = self.roi_bounds )
         cropped_data = cropped_data.persist()
         print(f"Done reading mpw data in time {time.time()-t0}")
         return cropped_data
+
+    def merge_tiles(self, cropped_tiles: Dict[str,xr.DataArray] ) -> xr.DataArray:
+        lat_bins = {}
+        for (key, cropped_tile) in cropped_tiles.items():
+            lat_bins.setdefault( key[0:4], [] ).append( cropped_tile )
+        concat_tiles = [ self.merge_along_axis( sub_arrays, -2 ) for sub_arrays in lat_bins.values() ]
+        result =  self.merge_along_axis( concat_tiles, -1 )
+        return result
+
+    def merge_along_axis( self, sub_arrays: List[xr.DataArray], axis: int ) -> xr.DataArray:
+        if len( sub_arrays ) == 1:  return sub_arrays[0]
+        concat_dim = sub_arrays[0].dims[axis]
+        ccoord: xr.DataArray = sub_arrays[0].coords[concat_dim].values
+        sub_arrays.sort( reverse = (ccoord[0] > ccoord[-1]), key = lambda x: x.coords[concat_dim].values[0] )
+        result: xr.DataArray = xr.concat( sub_arrays, dim = concat_dim )
+        return result
 
     def get_opspec(self, lakeId: str ) -> Dict:
         opspec = self._opspecs.get( lakeId.lower() )
@@ -336,13 +352,15 @@ class WaterMapGenerator(ConfigurableObject):
             assert self.yearly_lake_masks is not None, "Must specify roi to locate lake"
             self.roi_bounds =  TileLocator.get_bounds( self.yearly_lake_masks[0] )
 
-    def get_patched_water_maps(self, lakeId: str, **kwargs) -> xr.DataArray:
+    def get_patched_water_maps(self, name: str, **kwargs) -> xr.DataArray:
         t0 = time.time()
-        opspec = self.get_opspec( lakeId.lower() )
+        opspec = self.get_opspec( name.lower() )
         data_dir = opspec.get('data_dir')
-        lake_id = opspec['id']
+        lake_index = opspec['lake_index']
+        lake_id = f"{name}.{lake_index}"
         patched_water_maps_file = f"{data_dir}/{lake_id}_patched_water_masks.nc"
         cache = kwargs.get("cache", False )
+        patch = kwargs.get("patch", True)
 
         if cache==True and os.path.isfile(patched_water_maps_file):
             patched_water_maps: xr.DataArray = xr.open_dataset(patched_water_maps_file).Water_Maps
@@ -352,7 +370,7 @@ class WaterMapGenerator(ConfigurableObject):
             self.get_roi_bounds( opspec )
             water_mapping_data = self.get_mpw_data( **opspec, cache="update" )
             self.water_maps: xr.DataArray =  self.get_water_maps( water_mapping_data, opspec )
-            patched_water_maps = self.patch_water_maps( opspec, **kwargs )
+            patched_water_maps = self.patch_water_maps( opspec, **kwargs ) if patch else self.water_maps
 
         if ((cache == True) and not os.path.isfile(patched_water_maps_file)) or ( cache == "update" ):
             sanitize(patched_water_maps).to_netcdf( patched_water_maps_file )
@@ -401,23 +419,23 @@ class WaterMapGenerator(ConfigurableObject):
             outfile.writelines(lines)
             print( f"Wrote results to file {outfile_path}")
 
-    def write_water_maps_from_lake_masks(self, outfile_path: str, **kwargs ):
-        from geoproc.xext.xgeo import XGeo
-        interp_water_class = kwargs.get( 'interp_water_class', 4 )
-        water_classes = kwargs.get('water_classes', [2,4] )
-        patched_water_maps: xr.DataArray = self.get_patched_water_maps( lakeId, **kwargs )
-        time_axis = patched_water_maps.coords[ patched_water_maps.dims[0] ]
-        utm_patched_water_maps: xr.DataArray = patched_water_maps.xgeo.to_utm( [250.0, 250.0] )
-        water_counts, class_proportion = self.get_class_proportion(patched_water_maps, interp_water_class, water_classes)
-        with open( outfile_path, "a" ) as outfile:
-            lines = ["date water_area_km2 percent_interploated\n"]
-            for iTime in range( utm_patched_water_maps.shape[0] ):
-                percent_interp = class_proportion.values[iTime]
-                num_water_pixels = water_counts.values[iTime]
-                date = pd.Timestamp( time_axis.values[iTime] ).to_pydatetime()
-                lines.append( f"{str(date).split(' ')[0]} {num_water_pixels/16.0:.2f} {percent_interp:.1f}\n")
-            outfile.writelines(lines)
-            print( f"Wrote results to file {outfile_path}")
+    # def write_water_maps_from_lake_masks(self, outfile_path: str, **kwargs ):
+    #     from geoproc.xext.xgeo import XGeo
+    #     interp_water_class = kwargs.get( 'interp_water_class', 4 )
+    #     water_classes = kwargs.get('water_classes', [2,4] )
+    #     patched_water_maps: xr.DataArray = self.get_patched_water_maps( lakeId, **kwargs )
+    #     time_axis = patched_water_maps.coords[ patched_water_maps.dims[0] ]
+    #     utm_patched_water_maps: xr.DataArray = patched_water_maps.xgeo.to_utm( [250.0, 250.0] )
+    #     water_counts, class_proportion = self.get_class_proportion(patched_water_maps, interp_water_class, water_classes)
+    #     with open( outfile_path, "a" ) as outfile:
+    #         lines = ["date water_area_km2 percent_interploated\n"]
+    #         for iTime in range( utm_patched_water_maps.shape[0] ):
+    #             percent_interp = class_proportion.values[iTime]
+    #             num_water_pixels = water_counts.values[iTime]
+    #             date = pd.Timestamp( time_axis.values[iTime] ).to_pydatetime()
+    #             lines.append( f"{str(date).split(' ')[0]} {num_water_pixels/16.0:.2f} {percent_interp:.1f}\n")
+    #         outfile.writelines(lines)
+    #         print( f"Wrote results to file {outfile_path}")
 
     def repatch_water_maps(self, lakeId: str, **kwargs) -> xr.DataArray:
         t0 = time.time()
@@ -443,7 +461,7 @@ class WaterMapGenerator(ConfigurableObject):
     def patch_water_maps( self, opspec: Dict, **kwargs ) -> xr.DataArray:
         self.water_probability:  xr.DataArray = self.get_water_probability( opspec, **kwargs )
         self.persistent_classes: xr.DataArray = self.get_persistent_classes( opspec, **kwargs )
-        patched_water_maps: xr.DataArray = self.interpolate().assign_attrs( **self.water_maps.attrs )
+        patched_water_maps: xr.DataArray = self.interpolate( **kwargs ).assign_attrs( **self.water_maps.attrs )
         patched_water_maps.attrs['cmap'] = dict( colors=self.get_water_map_colors() )
         return patched_water_maps.fillna( self.mask_value )
 
@@ -458,15 +476,26 @@ class WaterMapGenerator(ConfigurableObject):
         class_population = (class_map == target_class).sum( dim=sdims )
         return ( total_relevant_population,  ( class_population / total_relevant_population ) * 100 )
 
-    def view_water_map_results(self, lake_id: str, **kwargs ):
+    def view_water_map_results(self, name: str, **kwargs ):
         from geoproc.plot.animation import SliceAnimation
         interp_water_class = kwargs.get( 'interp_water_class', 4 )
         water_classes = kwargs.get('water_classes', [2,4] )
-        water_maps =  self.get_cached_water_maps(  lake_id )
-        patched_water_maps = self.get_patched_water_maps( lake_id, cache=True )
+        patched_water_maps = self.get_patched_water_maps( name, **kwargs )
         water_counts, class_proportion = self.get_class_proportion( patched_water_maps, interp_water_class, water_classes )
-        animation = SliceAnimation( patched_water_maps, metrics=dict(blue=class_proportion), auxplot=water_maps )
+        animation = SliceAnimation( patched_water_maps, metrics=dict(blue=class_proportion) )
         animation.show()
+
+    def view_input_data(self, name: str, **kwargs ):
+        from geoproc.plot.animation import SliceAnimation
+        agg = kwargs.get( "agg", False )
+        opspec = self.get_opspec( name.lower() )
+        self.get_roi_bounds(opspec)
+        water_mapping_data = self.get_mpw_data( **opspec, cache="update" )
+        result = water_mapping_data if not agg else self.get_water_maps( water_mapping_data, opspec )
+        result.attrs['cmap'] = dict( colors=self.get_input_colors() )
+        animation = SliceAnimation( result )
+        animation.show()
+
 
 if __name__ == '__main__':
     from geoproc.plot.animation import SliceAnimation
