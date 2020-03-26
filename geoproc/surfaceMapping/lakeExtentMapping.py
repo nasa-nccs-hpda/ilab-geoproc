@@ -176,6 +176,7 @@ class WaterMapGenerator(ConfigurableObject):
             centroid_indices = list(range(binSize//2, bin_indices[-1], binSize))
             time_axis = data_array.coords[ data_array.dims[0] ].values
             time_bins = np.array( [ time_axis[iT] for iT in bin_indices ], dtype='datetime64[ns]' )
+            print( f"{data_array.shape} {data_array.dims} {time_bins.shape}")
             grouped_data: DatasetGroupBy = data_array.groupby_bins( data_array.dims[0], time_bins, right = False )
             get_water_map_partial = functools.partial( self.get_water_map, water_maps_opspec )
             water_maps_dset:  xr.Dataset = grouped_data.map( get_water_map_partial )
