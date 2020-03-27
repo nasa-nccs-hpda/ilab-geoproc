@@ -7,7 +7,7 @@ Geoprocessing routines for Earth Science Applications
 ```
 >> conda create --name geoproc
 >> conda activate geoproc
-(geoproc)>> conda install -c conda-forge xarray dask distributed matplotlib numpy geopandas descartes utm shapely regionmask iris rasterio
+(geoproc)>> conda install -c conda-forge xarray dask distributed matplotlib numpy geopandas descartes utm shapely regionmask iris rasterio cligj bottleneck
 (geoproc)>> pip install wget
 
 ```

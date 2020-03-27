@@ -9,5 +9,8 @@ shapely
 regionmask
 rioxarray
 rasterio
+wget
+cligj
+bottleneck
 
 
