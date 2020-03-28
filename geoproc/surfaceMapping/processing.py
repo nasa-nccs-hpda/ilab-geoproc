@@ -10,6 +10,7 @@ class LakeMaskProcessor:
     def __init__( self, opspecs: Dict, **kwargs ):
         self._opspecs = { key.lower(): value for key,value in opspecs.items() }
         self._defaults = self._opspecs.get( "defaults", None )
+        self.waterMapGenerator = None
 
     def process_lakes(self) -> Dict[ int, List[ xr.DataArray ] ]:
         year_range = self._defaults['year_range']
@@ -48,6 +49,7 @@ class LakeMaskProcessor:
             except Exception as err:
                 print( f"Skipping lake {lake_index} due to errors ")
                 traceback.print_exc()
+                self.write_result_report( lake_index, traceback.format_exc() )
 
         return results
 
@@ -62,6 +64,12 @@ class LakeMaskProcessor:
         from geoproc.surfaceMapping.lakeExtentMapping import WaterMapGenerator
         waterMapGenerator = WaterMapGenerator( { 'lake_index': lake_index, **self._defaults } )
         return waterMapGenerator.process_yearly_lake_masks( lake_index, mask_files )
+
+    def write_result_report( self, lake_index, report: str ):
+        results_dir = self._defaults.get('results_dir')
+        file_path = f"{results_dir}/lake_{lake_index}_task_report.txt"
+        with open( file_path, "a" ) as file:
+            file.write( report )
 
     def fuzzy_where( cond: xr.DataArray, x, y, join="left" ) -> xr.DataArray:
         from xarray.core import duck_array_ops

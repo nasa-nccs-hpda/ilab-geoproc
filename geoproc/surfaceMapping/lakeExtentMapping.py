@@ -381,6 +381,12 @@ class WaterMapGenerator(ConfigurableObject):
         patched_water_maps.name = lake_id
         return patched_water_maps.assign_attrs( roi = self.roi_bounds )
 
+    def write_result_report( self, lake_index, report: str ):
+        results_dir = self._opspecs.get('results_dir')
+        file_path = f"{results_dir}/lake_{lake_index}_task_report.txt"
+        with open( file_path, "w" ) as file:
+            file.write( report )
+
     def process_yearly_lake_masks(self, lake_index: int,  yearly_lake_masks: xr.DataArray, **kwargs ) -> Optional[xr.DataArray]:
         results_dir = self._opspecs.get('results_dir')
         patched_water_maps_file = f"{results_dir}/lake_{lake_index}_patched_water_masks.nc"
