@@ -4,7 +4,7 @@ from shapely.geometry import *
 from typing import List, Union, Tuple, Dict, Optional
 import xarray as xr
 from glob import glob
-import functools
+import functools, traceback
 from  xarray.core.groupby import DatasetGroupBy
 from geoproc.util.configuration import sanitize, ConfigurableObject
 from geoproc.surfaceMapping.util import TileLocator
@@ -294,11 +294,18 @@ class WaterMapGenerator(ConfigurableObject):
         dataMgr = MWPDataManager(results_dir, data_url)
 
         cropped_tiles: Dict[str,xr.DataArray] = {}
+        file_paths = []
         for location in locations:
-            dataMgr.setDefaults(product=product, download=download, years=range(int(year_range[0]),int(year_range[1])+1), start_day=int(day_range[0]), end_day=int(day_range[1]))
-            file_paths = dataMgr.get_tile(location)
-            time_values = np.array([ self.get_date_from_filename(os.path.basename(path)) for path in file_paths], dtype='datetime64[ns]')
-            cropped_tiles[location] =  XRio.load( file_paths, mask=self.roi_bounds, band=0, mask_value=self.mask_value, index=time_values )
+            try:
+                dataMgr.setDefaults(product=product, download=download, years=range(int(year_range[0]),int(year_range[1])+1), start_day=int(day_range[0]), end_day=int(day_range[1]))
+                file_paths = dataMgr.get_tile(location)
+                time_values = np.array([ self.get_date_from_filename(os.path.basename(path)) for path in file_paths], dtype='datetime64[ns]')
+                cropped_tiles[location] =  XRio.load( file_paths, mask=self.roi_bounds, band=0, mask_value=self.mask_value, index=time_values )
+            except Exception as err:
+                print( f"Error reading mpw data for location {location}, file paths = {file_paths} ")
+                for file in file_paths:
+                    if not os.path.isfile( file ): print( f"   --> File {file} does not exist!")
+                traceback.print_exc()
 
         cropped_data = self.merge_tiles( cropped_tiles)
         cropped_data.attrs.update( roi = self.roi_bounds )
