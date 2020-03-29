@@ -295,6 +295,7 @@ class WaterMapGenerator(ConfigurableObject):
 
         cropped_tiles: Dict[str,xr.DataArray] = {}
         file_paths = []
+        cropped_data = None
         for location in locations:
             try:
                 dataMgr.setDefaults(product=product, download=download, years=range(int(year_range[0]),int(year_range[1])+1), start_day=int(day_range[0]), end_day=int(day_range[1]))
@@ -307,9 +308,10 @@ class WaterMapGenerator(ConfigurableObject):
                     if not os.path.isfile( file ): print( f"   --> File {file} does not exist!")
                 traceback.print_exc()
 
-        cropped_data = self.merge_tiles( cropped_tiles)
-        cropped_data.attrs.update( roi = self.roi_bounds )
-        cropped_data = cropped_data.persist()
+        if len(cropped_tiles):
+            cropped_data = self.merge_tiles( cropped_tiles)
+            cropped_data.attrs.update( roi = self.roi_bounds )
+            cropped_data = cropped_data.persist()
         print(f"Done reading mpw data in time {time.time()-t0}")
         return cropped_data
 

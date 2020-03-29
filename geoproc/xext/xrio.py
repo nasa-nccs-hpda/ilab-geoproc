@@ -1,4 +1,4 @@
-from typing import List, Union, Tuple
+from typing import List, Union, Tuple, Optional
 import xarray as xr
 import pandas as pd
 from geoproc.xext.xextension import XExtension
@@ -19,21 +19,25 @@ class XRio(XExtension):
         XExtension.__init__( self, xarray_obj )
 
     @classmethod
-    def open( cls, iFile: int, filename: str, **kwargs )-> xr.DataArray:
+    def open( cls, iFile: int, filename: str, **kwargs )-> Optional[xr.DataArray]:
         mask = kwargs.pop("mask", None)
         oargs = argfilter( kwargs, parse_coordinates = None, chunks = None, cache = None, lock = None )
-        result: xr.DataArray = rioxarray.open_rasterio( filename, **oargs )
-        band = kwargs.pop( 'band', -1 )
-        if band >= 0:
-            result = result.isel( band=band, drop=True )
-#        result.encoding = dict( dtype = str(result.dtype) )
-        if mask is None: return result
-        elif isinstance( mask, list ):
-            return result.xrio.subset( iFile, mask[:2], mask[2:] )
-        elif isinstance( mask, GeoDataFrame ):
-            return result.xrio.clip( mask, **kwargs )
-        else:
-            raise Exception( f"Unrecognized mask type: {mask.__class__.__name__}")
+        try:
+            result: xr.DataArray = rioxarray.open_rasterio( filename, **oargs )
+            band = kwargs.pop( 'band', -1 )
+            if band >= 0:
+                result = result.isel( band=band, drop=True )
+    #        result.encoding = dict( dtype = str(result.dtype) )
+            if mask is None: return result
+            elif isinstance( mask, list ):
+                return result.xrio.subset( iFile, mask[:2], mask[2:] )
+            elif isinstance( mask, GeoDataFrame ):
+                return result.xrio.clip( mask, **kwargs )
+            else:
+                raise Exception( f"Unrecognized mask type: {mask.__class__.__name__}")
+        except Exception as err:
+            print( f"XRio Error opening file {filename}: {err}")
+            return None
 
     def subset(self, iFile: int, xbounds: List, ybounds: List )-> xr.DataArray:
         from geoproc.surfaceMapping.util import TileLocator
@@ -61,7 +65,6 @@ class XRio(XExtension):
         for iF, file in enumerate(filePaths):
             data_array: xr.DataArray = cls.open( iF, file, **kwargs )
             if data_array is not None:
- #               crs = data_array.spatial_ref.crs_wkt
                 array_list.append( data_array )
         if merge and (len(array_list) > 1):
             assert cls.mergable( array_list ), f"Attempt to merge arrays with different shapes: {[ str(arr.shape) for arr in array_list ]}"
