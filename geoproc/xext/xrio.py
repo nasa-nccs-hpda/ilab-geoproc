@@ -70,7 +70,7 @@ class XRio(XExtension):
             else:
                 index_mask[iF] = False
         if merge and (len(array_list) > 1):
-            assert cls.mergable( array_list ), f"Attempt to merge arrays with different shapes: {[ str(arr.shape) for arr in array_list ]}"
+            assert cls.mergable( array_list ), f"Attempt   to merge arrays with different shapes: {[ str(arr.shape) for arr in array_list ]}"
             result = cls.merge( array_list, index_mask=index_mask, **kwargs )
             return result
         return array_list if (len(array_list) > 1) else array_list[0]
