@@ -62,13 +62,16 @@ class XRio(XExtension):
         merge = kwargs.pop('merge', True)
         if isinstance( filePaths, str ): filePaths = [ filePaths ]
         array_list: List[xr.DataArray] = []
+        index_mask = np.full( [len(filePaths)], True )
         for iF, file in enumerate(filePaths):
             data_array: xr.DataArray = cls.open( iF, file, **kwargs )
             if data_array is not None:
                 array_list.append( data_array )
+            else:
+                index_mask[iF] = False
         if merge and (len(array_list) > 1):
             assert cls.mergable( array_list ), f"Attempt to merge arrays with different shapes: {[ str(arr.shape) for arr in array_list ]}"
-            result = cls.merge( array_list, **kwargs )
+            result = cls.merge( array_list, index_mask=index_mask, **kwargs )
             return result
         return array_list if (len(array_list) > 1) else array_list[0]
 
@@ -104,7 +107,9 @@ class XRio(XExtension):
     @classmethod
     def merge( cls, data_arrays: List[xr.DataArray], **kwargs ) -> xr.DataArray:
         new_axis_name = kwargs.get('axis','time')
-        new_axis_values = kwargs.get('index', range( len(data_arrays) ) )
+        index_mask = kwargs.get('index_mask', None )
+        index = kwargs.get('index', None )
+        new_axis_values = range( len(data_arrays) ) if index is None else index if index_mask is None else np.extract( index_mask, index )
         merge_coord = pd.Index( new_axis_values, name=new_axis_name )
         result: xr.DataArray =  xr.concat( data_arrays, merge_coord )
         return result
