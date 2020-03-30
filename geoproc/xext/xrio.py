@@ -38,7 +38,9 @@ class XRio(XExtension):
                 raise Exception( f"Unrecognized mask type: {mask.__class__.__name__}")
         except Exception as err:
             print( f"XRio Error opening file {filename}: {err}")
-            if kill_zombies: os.remove( filename )
+            if kill_zombies:
+                print(f"Deleting erroneous file")
+                os.remove( filename )
             return None
 
     def subset(self, iFile: int, xbounds: List, ybounds: List )-> xr.DataArray:
