@@ -21,6 +21,7 @@ class XRio(XExtension):
     @classmethod
     def open( cls, iFile: int, filename: str, **kwargs )-> Optional[xr.DataArray]:
         mask = kwargs.pop("mask", None)
+        kill_zombies = kwargs.pop( "kill_zombies", False )
         oargs = argfilter( kwargs, parse_coordinates = None, chunks = None, cache = None, lock = None )
         try:
             result: xr.DataArray = rioxarray.open_rasterio( filename, **oargs )
@@ -37,6 +38,7 @@ class XRio(XExtension):
                 raise Exception( f"Unrecognized mask type: {mask.__class__.__name__}")
         except Exception as err:
             print( f"XRio Error opening file {filename}: {err}")
+            if kill_zombies: os.remove( filename )
             return None
 
     def subset(self, iFile: int, xbounds: List, ybounds: List )-> xr.DataArray:
