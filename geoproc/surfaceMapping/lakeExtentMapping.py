@@ -170,13 +170,13 @@ class WaterMapGenerator(ConfigurableObject):
         if cache==True and os.path.isfile( water_maps_file ):
             water_maps_dset: xr.Dataset = xr.open_dataset(water_maps_file)
         else:
+            time_axis = kwargs.get("time", data_array.coords[data_array.dims[0]].values)
             water_maps_opspec = opspec.get('water_maps',{})
             binSize = water_maps_opspec.get( 'bin_size', 8 )
-            bin_indices = list(range( 0, data_array.shape[0], binSize ))
+            bin_indices = list(range( 0, time_axis.shape[0], binSize ))
             centroid_indices = list(range(binSize//2, bin_indices[-1], binSize))
-            time_axis = data_array.coords[ data_array.dims[0] ].values
             time_bins = np.array( [ time_axis[iT] for iT in bin_indices ], dtype='datetime64[ns]' )
-            print( f"{data_array.shape} {data_array.dims} {time_bins.shape}")
+            print( f"get_water_maps: data_array.shape={data_array.shape},  data_array.dims={data_array.dims},  time_bins.shape={time_bins.shape}")
             grouped_data: DatasetGroupBy = data_array.groupby_bins( data_array.dims[0], time_bins, right = False )
             get_water_map_partial = functools.partial( self.get_water_map, water_maps_opspec )
             water_maps_dset:  xr.Dataset = grouped_data.map( get_water_map_partial )
@@ -274,7 +274,7 @@ class WaterMapGenerator(ConfigurableObject):
                 return TileLocator.infer_tiles_gpd( self.roi_bounds )
         raise Exception( "Must supply either source.location, roi, or lake masks in order to locate region")
 
-    def get_mpw_data(self, **kwargs ) -> Optional[xr.DataArray]:
+    def get_mpw_data(self, **kwargs ) -> Tuple[Optional[xr.DataArray],Optional[ np.array]]:
         print( "reading mpw data")
         t0 = time.time()
         results_dir = kwargs.get('results_dir')
@@ -295,6 +295,7 @@ class WaterMapGenerator(ConfigurableObject):
 
         cropped_tiles: Dict[str,xr.DataArray] = {}
         file_paths = []
+        time_values = None
         cropped_data = None
         for location in locations:
             try:
@@ -313,7 +314,7 @@ class WaterMapGenerator(ConfigurableObject):
             cropped_data.attrs.update( roi = self.roi_bounds )
             cropped_data = cropped_data.persist()
         print(f"Done reading mpw data in time {time.time()-t0}")
-        return cropped_data
+        return cropped_data, time_values
 
     def merge_tiles(self, cropped_tiles: Dict[str,xr.DataArray] ) -> xr.DataArray:
         lat_bins = {}
@@ -401,7 +402,7 @@ class WaterMapGenerator(ConfigurableObject):
         patched_water_maps_file = f"{results_dir}/lake_{lake_index}_patched_water_masks.nc"
         y_coord, x_coord = yearly_lake_masks.coords[ yearly_lake_masks.dims[-2]].values, yearly_lake_masks.coords[yearly_lake_masks.dims[-1]].values
         self.roi_bounds = [x_coord[0], x_coord[-1], y_coord[0], y_coord[-1]]
-        water_mapping_data: Optional[xr.DataArray] = self.get_mpw_data( **self._opspecs )
+        (water_mapping_data, time_values) = self.get_mpw_data( **self._opspecs )
         if water_mapping_data is None: return None
         wmd_y_coord, wmd_x_coord = water_mapping_data.coords[ water_mapping_data.dims[-2]].values, water_mapping_data.coords[water_mapping_data.dims[-1]].values
         self.roi_bounds = [x_coord[0], x_coord[-1], y_coord[0], y_coord[-1]]
@@ -410,7 +411,7 @@ class WaterMapGenerator(ConfigurableObject):
         print( f"process_yearly_lake_masks: water_mapping_data shape = {water_mapping_data.shape}, yearly_lake_masks shape = {yearly_lake_masks.shape}")
         print(f"yearly_lake_masks roi_bounds = {self.roi_bounds}")
         print(f"wmd roi bounds = {wmd_roi_bounds}, wmd dims = {water_mapping_data.dims}")
-        self.water_maps: xr.DataArray =  self.get_water_maps( water_mapping_data, self._opspecs )
+        self.water_maps: xr.DataArray =  self.get_water_maps( water_mapping_data, self._opspecs, time=time_values )
         patched_water_maps = self.patch_water_maps( self._opspecs, **kwargs )
         patched_water_maps.name = f"Lake {lake_index}"
         sanitize(patched_water_maps).to_netcdf( patched_water_maps_file )
