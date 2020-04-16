@@ -2,11 +2,12 @@ import matplotlib.pyplot as plt
 import datetime, math
 import numpy as np
 from geoproc.covid.smooth import smooth
+from geoproc.covid.cvgrowth import infection_data
 
 d0 = datetime.datetime(2020,3,7)
 dr = 3.0
 npoints = 15
-infection_data = [ 297, 423, 647, 937, 1215, 1629, 1896, 2234, 3487, 4226, 7038, 10442, 15219, 18747, 24583, 33404, 44183, 54453, 68440, 85356, 103321, 122653, 140904, 163539, 186101, 213144, 239279 ]
+
 
 def gf( y0, y1 ):
     return math.log( y1/y0, 2.0 )

@@ -20,7 +20,7 @@ class AvirisWarp:
         p.close()
 
     def process_file(self, input_file: str ):
-        args = [ 'gdalwarp', input_file, self.output_file_path(input_file)  ]
+        args = [ 'gdalwarp', '-co', 'GTiff', '-co', 'COMPRESS=LZW', '-co', 'BIGTIFF=YES', input_file, self.output_file_path(input_file) ]
         t0 = time.time()
         rv = subprocess.call(args)
 
