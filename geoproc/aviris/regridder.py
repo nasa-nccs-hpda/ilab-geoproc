@@ -54,7 +54,7 @@ def main(argv):
         kwargs['np'] = argv[3]
 
     awarp = AvirisWarp( output_dir )
-    awarp.process_files( files_glob.strip('"').strip("'"), **kwargs )
+    awarp.process_files( files_glob.strip('\"').strip("\'"), **kwargs )
 
 
 
