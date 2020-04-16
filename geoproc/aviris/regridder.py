@@ -15,18 +15,24 @@ class AvirisWarp:
     def process_files( self, files_glob: str, **kwargs ):
         files_list = glob(files_glob)
         nproc = kwargs.get('np', cpu_count() )
+        print( f"Using {nproc} processors to process the files {files_list}")
         p = Pool( processes=nproc )
         p.map( self.process_file, files_list )
         p.close()
 
     def process_file(self, input_file: str ):
-        args = [ 'gdalwarp', '-co', 'GTiff', '-co', 'COMPRESS=LZW', '-co', 'BIGTIFF=YES', input_file, self.output_file_path(input_file) ]
+        globallock.acquire()
+        print( f"Processing file '{input_file}'" )
+        globallock.release()
+        output_file = self.output_file_path(input_file)
         t0 = time.time()
+
+        args = [ 'gdalwarp', '-co', 'GTiff', '-co', 'COMPRESS=LZW', '-co', 'BIGTIFF=YES', input_file, output_file ]
         rv = subprocess.call(args)
 
         globallock.acquire()
-        if rv == 0:    print( f"File '{input_file}' processed in {(time.time()-t0)/60.0:.2f} minutes." )
-        else:          print( "Error when processing file '{}'".format(input_file) )
+        if rv == 0:    print( f"File '{output_file}' generated in {(time.time()-t0)/60.0:.2f} minutes." )
+        else:          print( f"Error when processing file '{input_file}'" )
         globallock.release()
 
     def output_file_path(self, input_file: str ):
