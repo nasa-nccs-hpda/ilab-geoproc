@@ -15,7 +15,7 @@ class AvirisWarp:
     def process_files( self, files_glob: str, **kwargs ):
         files_list = glob(files_glob)
         nproc = kwargs.get('np', cpu_count() )
-        print( f"Using {nproc} processors to process the files {files_list}")
+        print( f"Using {nproc} processors to process the files {files_list} from the glob '{files_glob}'")
         p = Pool( processes=nproc )
         p.map( self.process_file, files_list )
         p.close()
