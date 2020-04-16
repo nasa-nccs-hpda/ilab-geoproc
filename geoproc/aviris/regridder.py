@@ -28,7 +28,7 @@ class AvirisWarp:
         output_file = self.output_file_path(input_file)
         t0 = time.time()
 
-        args = [ 'gdalwarp', '-co', 'GTiff', '-co', 'COMPRESS=LZW', '-co', 'BIGTIFF=YES', input_file, output_file ]
+        args = [ 'gdalwarp', '-co', 'COMPRESS=LZW', '-co', 'BIGTIFF=YES', input_file, output_file ]
         rv = subprocess.call(args)
 
         globallock.acquire()
@@ -54,7 +54,7 @@ def main(argv):
         kwargs['np'] = argv[3]
 
     awarp = AvirisWarp( output_dir )
-    awarp.process_files( files_glob.strip('\"').strip("\'"), **kwargs )
+    awarp.process_files( files_glob.replace('"', ''), **kwargs )
 
 
 
