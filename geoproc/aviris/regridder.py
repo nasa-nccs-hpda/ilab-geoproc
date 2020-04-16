@@ -13,7 +13,7 @@ class AvirisWarp:
         self.outputDir = outputDir
 
     def process_files( self, files_glob: str, **kwargs ):
-        files_list = glob(files_glob.strip('"').strip("'"))
+        files_list = glob(files_glob)
         nproc = kwargs.get('np', cpu_count() )
         print( f"Using {nproc} processors to process the files {files_list} from the glob '{files_glob}'")
         p = Pool( processes=nproc )
@@ -54,7 +54,7 @@ def main(argv):
         kwargs['np'] = argv[3]
 
     awarp = AvirisWarp( output_dir )
-    awarp.process_files( files_glob, **kwargs )
+    awarp.process_files( files_glob.strip('"').strip("'"), **kwargs )
 
 
 
