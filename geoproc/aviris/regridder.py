@@ -19,6 +19,7 @@ class AvirisWarp:
         p = Pool( processes=nproc )
         p.map( self.process_file, files_list )
         p.close()
+        p.join()
 
     def process_file(self, input_file: str ):
         globallock.acquire()
