@@ -62,6 +62,7 @@ def main(argv):
         print( "Usage: {} <files_glob> <output_dir> [ <nproc> ]".format(binary) )
         sys.exit(0)
 
+    t0 = time.time()
     kwargs = {}
     files_glob = argv[1]
     output_dir = argv[2]
@@ -70,8 +71,7 @@ def main(argv):
 
     awarp = AvirisWarp( output_dir )
     awarp.process_files( files_glob.replace('"', ''), **kwargs )
-
-
+    print( f"Files processed in {(time.time()-t0)/60.0:.2f} minutes to output-dir {output_dir}.")
 
 if __name__ == '__main__':
     main(sys.argv)
