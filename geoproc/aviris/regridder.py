@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 from glob import glob
-import sys, time
+from typing import Dict, List, Tuple, Union, Optional
+import sys, time, shutil
 import subprocess
 from multiprocessing import Pool, Lock, cpu_count
 import os.path
@@ -25,21 +26,35 @@ class AvirisWarp:
         globallock.acquire()
         print( f"Processing file '{input_file}'" )
         globallock.release()
-        output_file = self.output_file_path(input_file)
+        input_dir, output_dir, output_file = self.get_file_paths(input_file)
+        self.copy_files( f"input_dir/*README*", output_dir )
         t0 = time.time()
 
-        args = [ 'gdalwarp', '-co', 'COMPRESS=LZW', '-co', 'BIGTIFF=YES', input_file, output_file ]
+        args = [ 'gdalwarp', '-co', 'COMPRESS=LZW', '-co', 'BIGTIFF=YES', input_file, os.path.join( output_dir, output_file ) ]
         rv = subprocess.call(args)
 
         globallock.acquire()
-        if rv == 0:    print( f"File '{output_file}' generated in {(time.time()-t0)/60.0:.2f} minutes." )
+        if rv == 0:    print( f"File '{output_file}' generated in {(time.time()-t0)/60.0:.2f} minutes in output-dir {output_dir}." )
         else:          print( f"Error when processing file '{input_file}'" )
         globallock.release()
 
-    def output_file_path(self, input_file: str ):
+    def get_file_paths( self, input_file: str ) -> Tuple[str,str,str]:
         infile_dir, infile_name = os.path.split(input_file)
+        base1, dir1 = os.path.split(infile_dir)
+        base0, dir0 = os.path.split(base1)
         ofile_name = infile_name[:-4] if infile_name.endswith("_img") else infile_name
-        return  os.path.join( self.outputDir, ofile_name + ".tif" )
+        ifile_outputdir = os.path.join( self.outputDir, dir0, dir1 )
+        os.makedirs( ifile_outputdir, mode=0o777, exist_ok=True )
+        return  infile_dir, ifile_outputdir, ofile_name + ".tif"
+
+    def copy_files(self, files_glob, output_dir ):
+        files_list = glob(files_glob)
+        for ifile in files_list:
+            infile_dir, infile_name = os.path.split( ifile )
+            ofile = os.path.join( output_dir, infile_name )
+            if not os.path.isfile( ofile ):
+                print( f"Copying file {infile_name} to dir {output_dir}")
+                shutil.copyfile( ifile, ofile )
 
 def main(argv):
     if len(argv) < 3:
