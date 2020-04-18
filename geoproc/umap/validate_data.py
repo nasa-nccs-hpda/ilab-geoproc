@@ -19,4 +19,5 @@ print( f"Testing bands for file {input_file}")
 for ib in range(1,400,10):
     band: xa.DataArray= input_data.isel( band = ib )
     band: xa.DataArray = band.where( band != nodata_value )
-    print( f" {ib}: {band.count().data}" )
+    ndcnt = band.count().data
+    print( f" {ib}: count = {ndcnt}, shape = {band.shape}, size = {band.size}, dims = {band.dims}, %ND = {(ndcnt/band.size)*100:.2f}" )
