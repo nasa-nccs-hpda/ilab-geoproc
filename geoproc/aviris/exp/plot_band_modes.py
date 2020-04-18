@@ -4,9 +4,9 @@ from typing import List, Union, Tuple, Optional
 import os, math
 from geoproc.aviris.manager import AvirisDataManager
 
-DATA_DIR = "/Users/tpmaxwel/Dropbox/Tom/Data/Aviris"
+DATA_DIR = "/Users/tpmaxwel/Dropbox/Tom/Data/Aviris/processed/"
 outDir = "/Users/tpmaxwel/Dropbox/Tom/InnovationLab/results/Aviris"
-aviris_tile = "ang20170714t213741"
+aviris_tile = "ang20170701t182520"
 n_input_bands = 106
 plot_pca = False
 plot_ica = True
