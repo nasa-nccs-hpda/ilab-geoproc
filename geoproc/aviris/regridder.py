@@ -30,7 +30,7 @@ class AvirisWarp:
         self.copy_files( f"input_dir/*README*", output_dir )
         t0 = time.time()
 
-        args = [ 'gdalwarp', '-co', 'COMPRESS=LZW', '-co', 'BIGTIFF=YES', '-co', 'TILED=YES', input_file, os.path.join( output_dir, output_file ) ]
+        args = [ 'gdalwarp', '-co', 'COMPRESS=LZW', '-co', 'BIGTIFF=YES', input_file, os.path.join( output_dir, output_file ) ]
         rv = subprocess.call(args)
 
         globallock.acquire()
