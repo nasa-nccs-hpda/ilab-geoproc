@@ -7,7 +7,7 @@ import os, math
 
 class AvirisDataManager:
 
-    def __init__(self, nbands: int, name = "band_data" ):
+    def __init__(self, nbands: int = -1, name = "band_data" ):
         self.nbands = nbands
         self.name = name
 

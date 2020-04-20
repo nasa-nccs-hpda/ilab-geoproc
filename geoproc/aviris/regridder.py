@@ -22,21 +22,28 @@ class AvirisWarp:
         p.close()
         p.join()
 
-    def process_file(self, input_file: str ):
-        globallock.acquire()
-        print( f"Processing file '{input_file}'" )
-        globallock.release()
+    def process_file( self, input_file: str ):
         input_dir, output_dir, output_file = self.get_file_paths(input_file)
-        self.copy_files( f"input_dir/*README*", output_dir )
-        t0 = time.time()
+        output_file_path = os.path.join( output_dir, output_file )
+        if os.path.isfile( output_file_path ):
+            globallock.acquire()
+            print( f"Skipping file {input_file}: Processed file already exists at {output_file_path}")
+            globallock.release()
+        else:
+            globallock.acquire()
+            print(f"Processing file '{input_file}'")
+            globallock.release()
 
-        args = [ 'gdalwarp', '-co', 'COMPRESS=LZW', '-co', 'BIGTIFF=YES', input_file, os.path.join( output_dir, output_file ) ]
-        rv = subprocess.call(args)
+            self.copy_files( f"input_dir/*README*", output_dir )
+            t0 = time.time()
 
-        globallock.acquire()
-        if rv == 0:    print( f"File '{output_file}' generated in {(time.time()-t0)/60.0:.2f} minutes in output-dir {output_dir}." )
-        else:          print( f"Error when processing file '{input_file}'" )
-        globallock.release()
+            args = [ 'gdalwarp', '-co', 'COMPRESS=LZW', '-co', 'BIGTIFF=YES', input_file, output_file_path ]
+            rv = subprocess.call(args)
+
+            globallock.acquire()
+            if rv == 0:    print( f"File '{output_file}' generated in {(time.time()-t0)/60.0:.2f} minutes in output-dir {output_dir}." )
+            else:          print( f"Error when processing file '{input_file}'" )
+            globallock.release()
 
     def get_file_paths( self, input_file: str ) -> Tuple[str,str,str]:
         infile_dir, infile_name = os.path.split(input_file)

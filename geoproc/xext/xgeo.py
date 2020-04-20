@@ -9,6 +9,9 @@ from geoproc.data.grid import GDALGrid
 from shapely.geometry import Polygon
 import xarray as xr, regionmask, utm
 from geoproc.xext.xextension import XExtension
+import rasterio
+from rasterio import Affine as A
+from rasterio.warp import reproject, Resampling, transform, calculate_default_transform
 
 @xr.register_dataarray_accessor('xgeo')
 class XGeo(XExtension):
@@ -77,7 +80,7 @@ class XGeo(XExtension):
         result.attrs['resolution'] = resolution
         return result
 
-    def reproject( self, **kwargs ) -> xr.DataArray:
+    def gdal_reproject( self, **kwargs ) -> xr.DataArray:
         sref = osr.SpatialReference()
         proj4 = kwargs.get( 'proj4', None )
         espg =  kwargs.get( 'espg',  4326 )
@@ -88,6 +91,45 @@ class XGeo(XExtension):
         result =  rGdalGrid.xarray( f"{self._obj.name}" )
         result.attrs['SpatialReference'] = sref
         return result
+
+    def reproject( self, **kwargs ) -> xr.DataArray:
+        sref = osr.SpatialReference()
+        proj4 = kwargs.get( 'proj4', None )
+        espg =  kwargs.get( 'espg',  4326 )
+        if proj4 is not None:  sref.ImportFromProj4( proj4 )
+        else:                  sref.ImportFromEPSG( espg )
+        with rasterio.Env():
+            src_shape = self._obj.shape
+            src_transform = self._obj.transform
+            src_crs = self._crs
+            source: np.ndarray = self._obj.data
+            xaxis = self._obj.coords[ self._obj.dims[1] ]
+            yaxis = self._obj.coords[ self._obj.dims[0] ]
+
+            dst_shape = src_shape
+            dst_crs =  {'init': 'EPSG:4326'}
+            dst_transform = calculate_default_transform( src_crs, dst_crs, dst_shape[1], dst_shape[0],
+                                                         left=src_transform[2],
+                                                         bottom=src_transform[5] + src_transform[3]*dst_shape[1] + src_transform[4]*dst_shape[0],
+                                                         right= src_transform[2] + src_transform[0]*dst_shape[1] + src_transform[1]*dst_shape[0],
+                                                         top=src_transform[5])
+            destination = np.zeros(dst_shape, np.uint8)
+
+            reproject(
+                source,
+                destination,
+                src_transform=src_transform,
+                src_crs=src_crs,
+                dst_transform=dst_transform,
+                dst_crs=dst_crs,
+                resampling=Resampling.nearest)
+
+            lons, lats = transform( src_crs, dst_crs, xaxis, yaxis )
+
+            result = xr.DataArray( destination, dims=['lat','lon'], coords = dict(lat=lats,lon=lons) )
+            result.attrs['transform'] = dst_transform
+            result.attrs['crs'] = dst_crs
+            return result
 
     @property
     def geographic_sref(self):

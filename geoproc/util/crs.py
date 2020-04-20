@@ -1,6 +1,5 @@
 import math, utm, os
 import xarray as xa
-infile_dir
 from osgeo import gdal, gdalconst, ogr, osr
 from geoproc.util.configuration import ConfigurableObject
 
