@@ -37,7 +37,7 @@ print( f"Completed map load in {(t1-t0)} sec, Now transforming data")
 if ndims == 2:
     datashade_points( mapper.embedding_, values = color_data.values, vrange = [ 0, 10 ], cmap="jet" )
 else:
-    point_cloud_3d( mapper.embedding_, values = color_data.values, cmap="jet", vrange = [ 0, 10 ] )
+    point_cloud_3d( mapper.embedding_, values = color_data.values, cmap="jet", vrange = [ -10, 10 ] )
 
 
 

@@ -2,6 +2,7 @@
 from glob import glob
 from typing import Dict, List, Tuple, Union, Optional
 import sys, time, shutil
+import xarray as xa
 import subprocess
 from multiprocessing import Pool, Lock, cpu_count
 import os.path
@@ -12,6 +13,14 @@ class AvirisWarp:
 
     def __init__(self, outputDir: str):
         self.outputDir = outputDir
+
+    def needs_processing(self, output_file ) -> bool:
+        try:
+            test_data = xa.open_rasterio(output_file)
+        except:
+            if os.path.isfile(output_file): os.remove(output_file)
+            return True
+        return False
 
     def process_files( self, files_glob: str, **kwargs ):
         files_list = glob(files_glob)
@@ -25,7 +34,7 @@ class AvirisWarp:
     def process_file( self, input_file: str ):
         input_dir, output_dir, output_file = self.get_file_paths(input_file)
         output_file_path = os.path.join( output_dir, output_file )
-        if os.path.isfile( output_file_path ):
+        if not self.needs_processing( output_file_path ):
             globallock.acquire()
             print( f"Skipping file {input_file}: Processed file already exists at {output_file_path}")
             globallock.release()

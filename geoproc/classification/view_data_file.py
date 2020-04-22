@@ -24,7 +24,7 @@ band_data: xa.DataArray = read( input_file, iband )
 
 print( f"{band_data.min()} {band_data.max()}")
 
-band_data.plot.imshow( cmap="jet", vmin=0, vmax = 10 )
+band_data.plot.imshow( cmap="jet", vmin=-10, vmax = 10 )
 plt.show()
 
 # training_data: xa.DataArray = restructure_for_training( bands, 250 )
