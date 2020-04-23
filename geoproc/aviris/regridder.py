@@ -22,8 +22,19 @@ class AvirisWarp:
             return True
         return False
 
+    def get_unprocessed_filepaths(self, files_glob: str ) -> List[str]:
+        filelist = glob( files_glob )
+        filtered_file_list = []
+        for input_file in filelist:
+            input_dir, output_dir, output_file = self.get_file_paths(input_file)
+            output_file_path = os.path.join(output_dir, output_file)
+            if self.needs_processing(output_file_path):
+                filtered_file_list.append( input_file )
+        print( f"Processing {len(filtered_file_list)} files out of {len(filelist)}, files requiring processing = {[os.path.basename(f) for f in filelist]}")
+        return filtered_file_list
+
     def process_files( self, files_glob: str, **kwargs ):
-        files_list = glob(files_glob)
+        files_list = self.get_unprocessed_filepaths( files_glob )
         nproc = kwargs.get('np', cpu_count() )
         print( f"Using {nproc} processors to process {len(files_list)} files from the glob '{files_glob}'")
         p = Pool( processes=nproc )
