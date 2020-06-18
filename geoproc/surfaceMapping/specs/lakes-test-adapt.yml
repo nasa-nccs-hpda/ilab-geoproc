@@ -5,9 +5,9 @@ defaults:
     day_range: [ 0, 360 ]
     water_class_thresholds: [ 0.02, 0.93 ]
     lake_masks:
-        basedir: "/att/pubrepo/ILAB/projects/Birkett/MOD44W"
-        subdir: "lakes_{year}"
-        file: "lake{lake_index}_MOD44W_{year}_C6.tif"
+        basedir: "/att/pubrepo/ILAB/projects/Birkett/MOD44W/lakes_lat_lon/"
+        subdir: "{year}"
+        file: "{lake_index}_{year}.tif"
         lake_index_range: [0,10]
         mask: 3
         water: 1
