@@ -423,7 +423,7 @@ class WaterMapGenerator(ConfigurableObject):
         print( f"Saving patched_water_maps for lake {lake_index} to {patched_water_maps_file}")
         return patched_water_maps.assign_attrs( roi = self.roi_bounds )
 
-    def write_water_area_results(self, utm_patched_water_maps: xr.DataArray, outfile_path: str,  **kwargs ):
+    def write_water_area_results(self, patched_water_maps: xr.DataArray, outfile_path: str,  **kwargs ):
         from geoproc.xext.xgeo import XGeo
         interp_water_class = kwargs.get( 'interp_water_class', 4 )
         water_classes = kwargs.get('water_classes', [2,4] )
@@ -431,7 +431,7 @@ class WaterMapGenerator(ConfigurableObject):
         water_counts, class_proportion = self.get_class_proportion(patched_water_maps, interp_water_class, water_classes)
         with open( outfile_path, "a" ) as outfile:
             lines = ["date water_area_km2 percent_interploated\n"]
-            for iTime in range( utm_patched_water_maps.shape[0] ):
+            for iTime in range( patched_water_maps.shape[0] ):
                 percent_interp = class_proportion.values[iTime]
                 num_water_pixels = water_counts.values[iTime]
                 date = pd.Timestamp( time_axis.values[iTime] ).to_pydatetime()

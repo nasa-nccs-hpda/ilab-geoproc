@@ -180,7 +180,7 @@ class GDALGrid(object):
                 return np.ma.array(data=grid_data, mask=(grid_data == nodata_value))
         return np.array(grid_data)
 
-    def xarray( self, name: str, band: int = -1, masked: bool = True ) -> xr.DataArray:
+    def xarray( self, name: str, band: int = -1, masked: bool = True, time_axis = None ) -> xr.DataArray:
         xy_data = self.np_array( band, masked )
         transform = self.geotransform
         attrs = dict( crs=self.projection.ExportToProj4(), transform=transform )
@@ -188,7 +188,7 @@ class GDALGrid(object):
         coords = dict( x=self.x_coords, y=self.y_coords )
         dims = [ "y", "x" ]
         if xy_data.ndim == 3:
-            coords["time"] = range( xy_data.shape[0] )
+            coords["time"] = range( xy_data.shape[0] ) if time_axis is None else time_axis
             dims = ["time"] + dims
         return xr.DataArray( xy_data, name=name, coords = coords, dims = dims, attrs=attrs )
 

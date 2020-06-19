@@ -15,13 +15,13 @@ lake_file2 = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/MOD44W/new/lake1341_MOD44
 lake_file1 = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/MOD44W/2000/334_2000.tif"
 lake_file = "/Users/tpmaxwel/Dropbox/Tom/Data/Birkitt/MOD44W/new/lake4_MOD44W_2000_C6.tif"
 
-dest_file = "/tmp/test.tif"
+dest_file = "/tmp/lake_4_patched_water_masks.tif"
 # dataset = XRio.open( raster_file, mask=lake_boundary )
 # dataset = rasterio.open( raster_file )
 
 
 # rxds = xds.xgeo.reproject( nx=xds.shape[-1], ny=xds.shape[-2])
-XRio.convert( lake_file, dest_file )
+# XRio.convert( lake_file, dest_file )
 
 xds = rioxarray.open_rasterio(dest_file)
 
