@@ -416,19 +416,18 @@ class WaterMapGenerator(ConfigurableObject):
         self.water_maps: xr.DataArray =  self.get_water_maps( water_mapping_data, self._opspecs, time=time_values )
         patched_water_maps = self.patch_water_maps( self._opspecs, **kwargs )
         patched_water_maps.name = f"Lake {lake_index}"
-        result: xr.DataArray = sanitize(patched_water_maps)
+        result: xr.DataArray = sanitize(patched_water_maps).xgeo.to_utm( [250.0, 250.0] )
+        self.write_water_area_results( result, patched_water_maps_file + ".txt" )
         if format ==  'tif':    result.xgeo.to_tif( patched_water_maps_file + ".tif" )
         else:                   result.to_netcdf( patched_water_maps_file + ".nc" )
         print( f"Saving patched_water_maps for lake {lake_index} to {patched_water_maps_file}")
         return patched_water_maps.assign_attrs( roi = self.roi_bounds )
 
-    def write_patched_water_maps(self, lakeId: str, outfile_path: str, **kwargs ):
+    def write_water_area_results(self, utm_patched_water_maps: xr.DataArray, outfile_path: str,  **kwargs ):
         from geoproc.xext.xgeo import XGeo
         interp_water_class = kwargs.get( 'interp_water_class', 4 )
         water_classes = kwargs.get('water_classes', [2,4] )
-        patched_water_maps: xr.DataArray = self.get_patched_water_maps( lakeId, **kwargs )
         time_axis = patched_water_maps.coords[ patched_water_maps.dims[0] ]
-        utm_patched_water_maps: xr.DataArray = patched_water_maps.xgeo.to_utm( [250.0, 250.0] )
         water_counts, class_proportion = self.get_class_proportion(patched_water_maps, interp_water_class, water_classes)
         with open( outfile_path, "a" ) as outfile:
             lines = ["date water_area_km2 percent_interploated\n"]
