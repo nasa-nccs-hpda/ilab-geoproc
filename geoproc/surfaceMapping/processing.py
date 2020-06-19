@@ -12,7 +12,7 @@ class LakeMaskProcessor:
         self._defaults = self._opspecs.get( "defaults", None )
         self.waterMapGenerator = None
 
-    def process_lakes(self) -> Dict[ int, List[ xr.DataArray ] ]:
+    def process_lakes( self, reproject_inputs, **kwargs ) -> Dict[ int, List[ xr.DataArray ]]:
         year_range = self._defaults['year_range']
         lakeMaskSpecs = self._defaults.get( "lake_masks", None )
         data_dir = lakeMaskSpecs["basedir"]
@@ -29,10 +29,10 @@ class LakeMaskProcessor:
                 if year == year_range[0]:
                     if os.path.isfile( file_path ):
                         lake_masks[lake_index] = collections.OrderedDict( )
-                        lake_masks[lake_index][year] = self.convert( file_path )
+                        lake_masks[lake_index][year] = self.convert( file_path ) if reproject_inputs else file_path
                         lake_indices.append( lake_index )
                 elif os.path.isfile( file_path ):
-                    lake_masks[lake_index][year]= self.convert( file_path )
+                    lake_masks[lake_index][year]= self.convert( file_path ) if reproject_inputs else file_path
 
         results = {}
         for lake_index, sorted_file_paths in lake_masks.items():
@@ -42,7 +42,7 @@ class LakeMaskProcessor:
                 yearly_lake_masks.attrs.update( lakeMaskSpecs )
                 yearly_lake_masks.name = f"Lake {lake_index} Mask"
                 nx, ny = yearly_lake_masks.shape[-1], yearly_lake_masks.shape[-2]
-                lake_results = self.process_lake_masks( lake_index, yearly_lake_masks )
+                lake_results = self.process_lake_masks( lake_index, yearly_lake_masks, **kwargs )
                 assert lake_results is not None, "NULL results from process_lake_masks"
                 results[lake_index] = [ lake_results, yearly_lake_masks ]
                 print(f"Completed processing lake {lake_index}")
@@ -60,10 +60,10 @@ class LakeMaskProcessor:
             XRio.convert( src_file, dest_file )
         return dest_file
 
-    def process_lake_masks(self, lake_index: int, mask_files: xr.DataArray ) -> Optional[xr.DataArray]:
+    def process_lake_masks(self, lake_index: int, mask_files: xr.DataArray, **kwargs ) -> Optional[xr.DataArray]:
         from geoproc.surfaceMapping.lakeExtentMapping import WaterMapGenerator
         waterMapGenerator = WaterMapGenerator( { 'lake_index': lake_index, **self._defaults } )
-        return waterMapGenerator.process_yearly_lake_masks( lake_index, mask_files )
+        return waterMapGenerator.process_yearly_lake_masks( lake_index, mask_files, **kwargs )
 
     def write_result_report( self, lake_index, report: str ):
         results_dir = self._defaults.get('results_dir')
@@ -91,10 +91,11 @@ if __name__ == '__main__':
     import yaml
     CURDIR = os.path.dirname(os.path.abspath(__file__))
     opspec_file = os.path.join( CURDIR, "specs", "lakes-test.yml")
+    reproject_inputs = False
     with open(opspec_file) as f:
         opspecs = yaml.load( f, Loader=yaml.FullLoader )
         lakeMaskProcessor = LakeMaskProcessor( opspecs )
-        results = lakeMaskProcessor.process_lakes()
+        results = lakeMaskProcessor.process_lakes( reproject_inputs )
         animation = SliceAnimation( list(results.values()) )
         animation.show()
 

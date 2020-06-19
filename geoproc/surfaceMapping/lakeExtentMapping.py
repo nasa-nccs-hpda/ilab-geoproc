@@ -398,8 +398,10 @@ class WaterMapGenerator(ConfigurableObject):
             file.write( report )
 
     def process_yearly_lake_masks(self, lake_index: int,  yearly_lake_masks: xr.DataArray, **kwargs ) -> Optional[xr.DataArray]:
+        from geoproc.xext.xgeo import XGeo
+        format = kwargs.get('format','tif')
         results_dir = self._opspecs.get('results_dir')
-        patched_water_maps_file = f"{results_dir}/lake_{lake_index}_patched_water_masks.nc"
+        patched_water_maps_file = f"{results_dir}/lake_{lake_index}_patched_water_masks"
         y_coord, x_coord = yearly_lake_masks.coords[ yearly_lake_masks.dims[-2]].values, yearly_lake_masks.coords[yearly_lake_masks.dims[-1]].values
         self.roi_bounds = [x_coord[0], x_coord[-1], y_coord[0], y_coord[-1]]
         (water_mapping_data, time_values) = self.get_mpw_data( **self._opspecs )
@@ -414,7 +416,9 @@ class WaterMapGenerator(ConfigurableObject):
         self.water_maps: xr.DataArray =  self.get_water_maps( water_mapping_data, self._opspecs, time=time_values )
         patched_water_maps = self.patch_water_maps( self._opspecs, **kwargs )
         patched_water_maps.name = f"Lake {lake_index}"
-        sanitize(patched_water_maps).to_netcdf( patched_water_maps_file )
+        result: xr.DataArray = sanitize(patched_water_maps)
+        if format ==  'tif':    result.xgeo.to_tif( patched_water_maps_file + ".tif" )
+        else:                   result.to_netcdf( patched_water_maps_file + ".nc" )
         print( f"Saving patched_water_maps for lake {lake_index} to {patched_water_maps_file}")
         return patched_water_maps.assign_attrs( roi = self.roi_bounds )
 
