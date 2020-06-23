@@ -7,5 +7,5 @@ reproject_inputs = False
 with open(opspec_file) as f:
     opspecs = yaml.load(f, Loader=yaml.FullLoader)
     lakeMaskProcessor = LakeMaskProcessor(opspecs)
-    results = lakeMaskProcessor.process_lakes( reproject_inputs, format="tif" )
+    lakeMaskProcessor.process_lakes( reproject_inputs, format="tif" )
 
