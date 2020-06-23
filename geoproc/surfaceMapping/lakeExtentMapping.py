@@ -399,11 +399,12 @@ class WaterMapGenerator(ConfigurableObject):
 
     def process_yearly_lake_masks(self, lake_index: int,  yearly_lake_masks: xr.DataArray, **kwargs ) -> Optional[xr.DataArray]:
         from geoproc.xext.xgeo import XGeo
+        skip_existing = kwargs.get('skip_existing', False)
         format = kwargs.get('format','tif')
         results_dir = self._opspecs.get('results_dir')
         patched_water_maps_file = f"{results_dir}/lake_{lake_index}_patched_water_masks"
         result_file = patched_water_maps_file + ".tif" if format ==  'tif' else patched_water_maps_file + ".nc"
-        if os.path.isfile(result_file):
+        if skip_existing and os.path.isfile(result_file):
             print( f" --------------------->> Skipping already processed file: {result_file}")
             return None
         else:
