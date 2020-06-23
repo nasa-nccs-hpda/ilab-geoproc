@@ -24,7 +24,7 @@ class XRio(XExtension):
         kill_zombies = kwargs.pop( "kill_zombies", False )
         oargs = argfilter( kwargs, parse_coordinates = None, chunks = None, cache = None, lock = None )
         try:
-            result: xr.DataArray = rioxarray.open_rasterio( filename, **oargs )
+            result: xr.DataArray = rioxarray.open_rasterio( filename, **oargs ).astype( float )
             band = kwargs.pop( 'band', -1 )
             if band >= 0:
                 result = result.isel( band=band, drop=True )

@@ -43,9 +43,9 @@ class LakeMaskProcessor:
                 yearly_lake_masks.name = f"Lake {lake_index} Mask"
                 nx, ny = yearly_lake_masks.shape[-1], yearly_lake_masks.shape[-2]
                 lake_results = self.process_lake_masks( lake_index, yearly_lake_masks, **kwargs )
-                assert lake_results is not None, "NULL results from process_lake_masks"
-                results[lake_index] = [ lake_results, yearly_lake_masks ]
-                print(f"Completed processing lake {lake_index}")
+                if lake_results is not None:
+                    results[lake_index] = [ lake_results, yearly_lake_masks ]
+                    print(f"Completed processing lake {lake_index}")
             except Exception as err:
                 print( f"Skipping lake {lake_index} due to errors ")
                 traceback.print_exc()
