@@ -8,6 +8,6 @@ skip_existing =  False
 with open(opspec_file) as f:
     opspecs = yaml.load(f, Loader=yaml.FullLoader)
     lakeMaskProcessor = LakeMaskProcessor(opspecs)
-    results = lakeMaskProcessor.process_lakes( reproject_inputs, format="tif", skip_existing=skip_existing )
+    lakeMaskProcessor.process_lakes( reproject_inputs, format="tif", skip_existing=skip_existing )
 
 

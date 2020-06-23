@@ -14,6 +14,7 @@ class LakeMaskProcessor:
 
     def process_lakes( self, reproject_inputs, **kwargs ) -> Dict[ int, List[ xr.DataArray ]]:
         year_range = self._defaults['year_range']
+        return_results = kwargs.get('return_results',False)
         lakeMaskSpecs = self._defaults.get( "lake_masks", None )
         data_dir = lakeMaskSpecs["basedir"]
         lake_index_range = lakeMaskSpecs["lake_index_range"]
@@ -43,7 +44,7 @@ class LakeMaskProcessor:
                 yearly_lake_masks.name = f"Lake {lake_index} Mask"
                 nx, ny = yearly_lake_masks.shape[-1], yearly_lake_masks.shape[-2]
                 lake_results = self.process_lake_masks( lake_index, yearly_lake_masks, **kwargs )
-                if lake_results is not None:
+                if return_results and lake_results is not None:
                     results[lake_index] = [ lake_results, yearly_lake_masks ]
                     print(f"Completed processing lake {lake_index}")
             except Exception as err:
@@ -95,7 +96,7 @@ if __name__ == '__main__':
     with open(opspec_file) as f:
         opspecs = yaml.load( f, Loader=yaml.FullLoader )
         lakeMaskProcessor = LakeMaskProcessor( opspecs )
-        results = lakeMaskProcessor.process_lakes( reproject_inputs )
+        results = lakeMaskProcessor.process_lakes( reproject_inputs, return_results=True )
         animation = SliceAnimation( list(results.values()) )
         animation.show()
 
