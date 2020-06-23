@@ -24,11 +24,11 @@ class XRio(XExtension):
         kill_zombies = kwargs.pop( "kill_zombies", False )
         oargs = argfilter( kwargs, parse_coordinates = None, chunks = None, cache = None, lock = None )
         try:
-            result: xr.DataArray = rioxarray.open_rasterio( filename, **oargs ).astype( float )
+            result: xr.DataArray = rioxarray.open_rasterio( filename, **oargs ).astype( np.dtype('f4') )
             band = kwargs.pop( 'band', -1 )
             if band >= 0:
                 result = result.isel( band=band, drop=True )
-    #        result.encoding = dict( dtype = str(result.dtype) )
+            result.encoding = dict( dtype = str(np.dtype('f4')) )
             if mask is None: return result
             elif isinstance( mask, list ):
                 return result.xrio.subset( iFile, mask[:2], mask[2:] )

@@ -403,27 +403,31 @@ class WaterMapGenerator(ConfigurableObject):
         results_dir = self._opspecs.get('results_dir')
         patched_water_maps_file = f"{results_dir}/lake_{lake_index}_patched_water_masks"
         result_file = patched_water_maps_file + ".tif" if format ==  'tif' else patched_water_maps_file + ".nc"
-        if os.path.isfile(result_file): return None
-        y_coord, x_coord = yearly_lake_masks.coords[ yearly_lake_masks.dims[-2]].values, yearly_lake_masks.coords[yearly_lake_masks.dims[-1]].values
-        self.roi_bounds = [x_coord[0], x_coord[-1], y_coord[0], y_coord[-1]]
-        (water_mapping_data, time_values) = self.get_mpw_data( **self._opspecs )
-        if water_mapping_data is None: return None
-        wmd_y_coord, wmd_x_coord = water_mapping_data.coords[ water_mapping_data.dims[-2]].values, water_mapping_data.coords[water_mapping_data.dims[-1]].values
-        self.roi_bounds = [x_coord[0], x_coord[-1], y_coord[0], y_coord[-1]]
-        wmd_roi_bounds = [wmd_x_coord[0], wmd_x_coord[-1], wmd_y_coord[0], wmd_y_coord[-1]]
-        self.yearly_lake_masks: xr.DataArray = yearly_lake_masks  # .interp_like( water_mapping_data )
-        print( f"process_yearly_lake_masks: water_mapping_data shape = {water_mapping_data.shape}, yearly_lake_masks shape = {yearly_lake_masks.shape}")
-        print(f"yearly_lake_masks roi_bounds = {self.roi_bounds}")
-        print(f"wmd roi bounds = {wmd_roi_bounds}, wmd dims = {water_mapping_data.dims}")
-        self.water_maps: xr.DataArray =  self.get_water_maps( water_mapping_data, self._opspecs, time=time_values )
-        patched_water_maps = self.patch_water_maps( self._opspecs, **kwargs )
-        patched_water_maps.name = f"Lake {lake_index}"
-        result: xr.DataArray = sanitize(patched_water_maps).xgeo.to_utm( [250.0, 250.0] )
-        self.write_water_area_results( result, patched_water_maps_file + ".txt" )
-        if format ==  'tif':    result.xgeo.to_tif( result_file )
-        else:                   result.to_netcdf( result_file )
-        print( f"Saving patched_water_maps for lake {lake_index} to {patched_water_maps_file}")
-        return patched_water_maps.assign_attrs( roi = self.roi_bounds )
+        if os.path.isfile(result_file):
+            print( f" --------------------->> Skipping already processed file: {result_file}")
+            return None
+        else:
+            print(f" --------------------->> Generating result file: {result_file}")
+            y_coord, x_coord = yearly_lake_masks.coords[ yearly_lake_masks.dims[-2]].values, yearly_lake_masks.coords[yearly_lake_masks.dims[-1]].values
+            self.roi_bounds = [x_coord[0], x_coord[-1], y_coord[0], y_coord[-1]]
+            (water_mapping_data, time_values) = self.get_mpw_data( **self._opspecs )
+            if water_mapping_data is None: return None
+            wmd_y_coord, wmd_x_coord = water_mapping_data.coords[ water_mapping_data.dims[-2]].values, water_mapping_data.coords[water_mapping_data.dims[-1]].values
+            self.roi_bounds = [x_coord[0], x_coord[-1], y_coord[0], y_coord[-1]]
+            wmd_roi_bounds = [wmd_x_coord[0], wmd_x_coord[-1], wmd_y_coord[0], wmd_y_coord[-1]]
+            self.yearly_lake_masks: xr.DataArray = yearly_lake_masks  # .interp_like( water_mapping_data )
+            print( f"process_yearly_lake_masks: water_mapping_data shape = {water_mapping_data.shape}, yearly_lake_masks shape = {yearly_lake_masks.shape}")
+            print(f"yearly_lake_masks roi_bounds = {self.roi_bounds}")
+            print(f"wmd roi bounds = {wmd_roi_bounds}, wmd dims = {water_mapping_data.dims}")
+            self.water_maps: xr.DataArray =  self.get_water_maps( water_mapping_data, self._opspecs, time=time_values )
+            patched_water_maps = self.patch_water_maps( self._opspecs, **kwargs )
+            patched_water_maps.name = f"Lake {lake_index}"
+            result: xr.DataArray = sanitize(patched_water_maps).xgeo.to_utm( [250.0, 250.0] )
+            self.write_water_area_results( result, patched_water_maps_file + ".txt" )
+            if format ==  'tif':    result.xgeo.to_tif( result_file )
+            else:                   result.to_netcdf( result_file )
+            print( f"Saving patched_water_maps for lake {lake_index} to {patched_water_maps_file}")
+            return patched_water_maps.assign_attrs( roi = self.roi_bounds )
 
     def write_water_area_results(self, patched_water_maps: xr.DataArray, outfile_path: str,  **kwargs ):
         from geoproc.xext.xgeo import XGeo
