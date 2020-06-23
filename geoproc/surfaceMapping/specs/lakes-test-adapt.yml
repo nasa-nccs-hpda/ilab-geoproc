@@ -8,7 +8,7 @@ defaults:
         basedir: "/att/pubrepo/ILAB/projects/Birkett/MOD44W/lakes_lat_lon/"
         subdir: "{year}"
         file: "{lake_index}_{year}.tif"
-        lake_index_range: [0,10]
+        lake_index_range: [0,10000]
         mask: 3
         water: 1
 
