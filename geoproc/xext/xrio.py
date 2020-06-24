@@ -132,8 +132,8 @@ class XRio(XExtension):
     @classmethod
     def concat( cls, data_arrays: List[xr.DataArray], **kwargs ) -> xr.DataArray:
         concat_axis_name = kwargs.get('axis','time')
-        print( f"Concat arrays along dim {concat_axis_name}, array dims = {data_arrays[0].dims}, {data_arrays[1].dims}, array shapes = {data_arrays[0].shape}, {data_arrays[1].shape}")
         result: xr.DataArray =  xr.concat( data_arrays, concat_axis_name )
+        print( f"Concat arrays along dim {concat_axis_name}, array dims = {data_arrays[0].dims}, {data_arrays[1].dims}, array shapes = {data_arrays[0].shape}, {data_arrays[1].shape}, Result array dims = {result.dims}, shape = {result.shape}")
         return result
 
     @classmethod
