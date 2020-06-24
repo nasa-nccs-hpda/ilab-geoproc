@@ -70,7 +70,7 @@ class XRio(XExtension):
             data_array: xr.DataArray = cls.open( iF, file, **kwargs )
             if data_array is not None:
                 data_array = data_array.expand_dims( "time", 0).copy(deep=False)
-                result = data_array if result is None else cls.concat( [ result, data_array ], axis='time' )
+                result = data_array if result is None else cls.concat( [ result, data_array ] )
         return result
 
 
