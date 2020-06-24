@@ -69,7 +69,7 @@ class XRio(XExtension):
         for iF, file in enumerate(filePaths):
             data_array: xr.DataArray = cls.open( iF, file, **kwargs )
             if data_array is not None:
-                data_array = data_array.expand_dims( "time", 0)
+                data_array = data_array.expand_dims( "time", 0).copy(deep=False)
                 result = data_array if result is None else cls.concat( [ result, data_array ], axis='time' )
         return result
 
@@ -126,13 +126,13 @@ class XRio(XExtension):
         index = kwargs.get('index', None )
         new_axis_values = range( len(data_arrays) ) if index is None else index if index_mask is None else np.extract( index_mask, index )
         merge_coord = pd.Index( new_axis_values, name=new_axis_name )
-        result: xr.DataArray =  xr.concat( data_arrays, merge_coord )
+        result: xr.DataArray =  xr.concat( data_arrays, merge_coord, compat='override' )
         return result
 
     @classmethod
     def concat( cls, data_arrays: List[xr.DataArray], **kwargs ) -> xr.DataArray:
         concat_axis_name = kwargs.get('axis','time')
-        result: xr.DataArray =  xr.concat( data_arrays, concat_axis_name )
+        result: xr.DataArray =  xr.concat( data_arrays, concat_axis_name, compat='override' )
         print( f"Concat arrays along dim {concat_axis_name}, array dims = {data_arrays[0].dims}, {data_arrays[1].dims}, array shapes = {data_arrays[0].shape}, {data_arrays[1].shape}, Result array dims = {result.dims}, shape = {result.shape}")
         return result
 
