@@ -79,10 +79,9 @@ class XRio(XExtension):
         from datetime import datetime
         basename = filename[:-4] if filename.endswith(".tif") else filename
         print( f" get_date_from_filename: {filename}")
-        try:        result = datetime.strptime(basename, '%j_%Y').date()
-        except:
-            try:    result = datetime.strptime(basename, '%Y%j').date()
-            except: result = datetime.strptime(basename, '%Y' ).date()
+        toks = basename.split( "_")[1]
+        try:    result = datetime.strptime(toks, '%Y%j').date()
+        except: result = datetime.strptime(toks, '%Y' ).date()
         return np.datetime64(result)
 
     @classmethod
