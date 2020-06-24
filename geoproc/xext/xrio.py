@@ -130,7 +130,7 @@ class XRio(XExtension):
         return result
 
     @classmethod
-    def time_concat( cls, data_arrays: List[xr.DataArray] ) -> xr.DataArray:
+    def concat( cls, data_arrays: List[xr.DataArray] ) -> xr.DataArray:
         array0 = data_arrays[0]
         result_data = np.concatenate( [ da.values for da in data_arrays ], axis=0 )
         coords = { key:data_arrays[0].coords[key] for key in array0.dims[1:] }
