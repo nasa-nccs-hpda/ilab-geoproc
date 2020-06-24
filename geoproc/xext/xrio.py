@@ -145,7 +145,7 @@ class XRio(XExtension):
         array0, dim0 = data_arrays[0], data_arrays[0].dims[0]
         result_data = np.concatenate( [ da.values for da in data_arrays ], axis=0 )
         coords = { key:data_arrays[0].coords[key] for key in array0.dims[1:] }
-        coords[ dim0 ] = xr.concat( [ da.coord[dim0] for da in data_arrays ], dim=array0.coords[dim0].dims[0] )
+        coords[ dim0 ] = xr.concat( [ da.coords[dim0] for da in data_arrays ], dim=array0.coords[dim0].dims[0] )
         result: xr.DataArray =  xr.DataArray( result_data, dims=array0.dims, coords=coords )
         print( f"Concat arrays along dim {array0.dims[0]}, input array dims = {array0.dims}, shape = {array0.shape}, Result array dims = {result.dims}, shape = {result.shape}")
         return result
