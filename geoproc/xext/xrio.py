@@ -69,7 +69,8 @@ class XRio(XExtension):
         for iF, file in enumerate(filePaths):
             data_array: xr.DataArray = cls.open( iF, file, **kwargs )
             if data_array is not None:
-                result = data_array if result is None else cls.concat( [ result, data_array ], **kwargs )
+                data_array = data_array.expand_dims( dict( time=np.array(iF)), 0)
+                result = data_array if result is None else cls.concat( [ result, data_array ], axis='time' )
         return result
 
 
