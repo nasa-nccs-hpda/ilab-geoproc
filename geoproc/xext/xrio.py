@@ -69,7 +69,7 @@ class XRio(XExtension):
         for iF, file in enumerate(filePaths):
             data_array: xr.DataArray = cls.open( iF, file, **kwargs )
             if data_array is not None:
-                result = data_array if result is None else cls.merge( [ result, data_array ], **kwargs )
+                result = data_array if result is None else cls.concat( [ result, data_array ], **kwargs )
         return result
 
 
@@ -126,6 +126,13 @@ class XRio(XExtension):
         new_axis_values = range( len(data_arrays) ) if index is None else index if index_mask is None else np.extract( index_mask, index )
         merge_coord = pd.Index( new_axis_values, name=new_axis_name )
         result: xr.DataArray =  xr.concat( data_arrays, merge_coord )
+        return result
+
+    @classmethod
+    def concat( cls, data_arrays: List[xr.DataArray], **kwargs ) -> xr.DataArray:
+        concat_axis_name = kwargs.get('axis','time')
+        print( f"Concat arrays along dim {concat_axis_name}, array dims = {data_arrays[0].dims}, {data_arrays[1].dims}, array shapes = {data_arrays[0].shape}, {data_arrays[1].shape}")
+        result: xr.DataArray =  xr.concat( data_arrays, concat_axis_name )
         return result
 
     @classmethod
