@@ -69,10 +69,17 @@ class XRio(XExtension):
         for iF, file in enumerate(filePaths):
             data_array: xr.DataArray = cls.open( iF, file, **kwargs )
             if data_array is not None:
-                data_array = data_array.expand_dims( "time", 0).copy(deep=False)
+                time_values = np.array([ cls.get_date_from_filename(os.path.basename(file)) ], dtype='datetime64[ns]')
+                data_array = data_array.expand_dims( { 'time': time_values }, 0 )
                 result = data_array if result is None else cls.concat( [ result, data_array ] )
         return result
 
+    @classmethod
+    def get_date_from_filename(cls, filename: str):
+        from datetime import datetime
+        toks = filename.split("_")
+        result = datetime.strptime(toks[1], '%Y%j').date()
+        return np.datetime64(result)
 
     @classmethod
     def load1( cls, filePaths: Union[ str, List[str] ], **kwargs ) -> Union[ List[xr.DataArray], xr.DataArray ]:
@@ -131,10 +138,10 @@ class XRio(XExtension):
 
     @classmethod
     def concat( cls, data_arrays: List[xr.DataArray] ) -> xr.DataArray:
-        array0 = data_arrays[0]
+        array0, dim0 = data_arrays[0], data_arrays[0].dims[0]
         result_data = np.concatenate( [ da.values for da in data_arrays ], axis=0 )
         coords = { key:data_arrays[0].coords[key] for key in array0.dims[1:] }
-        coords[ array0.dims[0] ] = np.arange( sum( [ da.shape[0] for da in data_arrays ] ) )
+        coords[ dim0 ] = xr.concat( [ da.coord[dim0] for da in data_arrays ], dim=array0.coords[dim0].dims[0] )
         result: xr.DataArray =  xr.DataArray( result_data, dims=array0.dims, coords=coords )
         print( f"Concat arrays along dim {array0.dims[0]}, input array dims = {array0.dims}, shape = {array0.shape}, Result array dims = {result.dims}, shape = {result.shape}")
         return result
