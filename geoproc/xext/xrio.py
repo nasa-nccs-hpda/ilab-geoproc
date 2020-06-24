@@ -7,7 +7,7 @@ import os, warnings
 import numpy as np
 from shapely.geometry import box, mapping
 from geoproc.util.configuration import argfilter
-import rioxarray
+import rioxarray, traceback
 import rasterio
 from rasterio.warp import calculate_default_transform, reproject, Resampling
 
@@ -38,6 +38,7 @@ class XRio(XExtension):
                 raise Exception( f"Unrecognized mask type: {mask.__class__.__name__}")
         except Exception as err:
             print( f"XRio Error opening file {filename}: {err}")
+            traceback.print_exc()
             if kill_zombies:
                 print(f"Deleting erroneous file")
                 os.remove( filename )
@@ -63,7 +64,17 @@ class XRio(XExtension):
 
     @classmethod
     def load( cls, filePaths: Union[ str, List[str] ], **kwargs ) -> Union[ List[xr.DataArray], xr.DataArray ]:
-        merge = kwargs.pop('merge', True)
+        if isinstance( filePaths, str ): filePaths = [ filePaths ]
+        result: xr.DataArray = None
+        for iF, file in enumerate(filePaths):
+            data_array: xr.DataArray = cls.open( iF, file, **kwargs )
+            if data_array is not None:
+                result = data_array if result is None else cls.merge( [ result, data_array ], **kwargs )
+        return result
+
+
+    @classmethod
+    def load1( cls, filePaths: Union[ str, List[str] ], **kwargs ) -> Union[ List[xr.DataArray], xr.DataArray ]:
         if isinstance( filePaths, str ): filePaths = [ filePaths ]
         array_list: List[xr.DataArray] = []
         index_mask = np.full( [len(filePaths)], True )
@@ -73,12 +84,11 @@ class XRio(XExtension):
                 array_list.append( data_array )
             else:
                 index_mask[iF] = False
-        if merge and (len(array_list) > 1):
+        if (len(array_list) > 1):
             assert cls.mergable( array_list ), f"Attempt   to merge arrays with different shapes: {[ str(arr.shape) for arr in array_list ]}"
             result = cls.merge( array_list, index_mask=index_mask, **kwargs )
             return result
         return array_list if (len(array_list) > 1) else array_list[0]
-
 
     @classmethod
     def convert(self, source_file_path: str, dest_file_path: str, espg = 4236 ):
