@@ -77,11 +77,12 @@ class XRio(XExtension):
     @classmethod
     def get_date_from_filename(cls, filename: str):
         from datetime import datetime
+        basename = filename[:-4] if filename.endswith(".tif") else filename
         print( f" get_date_from_filename: {filename}")
-        basename = filename.split("_")[1]
-        if basename.endswith(".tif"): basename = basename[:-4]
-        try: result = datetime.strptime(basename, '%Y%j').date()
-        except: result = datetime.strptime(basename, '%Y').date()
+        try:        result = datetime.strptime(basename, '%j_%Y').date()
+        except:
+            try:    result = datetime.strptime(basename, '%Y%j').date()
+            except: result = datetime.strptime(basename, '%Y' ).date()
         return np.datetime64(result)
 
     @classmethod
