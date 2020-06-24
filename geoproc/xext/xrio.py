@@ -126,13 +126,13 @@ class XRio(XExtension):
         index = kwargs.get('index', None )
         new_axis_values = range( len(data_arrays) ) if index is None else index if index_mask is None else np.extract( index_mask, index )
         merge_coord = pd.Index( new_axis_values, name=new_axis_name )
-        result: xr.DataArray =  xr.concat( data_arrays, merge_coord, data_vars='minimal', compat='override' )
+        result: xr.DataArray =  xr.concat( data_arrays, merge_coord, compat='broadcast_equals', join='outer' )
         return result
 
     @classmethod
     def concat( cls, data_arrays: List[xr.DataArray], **kwargs ) -> xr.DataArray:
         concat_axis_name = kwargs.get('axis','time')
-        result: xr.DataArray =  xr.concat( data_arrays, concat_axis_name, data_vars='minimal', compat='override' )
+        result: xr.DataArray =  xr.concat( data_arrays, concat_axis_name, compat='broadcast_equals', join='outer' )
         print( f"Concat arrays along dim {concat_axis_name}, array dims = {data_arrays[0].dims}, {data_arrays[1].dims}, array shapes = {data_arrays[0].shape}, {data_arrays[1].shape}, Result array dims = {result.dims}, shape = {result.shape}")
         return result
 
