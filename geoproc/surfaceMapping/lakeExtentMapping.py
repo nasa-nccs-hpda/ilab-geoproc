@@ -399,7 +399,7 @@ class WaterMapGenerator(ConfigurableObject):
 
     def process_yearly_lake_masks(self, lake_index: int,  yearly_lake_masks: xr.DataArray, **kwargs ) -> Optional[xr.DataArray]:
         from geoproc.xext.xgeo import XGeo
-        skip_existing = kwargs.get('skip_existing', False)
+        skip_existing = kwargs.get('skip_existing', True)
         format = kwargs.get('format','tif')
         results_dir = self._opspecs.get('results_dir')
         patched_water_maps_file = f"{results_dir}/lake_{lake_index}_patched_water_masks"
