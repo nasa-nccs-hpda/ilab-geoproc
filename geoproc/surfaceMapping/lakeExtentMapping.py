@@ -312,6 +312,7 @@ class WaterMapGenerator(ConfigurableObject):
                     if not os.path.isfile( file ): print( f"   --> File {file} does not exist!")
                 exc = traceback.format_exc()
                 print( f"Error: {err}: \n{exc}" )
+                XRio.print_array_dims( file_paths )
         nTiles = len( cropped_tiles.keys() )
         if nTiles > 0:
             print( f"Merging {nTiles} Tiles ")

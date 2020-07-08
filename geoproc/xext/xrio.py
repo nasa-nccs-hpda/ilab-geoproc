@@ -3,7 +3,7 @@ import xarray as xr
 import pandas as pd
 from geoproc.xext.xextension import XExtension
 from geopandas import GeoDataFrame
-import os, warnings
+import os, warnings, ntpath
 import numpy as np
 from shapely.geometry import box, mapping
 from geoproc.util.configuration import argfilter
@@ -60,6 +60,19 @@ class XRio(XExtension):
         result = self._obj.rio.clip( geodf.geometry.apply(mapping), geodf.crs, **cargs )
         result.attrs['mask_value'] = mask_value
         result.encoding = self._obj.encoding
+        return result
+
+    @classmethod
+    def print_array_dims( cls, filePaths: Union[ str, List[str] ], **kwargs ):
+        if isinstance( filePaths, str ): filePaths = [ filePaths ]
+        result: xr.DataArray = None
+        print(f" ARRAY DIMS " )
+        for iF, file in enumerate(filePaths):
+            data_array: xr.DataArray = cls.open( iF, file, **kwargs )
+            if data_array is not None:
+                time_values = np.array([ cls.get_date_from_filename(os.path.basename(file)) ], dtype='datetime64[ns]')
+                data_array = data_array.expand_dims( { 'time': time_values }, 0 )
+                print( f"  ** Array[{iF}:{ntpath.basename(file)}]-> shape = {data_array.shape}")
         return result
 
     @classmethod
