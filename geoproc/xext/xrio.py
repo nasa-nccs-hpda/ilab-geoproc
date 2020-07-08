@@ -84,7 +84,10 @@ class XRio(XExtension):
             if data_array is not None:
                 time_values = np.array([ cls.get_date_from_filename(os.path.basename(file)) ], dtype='datetime64[ns]')
                 data_array = data_array.expand_dims( { 'time': time_values }, 0 )
-                result = data_array if result is None else cls.concat( [ result, data_array ] )
+                try:
+                    result = data_array if result is None else cls.concat( [ result, data_array ] )
+                except ValueError as err:
+                    print( f"SKIPPED concatenating array[{iF}:{ntpath.basename(file)}], shape: {data_array.shape}, due to error: {err}")
         return result
 
     @classmethod
