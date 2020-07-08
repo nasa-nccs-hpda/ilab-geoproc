@@ -287,7 +287,9 @@ class WaterMapGenerator(ConfigurableObject):
         data_url = source_spec.get('url')
         product = source_spec.get('product')
         locations = source_spec.get( 'location', self.infer_tile_locations() )
-        if not locations: return None
+        if not locations:
+            print( "NO LOCATION DATA.  ABORTING")
+            return None, None
 
         year_range = kwargs.get('year_range')
         day_range = kwargs.get('day_range',[0,365])
@@ -299,6 +301,7 @@ class WaterMapGenerator(ConfigurableObject):
         cropped_data = None
         for location in locations:
             try:
+                print( f"Reading Location {location}" )
                 dataMgr.setDefaults(product=product, download=download, years=range(int(year_range[0]),int(year_range[1])+1), start_day=int(day_range[0]), end_day=int(day_range[1]))
                 file_paths = dataMgr.get_tile(location)
                 time_values = np.array([ self.get_date_from_filename(os.path.basename(path)) for path in file_paths], dtype='datetime64[ns]')
@@ -309,11 +312,13 @@ class WaterMapGenerator(ConfigurableObject):
                     if not os.path.isfile( file ): print( f"   --> File {file} does not exist!")
                 traceback.print_exc()
 
-        if len(cropped_tiles):
+        nTiles = len( cropped_tiles.keys() )
+        if nTiles > 0:
+            print( f"Merging {nTiles} Tiles ")
             cropped_data = self.merge_tiles( cropped_tiles)
             cropped_data.attrs.update( roi = self.roi_bounds )
             cropped_data = cropped_data.persist()
-        print(f"Done reading mpw data in time {time.time()-t0}")
+        print(f"Done reading mpw data for lake {lake_id} in time {time.time()-t0}")
         return cropped_data, time_values
 
     def merge_tiles(self, cropped_tiles: Dict[str,xr.DataArray] ) -> xr.DataArray:
@@ -412,7 +417,9 @@ class WaterMapGenerator(ConfigurableObject):
             y_coord, x_coord = yearly_lake_masks.coords[ yearly_lake_masks.dims[-2]].values, yearly_lake_masks.coords[yearly_lake_masks.dims[-1]].values
             self.roi_bounds = [x_coord[0], x_coord[-1], y_coord[0], y_coord[-1]]
             (water_mapping_data, time_values) = self.get_mpw_data( **self._opspecs )
-            if water_mapping_data is None: return None
+            if water_mapping_data is None:
+                print( "No water mapping data! ABORTING ")
+                return None
             wmd_y_coord, wmd_x_coord = water_mapping_data.coords[ water_mapping_data.dims[-2]].values, water_mapping_data.coords[water_mapping_data.dims[-1]].values
             self.roi_bounds = [x_coord[0], x_coord[-1], y_coord[0], y_coord[-1]]
             wmd_roi_bounds = [wmd_x_coord[0], wmd_x_coord[-1], wmd_y_coord[0], wmd_y_coord[-1]]
