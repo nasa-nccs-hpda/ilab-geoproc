@@ -310,15 +310,15 @@ class WaterMapGenerator(ConfigurableObject):
                 print( f"Error reading mpw data for location {location}, first file paths = {file_paths[0:10]} ")
                 for file in file_paths:
                     if not os.path.isfile( file ): print( f"   --> File {file} does not exist!")
-                traceback.print_exc()
-
+                exc = traceback.format_exc()
+                print( f"Error: {err}: \n{exc}" )
         nTiles = len( cropped_tiles.keys() )
         if nTiles > 0:
             print( f"Merging {nTiles} Tiles ")
             cropped_data = self.merge_tiles( cropped_tiles)
             cropped_data.attrs.update( roi = self.roi_bounds )
             cropped_data = cropped_data.persist()
-        print(f"Done reading mpw data for lake {lake_id} in time {time.time()-t0}")
+        print(f"Done reading mpw data for lake {lake_id} in time {time.time()-t0}, nTiles = {nTiles}")
         return cropped_data, time_values
 
     def merge_tiles(self, cropped_tiles: Dict[str,xr.DataArray] ) -> xr.DataArray:
