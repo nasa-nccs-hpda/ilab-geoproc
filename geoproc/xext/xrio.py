@@ -1,5 +1,4 @@
 from typing import List, Union, Tuple, Optional
-import xarray as xr
 import pandas as pd
 from geoproc.xext.xextension import XExtension
 from geopandas import GeoDataFrame
@@ -10,6 +9,7 @@ from geoproc.util.configuration import argfilter
 import rioxarray, traceback
 import rasterio
 from rasterio.warp import calculate_default_transform, reproject, Resampling
+import xarray as xr
 
 @xr.register_dataarray_accessor('xrio')
 class XRio(XExtension):
@@ -95,7 +95,7 @@ class XRio(XExtension):
         from datetime import datetime
         basename = filename[:-4] if filename.endswith(".tif") else filename
         toks = basename.split( "_")[1]
-        print(f" get_date_from_filename: {filename}, toks = {toks}")
+#        print(f" get_date_from_filename: {filename}, toks = {toks}")
         try:    result = datetime.strptime(toks, '%Y%j').date()
         except: result = datetime.strptime(toks, '%Y' ).date()
         return np.datetime64(result)
@@ -162,7 +162,7 @@ class XRio(XExtension):
         coords = { key:data_arrays[0].coords[key] for key in array0.dims[1:] }
         coords[ dim0 ] = xr.concat( [ da.coords[dim0] for da in data_arrays ], dim=array0.coords[dim0].dims[0] )
         result: xr.DataArray =  xr.DataArray( result_data, dims=array0.dims, coords=coords )
-        print( f"Concat arrays along dim {array0.dims[0]}, input array dims = {array0.dims}, shape = {array0.shape}, Result array dims = {result.dims}, shape = {result.shape}")
+#        print( f"Concat arrays along dim {array0.dims[0]}, input array dims = {array0.dims}, shape = {array0.shape}, Result array dims = {result.dims}, shape = {result.shape}")
         return result
 
     @classmethod
