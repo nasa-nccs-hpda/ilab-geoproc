@@ -1,19 +1,29 @@
-#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import os
+import sys
+import time
+import shutil
+import logging
+import argparse
+
+import subprocess
 from glob import glob
 from typing import Dict, List, Tuple, Union, Optional
-import sys, time, shutil
-import xarray as xa
-import subprocess
 from multiprocessing import Pool, Lock, cpu_count
-import os.path
+
+import rioxarray as rxr
 
 globallock = Lock()
 
+
 class AvirisWarp:
 
-    def __init__(self, outputDir: str):
-        self.outputDir = outputDir
+    def __init__(self, output_dir: str) -> None:
 
+        self.output_dir = output_dir
+
+    """
     def needs_processing(self, output_file ) -> bool:
         try:
             test_data = xa.open_rasterio(output_file)
@@ -82,23 +92,52 @@ class AvirisWarp:
             if not os.path.isfile( ofile ):
                 print( f"Copying file {infile_name} to dir {output_dir}")
                 shutil.copyfile( ifile, ofile )
+    """
 
-def main(argv):
-    if len(argv) < 3:
-        binary = os.path.basename(argv[0])
-        print( "Usage: {} <files_glob> <output_dir> [ <nproc> ]".format(binary) )
-        sys.exit(0)
 
-    t0 = time.time()
-    kwargs = {}
-    files_glob = argv[1]
-    output_dir = argv[2]
-    if len(argv) > 3:
-        kwargs['np'] = argv[3]
+def main():
 
+    # Process command-line args.
+    desc = 'Use this application to regrid AVIRIS data.'
+    parser = argparse.ArgumentParser(description=desc)
+
+    parser.add_argument('-f',
+                        '--files-glob',
+                        type=str,
+                        required=True,
+                        dest='files_glob',
+                        help='Regex to select files to process.')
+
+    parser.add_argument(
+                        '-o',
+                        '--ouput-dir',
+                        type=str,
+                        required=True,
+                        dest='output_dir',
+                        help='Output directory to store analysis ready data.')
+
+    parser.add_argument(
+                        '-n',
+                        '--num-procs',
+                        type=str,
+                        required=False,
+                        dest='num_procs',
+                        default=cpu_count(),
+                        help='Number of cores to use. Defaults to CPU count.')
+
+    args = parser.parse_args()
+
+    awarp = AvirisWarp(args.output_dir)
+
+    """
     awarp = AvirisWarp( output_dir )
     awarp.process_files( files_glob.replace('"', ''), **kwargs )
     print( f"Files processed in {(time.time()-t0)/60.0:.2f} minutes to output-dir {output_dir}.")
+    """
 
+
+# -----------------------------------------------------------------------------
+# Invoke the main
+# -----------------------------------------------------------------------------
 if __name__ == '__main__':
-    main(sys.argv)
+    sys.exit(main())
