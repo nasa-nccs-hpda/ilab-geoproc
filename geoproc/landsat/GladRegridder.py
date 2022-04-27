@@ -17,7 +17,7 @@ import rioxarray as rxr
 globallock = Lock()
 
 
-class AvirisWarp:
+class GladWarp:
 
     def __init__(self, output_dir: str, temporary_output_dir: str = None) -> None:
 
@@ -38,22 +38,31 @@ class AvirisWarp:
         base0, dir0 = os.path.split(base1)
         ofile_name = infile_name[:-4] if infile_name.endswith("_img") else infile_name
         ifile_outputdir = os.path.join(self.output_dir, dir0, dir1)
-        return  infile_dir, ifile_outputdir, ofile_name + ".tif"
+        return  infile_dir, ifile_outputdir, ofile_name
+
+    def get_filtered_file(self, input_file):
+        """
+        Get filtered file.
+        """
+        input_dir, output_dir, output_file = self.get_file_paths(input_file)
+        output_file_path = os.path.join(output_dir, output_file)
+        if self.needs_processing(output_file_path):
+            return input_file
+        #return "NO"
 
     def get_unprocessed_filepaths(self, files_glob: str) -> List[str]:
         """
         Get a filtered list of unprocessed files.
         """
         files_list = glob(files_glob)
-        filtered_file_list = []
         logging.info(f'Found {len(files_list)} total raw files.')
+ 
+        p = Pool(processes=cpu_count())
+        filtered_file_list = list(
+            filter(None, p.map(self.get_filtered_file, files_list)))
+        p.close()
+        p.join()
 
-        for input_file in files_list:
-            input_dir, output_dir, output_file = self.get_file_paths(input_file)
-            output_file_path = os.path.join(output_dir, output_file)
-            if self.needs_processing(output_file_path):
-                filtered_file_list.append( input_file )
-        
         logging.info(f'Found {len(filtered_file_list)} files that need processing.')
         return filtered_file_list
 
@@ -96,6 +105,8 @@ class AvirisWarp:
                 os.path.basename(output_dir)
             )
 
+        print(input_dir, output_dir, output_file)
+
         os.makedirs(output_dir, mode=0o777, exist_ok=True)
         output_file_path = os.path.join(output_dir, output_file)
 
@@ -112,15 +123,14 @@ class AvirisWarp:
         # Open lock filename
         open(lock_filename, 'w').close()
         logging.info(f'Processing file {input_file}')
-        
-        self.copy_files(f"{input_dir}/*README*", output_dir)
+
         t0 = time.time()
 
         # best performing gdalwarp options, start gdal warp process
         args = [ 
             'gdalwarp', '-co', 'COMPRESS=LZW', '-co', 'BIGTIFF=YES', '-q',
-            '--config', 'GDAL_CACHEMAX', '512', '-wm', '512',
-            input_file, output_file_path
+            '--config', 'GDAL_CACHEMAX', '512', '-wm', '512', '-dstnodata', 'value [0]',
+            '-t_srs', 'ESRI:102001', input_file, output_file_path
         ]
         rv = subprocess.call(args)
 
@@ -142,7 +152,6 @@ class AvirisWarp:
             infile_dir, infile_name = os.path.split(ifile)
             ofile = os.path.join(output_dir, infile_name)
             if not os.path.isfile(ofile):
-                # logging.info(f'Copying file {infile_name} to dir {output_dir}')
                 shutil.copyfile(ifile, ofile)
         return
 
@@ -192,7 +201,7 @@ def main():
     logging.basicConfig(format='%(asctime)s %(message)s', level='INFO')
     timer = time.time()
 
-    awarp = AvirisWarp(args.output_dir, args.temporary_output_dir)
+    awarp = GladWarp(args.output_dir, args.temporary_output_dir)
     awarp.process_files(args.files_glob.replace('"', ''))
     logging.info(
         f'Took {(time.time()-timer)/60.0:.2f} min, output at {args.output_dir}.')
