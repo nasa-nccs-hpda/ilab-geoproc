@@ -17,7 +17,9 @@ def getParser():
     parser = argparse.ArgumentParser(description=desc)
 
     parser.add_argument(
-        '-i', '--input-tiles', type=str, required=True, dest='input_tiles',
+        '-i', '--input-tiles', type=str,
+        default='/explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/Collection2_requests/ABoVE_Tilesextend.csv',
+        required=True, dest='input_tiles',
         help='Full file path to a csv containing the tiles to download')
 
     parser.add_argument(
@@ -29,8 +31,9 @@ def getParser():
         help='Password for your GLAD account')
 
     parser.add_argument(
-        '-o', '--output-path', type=str, default='.', dest='output_path',
-        help='Parent directory for the Landsat ARD')
+        '-o', '--output-path', type=str,
+        default='/css/landsat/Collection2/GLAD_ARD/Native_Grid',
+        dest='output_path', help='Parent directory for the Landsat ARD')
 
     parser.add_argument(
         '-s', '--interval-start', type=int, default=47, dest='interval_start',
