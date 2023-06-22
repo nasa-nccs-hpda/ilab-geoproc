@@ -70,7 +70,7 @@ def main():
     logging.basicConfig(format='%(asctime)s %(message)s', level='INFO')
     timer = time.time()
 
-    logging.info(f'Using {args.input} as data input.')
+    logging.info(f'Using {args.input_tiles} as data input.')
 
     assert os.path.isfile(tile_path), f'CSV file not found: {tile_path}'
 
@@ -108,7 +108,7 @@ def main():
 
                 # store curl command to execute
                 download_command = \
-                    f'curl -u {args.uname}:{args.psswrd} -X GET ' + \
+                    f'curl -u {args.username}:{args.password} -X GET ' + \
                     f'https://glad.umd.edu/dataset/landsat_v1.1/' + \
                     f'{lat}/{tile}/{interval}.tif -o {output}'
                 download_urls.append(download_command)
@@ -116,13 +116,13 @@ def main():
     logging.info(f'Downloading {len(download_urls)} missing files.')
 
     # Set pool, start parallel multiprocessing
-    p = Pool(processes=args.numProcs)
+    p = Pool(processes=args.num_procs)
     p.map(download_file, download_urls)
     p.close()
     p.join()
 
     logging.info(
-        f'Took {(time.time()-timer)/60.0:.2f} min, output at {args.outPath}.')
+        f'Took {(time.time()-timer)/60.0:.2f} min, output at {args.output_path}.')
 
 
 # -----------------------------------------------------------------------------
