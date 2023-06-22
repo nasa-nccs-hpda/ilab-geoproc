@@ -19,7 +19,7 @@ def getParser():
     parser.add_argument(
         '-i', '--input-tiles', type=str,
         default='/explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/Collection2_requests/ABoVE_Tilesextend.csv',
-        required=True, dest='input_tiles',
+        required=False, dest='input_tiles',
         help='Full file path to a csv containing the tiles to download')
 
     parser.add_argument(
