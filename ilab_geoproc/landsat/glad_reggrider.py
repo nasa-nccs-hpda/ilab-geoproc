@@ -138,7 +138,7 @@ class GladWarp:
             logging.info(f'File {output_file} generated in {(time.time()-t0)/60.0:.2f} minutes.')
         else:
             logging.info(f'Error when processing file {input_file}')
-        
+
         # TODO: Remove lock filename
 
         return

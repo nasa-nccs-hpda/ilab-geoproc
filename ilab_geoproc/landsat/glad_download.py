@@ -1,48 +1,47 @@
 import os
 import sys
-import csv
 import time
 import argparse
 import logging
 import numpy as np
 import pandas as pd
-from multiprocessing import Pool, Lock, cpu_count
+from multiprocessing import Pool, cpu_count
 
 
 def getParser():
     """
     Get parser object for main initialization.
     """
-    desc = 'Use this to specify the regions and years to download Landsat ARD. ' + \
-        'Regions follow the GLAD ARD tile system.'
+    desc = 'Use this to specify the regions and years to download ' + \
+        'Landsat ARD. Regions follow the GLAD ARD tile system.'
     parser = argparse.ArgumentParser(description=desc)
-    
-    parser.add_argument(
-        '-i', '--input', type=str, required=True,
-        help='Full file path to a csv containing the tiles to download')
-    
-    parser.add_argument(
-        '-u', '--uname', type=str, required=True,
-        help='Username for your GLAD account')
-    
-    parser.add_argument(
-        '-p', '--psswrd', type=str, required=True,
-        help='Password for your GLAD account')
-    
-    parser.add_argument(
-        '-o', '--outPath', type=str, default='.',
-        help='Parent directory for the Landsat ARD')
-    
-    parser.add_argument(
-        '-s', '--intStart', type=int, default=47,
-        help='The first interval to download')
-    
-    parser.add_argument(
-        '-e', '--intEnd', type=int, default=1012,
-        help='The last interval to download')
 
     parser.add_argument(
-        '-np', '--numProcs', type=int, default=cpu_count(),
+        '-i', '--input-tiles', type=str, required=True, dest='input_tiles',
+        help='Full file path to a csv containing the tiles to download')
+
+    parser.add_argument(
+        '-u', '--username', type=str, default='glad', dest='username',
+        help='Username for your GLAD account')
+
+    parser.add_argument(
+        '-p', '--password', type=str, default='ardpas', dest='password',
+        help='Password for your GLAD account')
+
+    parser.add_argument(
+        '-o', '--output-path', type=str, default='.', dest='output_path',
+        help='Parent directory for the Landsat ARD')
+
+    parser.add_argument(
+        '-s', '--interval-start', type=int, default=47, dest='interval_start',
+        help='The first time interval to download')
+
+    parser.add_argument(
+        '-e', '--interval-end', type=int, default=1012, dest='interval_end',
+        help='The last time interval to download')
+
+    parser.add_argument(
+        '-np', '--num-procs', type=int, default=cpu_count(), dest='num_procs',
         help='Number of parallel processes')
 
     return parser.parse_args()
@@ -58,11 +57,11 @@ def main():
     # Process command-line args.
     args = getParser()
 
-    # Arguments 
-    tilePath = args.input
-    outPath = args.outPath
-    intStart = args.intStart
-    intEnd = args.intEnd
+    # Arguments
+    tile_path = args.input_tiles
+    out_path = args.output_path
+    int_start = args.interval_start
+    int_end = args.interval_end
 
     # Set logging
     logging.basicConfig(format='%(asctime)s %(message)s', level='INFO')
@@ -70,15 +69,19 @@ def main():
 
     logging.info(f'Using {args.input} as data input.')
 
+    assert os.path.isfile(tile_path), f'CSV file not found: {tile_path}'
+
     # Read input CSV with labels
-    labels = pd.read_csv(tilePath)
+    labels = pd.read_csv(tile_path)
     labels = labels['TILE'].values.tolist()
     logging.info(f'{str(len(labels))} tiles to process')
 
     # Get files required for download
-    num = int(intEnd - intStart)
-    intervals = np.linspace(intStart, intEnd, num=num, endpoint=True, dtype=int)
-    logging.info(f'Downloading intervals: {intStart} to {intEnd} ({num} total)')
+    num = int(int_end - int_start)
+    intervals = np.linspace(
+        int_start, int_end, num=num, endpoint=True, dtype=int)
+    logging.info(
+        f'Downloading intervals: {int_start} to {int_end} ({num} total)')
 
     # List of files to download with their respective url
     download_urls = []
@@ -88,11 +91,11 @@ def main():
 
         # set latitude value
         lat = tile[-3:]
-        
+
         for interval in intervals:
-            
+
             # output filename
-            output = os.path.join(outPath, lat, tile,  f'{interval}.tif')
+            output = os.path.join(out_path, lat, tile,  f'{interval}.tif')
 
             # if filename does not exist, start processing
             if not os.path.isfile(output):
@@ -101,8 +104,10 @@ def main():
                 os.makedirs(os.path.dirname(output), exist_ok=True)
 
                 # store curl command to execute
-                download_command = f'curl -u {args.uname}:{args.psswrd} -X GET ' + \
-                    f'https://glad.umd.edu/dataset/landsat_v1.1/{lat}/{tile}/{interval}.tif -o {output}'
+                download_command = \
+                    f'curl -u {args.uname}:{args.psswrd} -X GET ' + \
+                    f'https://glad.umd.edu/dataset/landsat_v1.1/' + \
+                    f'{lat}/{tile}/{interval}.tif -o {output}'
                 download_urls.append(download_command)
 
     logging.info(f'Downloading {len(download_urls)} missing files.')
