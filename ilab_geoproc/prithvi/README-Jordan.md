@@ -54,3 +54,11 @@ For a comprehensive list of the files we are currently predicting for experiment
 ```bash
 /explore/nobackup/projects/ilab/ilab_testing/geospacial-foundation-model/BurnScars/AlaskaBurnScars/*_tiles
 ```
+
+## Experiment with California
+
+A filtering dataset of California fire perimeters is under the following path:
+
+```bash
+/explore/nobackup/projects/ilab/ilab_testing/geospacial-foundation-model/CaliforniaFire/California_Fire_Perimeters_2013-2022.gpkg
+```
