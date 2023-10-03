@@ -18,6 +18,17 @@ An example is listed below:
 python HLS_SuPER.py -roi /Users/jacaraba/Desktop/PhD/notebooks/HLS_SuPER/burn_scar_0_2015_8.geojson -start 06/01/2016 -end 08/01/2016 -prod both -bands BLUE,GREEN,RED,NIR1,SWIR1,SWIR2 -cc 25 -dir /Users/jacaraba/Desktop/PhD/notebooks/HLS_SuPER/burn_scar_0_2015_8
 ```
 
+## Reorganized imagery into their own directory
+
+The next step is to reorganize the image pairs into their own directories. This can be achieved with the following. Note
+that we are moving all files from that pair (including all extensions), into their own subdir. This will be important to
+make the stack step easier.
+
+```bash
+mkdir HLS.L30.T04WFS.2016174T213730
+mv HLS.L30.T04WFS.2016174T213730* HLS.L30.T04WFS.2016174T213730
+```
+
 ## Stack the imagery
 
 This command will download invidual files per band. We can stack the bands in the proper order with the following script.
