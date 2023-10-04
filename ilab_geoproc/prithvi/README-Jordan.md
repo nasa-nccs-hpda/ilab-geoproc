@@ -73,3 +73,22 @@ A filtering dataset of California fire perimeters is under the following path:
 ```bash
 /explore/nobackup/projects/ilab/ilab_testing/geospacial-foundation-model/CaliforniaFire/California_Fire_Perimeters_2013-2022.gpkg
 ```
+
+## Example of Running Inference with IBM Model
+
+Activate the Anaconda environment from their repo:
+
+```bash
+export PATH="/panfs/ccds02/app/modules/anaconda/platform/x86_64/rhel/8.6/3-2022.05/bin:$PATH"
+eval "$(conda shell.bash hook)"
+source activate /explore/nobackup/people/sstrong/.conda/envs/burn-scars/
+```
+
+Run the inference on the selected files:
+
+```bash
+cd /explore/nobackup/projects/ilab/ilab_testing/geospacial-foundation-model/BurnScars/hls-foundation-os
+python model_inference.py -config configs/burn_scars.py -ckpt /explore/nobackup/projects/ilab/ilab_testing/geospacial-foundation-model/BurnScars/Prithvi-100M-burn-scar/burn_scars_Prithvi_100M.pth -input '/explore/nobackup/projects/ilab/ilab_testing/geospacial-foundation-model/BurnScars/AlaskaBurnScars/burn_scar_0_2015_8_tiles/*.resized.tif' -output /explore/nobackup/projects/ilab/ilab_testing/geospacial-foundation-model/BurnScars/AlaskaBurnScars/burn_scar_0/predictions/ -input_type tif -bands "[0,1,2,3,4,5]"
+```
+
+Note that based on their script, its important to have a trailing "/" at the end of the output path.
