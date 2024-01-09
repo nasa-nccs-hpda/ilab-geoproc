@@ -5,6 +5,7 @@ import argparse
 import logging
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 from multiprocessing import Pool, cpu_count
 
 
@@ -89,8 +90,10 @@ def main():
     # List of files to download with their respective url
     download_urls = []
 
+    logging.info('Gathering tile URLs')
+
     # Iterate over each tile
-    for tile in labels:
+    for tile in tqdm(labels):
 
         # set latitude value
         lat = tile[-3:]
@@ -109,7 +112,7 @@ def main():
                 # store curl command to execute
                 download_command = \
                     f'curl -u {args.username}:{args.password} -X GET ' + \
-                    f'https://glad.umd.edu/dataset/landsat_v1.1/' + \
+                    f'https://glad.umd.edu/dataset/glad_ard2/' + \
                     f'{lat}/{tile}/{interval}.tif -o {output}'
                 download_urls.append(download_command)
 

@@ -2,7 +2,8 @@
 
 THRESHOLD=95
 ILAB_QUOTA=`cat /explore/nobackup/projects/ilab/.quota`
-recipient=$1
+ILAB_QUOTA=$(echo $ILAB_QUOTA|tr -d '\n')
+recipient="jordan.a.caraballo-vega@nasa.gov,melanie.frost@nasa.gov,caleb.s.spradlin@nasa.gov"
 
 round() {
     printf "%.${2}f" "${1}"
