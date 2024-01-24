@@ -8,6 +8,9 @@ import pandas as pd
 from tqdm import tqdm
 from multiprocessing import Pool, cpu_count
 
+__author__ = 'jordan.a.caraballo-vega@nasa.gov'
+__status__ = 'Production'
+
 
 def getParser():
     """
@@ -19,7 +22,8 @@ def getParser():
 
     parser.add_argument(
         '-i', '--input-tiles', type=str,
-        default='/explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/Collection2_requests/ABoVE_Tiles_all.csv',
+        default='/explore/nobackup/projects/ilab/software/ilab-geoproc/' +
+        'ilab_geoproc/landsat/Collection2_requests/ABoVE_Tiles_all.csv',
         required=False, dest='input_tiles',
         help='Full file path to a csv containing the tiles to download')
 
@@ -37,7 +41,7 @@ def getParser():
         dest='output_path', help='Parent directory for the Landsat ARD')
 
     parser.add_argument(
-        '-s', '--interval-start', type=int, default=47, dest='interval_start',
+        '-s', '--interval-start', type=int, default=392, dest='interval_start',
         help='The first time interval to download')
 
     parser.add_argument(
@@ -45,7 +49,8 @@ def getParser():
         help='The last time interval to download')
 
     parser.add_argument(
-        '-np', '--num-procs', type=int, default=cpu_count(), dest='num_procs',
+        '-np', '--num-procs',
+        type=int, default=cpu_count() * 2, dest='num_procs',
         help='Number of parallel processes')
 
     return parser.parse_args()
@@ -112,7 +117,7 @@ def main():
                 # store curl command to execute
                 download_command = \
                     f'curl -u {args.username}:{args.password} -X GET ' + \
-                    f'https://glad.umd.edu/dataset/glad_ard2/' + \
+                    'https://glad.umd.edu/dataset/glad_ard2/' + \
                     f'{lat}/{tile}/{interval}.tif -o {output}'
                 download_urls.append(download_command)
 
@@ -125,7 +130,7 @@ def main():
     p.join()
 
     logging.info(
-        f'Took {(time.time()-timer)/60.0:.2f} min, output at {args.output_path}.')
+        f'Took {(time.time()-timer)/60.0:.2f} min, {args.output_path}.')
 
 
 # -----------------------------------------------------------------------------
