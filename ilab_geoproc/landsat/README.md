@@ -51,7 +51,7 @@ the formal ABoVE_Tiles_All.csv file (which we will fix at some point). The start
 for the beginning of the archive. The 1012 interval is the end of 2023.
 
 ```bash
-python /explore/nobackup/people/jacaraba/development/ilab-geoproc/ilab_geoproc/landsat/glad_download.py -i /explore/nobackup/people/jacaraba/development/ilab-geoproc/ilab_geoproc/landsat/Collection2_requests/ABoVE_Tiles_Test.csv -o /explore/nobackup/projects/ilab/data/LandsatABoVE_GLAD_ARD_Native -s 392 -e 1012
+python /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/glad_download.py -i /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/Collection2_requests/ABoVE_Tiles_Test.csv -o /explore/nobackup/projects/ilab/data/LandsatABoVE_GLAD_ARD_Native -s 392 -e 1012
 ```
 
 ### 2. Glad ARD Regridder
