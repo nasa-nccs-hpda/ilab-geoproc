@@ -54,7 +54,28 @@ for the beginning of the archive. The 1012 interval is the end of 2023.
 python /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/glad_download.py -i /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/Collection2_requests/ABoVE_Tiles_Test.csv -o /explore/nobackup/projects/ilab/data/LandsatABoVE_GLAD_ARD_Native -s 392 -e 1012
 ```
 
-### 2. Glad ARD Regridder
+For an operations command example, we performed the following command from the ADAPT login nodes:
+
+```bash
+pdsh -w forest[201-210] 'bash /explore/nobackup/people/jacaraba/development/ilab-geoproc/ilab_geoproc/landsat/run_download_pdsh.sh'
+pdsh -w ilab[201-212] 'bash /explore/nobackup/people/jacaraba/development/ilab-geoproc/ilab_geoproc/landsat/run_download_pdsh.sh'
+```
+
+Once the data has been downloaded, go ahead and transfer the data to CSS:
+
+```bash
+shiftc -r -d --wait --monitor=color /explore/nobackup/projects/ilab/data/LandsatABoVE_GLAD_ARD_Native_All /css/landsat/Collection2/GLAD_ARD/Native_Grid_Update
+```
+
+### 2. GLAD ARD VRT Generator
+
+The second step of this workflow is to generate a VRT for each tile that includes the depth
+in time of the particular tile. For that, we can run the following command:
+
+```bash
+```
+
+### 3. Glad ARD Regridder
 
 ```bash
 singularity exec -B /adapt/nobackup/people/jacaraba,/adapt/nobackup/projects/ilab,/css/above /adapt/nobackup/projects/ilab/containers/ilab-base_gdal-3.3.3.sif python /adapt/nobackup/people/jacaraba/development/geoProc/geoproc/aviris/regridder.py -f '/css/above/daac.ornl.gov/daacdata/above/ABoVE_Airborne_AVIRIS_NG/data/*rfl/*_rfl_*/*_*_img' -o /css/above/AVIRIS_Analysis_Ready -to /adapt/nobackup/projects/ilab/data/Aviris/AvirisAnalysisReady
@@ -65,7 +86,7 @@ python /adapt/nobackup/people/jacaraba/development/geoProc/geoproc/landsat/GladR
 ```
 
 ```bash
-python /adapt/nobackup/people/jacaraba/development/geoProc/geoproc/landsat/GladRegridder.py -f '/adapt/nobackup/projects/ilab/data/LandSatABoVE/54N/*/*.tif' -o /adapt/nobackup/projects/ilab/data/LandSatABoVE/test
+python /explore/nobackup/people/jacaraba/development/geoProc/geoproc/landsat/GladRegridder.py -f '/adapt/nobackup/projects/ilab/data/LandSatABoVE/54N/*/*.tif' -o /adapt/nobackup/projects/ilab/data/LandSatABoVE/test
 ```
 
 ## Tips and Tricks
