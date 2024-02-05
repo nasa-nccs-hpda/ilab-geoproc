@@ -105,8 +105,8 @@ def main():
         # Read intervals from filename
         intervals = open(interval_filename, 'r').read().splitlines()
         logging.info(
-            f'Downloading intervals: {intervals[0]} to {intervals[1]}' +
-            ' ({len(intervals)} total)')
+            f'Downloading intervals: {intervals[0]} to {intervals[-1]}' +
+            f' ({len(intervals)} total)')
     else:
         # Get files required for download
         num = int(int_end - int_start)
