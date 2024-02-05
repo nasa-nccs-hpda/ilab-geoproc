@@ -42,7 +42,7 @@ def getParser():
         help='The last time interval to download')
 
     parser.add_argument(
-        '-if', '--interval-filename', type=int,
+        '-if', '--interval-filename', type=str,
         default=None, dest='interval_filename',
         help='Filename of intervals, used only when distributed across nodes')
 
