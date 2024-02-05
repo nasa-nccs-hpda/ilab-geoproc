@@ -70,7 +70,35 @@ shiftc -r -d --wait --monitor=color /explore/nobackup/projects/ilab/data/Landsat
 ### 2. GLAD ARD VRT Generator
 
 The second step of this workflow is to generate a VRT for each tile that includes the depth
-in time of the particular tile. For that, we can run the following command:
+in time of the particular tile. To make this run in a timely fashion we will use all the
+available nodes. For this we need to create some filenames that will allow us to pdsh across
+multiple nodes. The first step is to create a filename with all intervals:
+
+```bash
+seq 392 1012 > GLAD_ARD_Intervals_ALL.csv
+```
+
+where the first value is the first interval available from Landsat, and the last integer value
+is the latest interval we will download. The next step is to split these intervals into additional
+filenames based on the nodes we will be working with. Then, we will split these into the nodes we 
+have available. Since we have 620 intervals and 22 nodes available, we will split the files in 
+30 intervals. For this we can run:
+
+```bash
+split -l 30 GLAD_ARD_Intervals_ALL.csv GLAD_ARD_Tiles_ABoVE_
+```
+
+Then we will replace the last string from each filename for the list of nodes we have available:
+
+```bash
+for filename in `ls GLAD_ARD_Tiles_ABoVE_*`; do echo $filename; done
+
+for id in {201..212}; do echo "ilab${id}"; done
+for id in {201..210}; do echo "forest${id}"; done
+```
+
+
+For that, we can run the following command:
 
 ```bash
 ```
