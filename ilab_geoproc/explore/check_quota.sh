@@ -3,7 +3,7 @@
 THRESHOLD=95
 ILAB_QUOTA=`cat /explore/nobackup/projects/ilab/.quota`
 ILAB_QUOTA=$(echo $ILAB_QUOTA|tr -d '\n')
-recipient="jordan.a.caraballo-vega@nasa.gov,melanie.frost@nasa.gov,caleb.s.spradlin@nasa.gov"
+recipient="jordan.a.caraballo-vega@nasa.gov,melanie.frost@nasa.gov,caleb.s.spradlin@nasa.gov,jordancaraballo87@gmail.com"
 
 round() {
     printf "%.${2}f" "${1}"
@@ -15,6 +15,6 @@ if (( $(echo "${ILAB_QUOTA##* } > $THRESHOLD" | bc -l) )); then
     subject="ILAB Quota Critical - ${rounded_value}%"
     body="${ILAB_QUOTA}"
     MIME="MIME-Version: 1.0\nContent-Type: text/html\n"
-    echo -e "To: $recipient\nSubject: $subject\n$MIME\n\n$body" | sendmail -t
+    echo -e "From: support@nccs.nasa.gov\nTo: $recipient\nSubject: $subject\n$MIME\n\n$body" | /usr/sbin/sendmail -t
 fi
 
