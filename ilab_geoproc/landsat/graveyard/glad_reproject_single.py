@@ -6,7 +6,6 @@ import time
 import logging
 import argparse
 import subprocess
-import numpy as np
 import rioxarray as rxr
 from glob import glob
 from pathlib import Path
@@ -31,7 +30,8 @@ class GladReproject:
                 h_end_tile: int = 17,
                 v_start_tile: int = 0,
                 v_end_tile: int = 17,
-                intervals: list = list(range(392, 1013)),
+                start_interval: int = 392,
+                end_interval: int = 979,
                 version: str = '001',
                 run_date: str = '20240201'
             ) -> None:
@@ -79,7 +79,8 @@ class GladReproject:
         self.temporary_output_dir = temporary_output_dir
 
         # GLAD ARD time intervals
-        self.intervals = intervals
+        self.start_interval = start_interval
+        self.end_interval = end_interval
 
     def get_above_grid_list(
                 self,
@@ -110,39 +111,59 @@ class GladReproject:
                     'year': year_range, 'interval': f'{interval_range:02d}'}
         return scene_id_metadata
 
+    def get_file_paths(self, input_file: str) -> Tuple[str, str, str]:
+        """
+        Get file paths of the files extracted import this from raw data.
+        """
+        infile_dir, infile_name = os.path.split(input_file)
+        base1, dir1 = os.path.split(infile_dir)
+        base0, dir0 = os.path.split(base1)
+        if infile_name.endswith("_img"):
+            ofile_name = infile_name[:-4]
+        else:
+            ofile_name = infile_name
+        ifile_outputdir = os.path.join(self.output_dir, dir0, dir1)
+        return infile_dir, ifile_outputdir, ofile_name
+
+    def get_filtered_file(self, input_file):
+        """
+        Get filtered file.
+        """
+        input_dir, output_dir, output_file = self.get_file_paths(input_file)
+        output_file_path = os.path.join(output_dir, output_file)
+        if self.needs_processing(output_file_path):
+            return input_file
+
+    def get_unprocessed_filepaths(self, files_glob: str) -> List[str]:
+        """
+        Get a filtered list of unprocessed files.
+        """
+        files_list = glob(files_glob)
+        logging.info(f'Found {len(files_list)} total raw files.')
+
+        p = Pool(processes=cpu_count())
+        filtered_file_list = list(
+            filter(None, p.map(self.get_filtered_file, files_list)))
+        p.close()
+        p.join()
+
+        logging.info(f'{len(filtered_file_list)} files need processing.')
+        return filtered_file_list
+
     def process_files(
             self, vrts_dir: str, num_procs: int = cpu_count()) -> None:
         """
         Process multiple files via multiprocessing.
         """
-        # get vrt filenames from the interval provided
         vrt_files_list = []
-        for interval in self.intervals:
-            vrt_files_list.append(
-                os.path.join(vrts_dir, f'{str(interval)}.vrt'))
-
-        # get combination of ABoVE tiles and GLAD intervals
-        processing_list = []
-        for tile_id in self.tiles_list:
-            for vrt_id in vrt_files_list:
-                processing_list.append(
-                    {
-                        'tile_id': tile_id,
-                        'vrt_id': vrt_id
-                    }
-                )
-
-        # start parallel process
+        for interval in range(self.start_interval, self.end_interval + 1):
+            vrt_files_list = os.path.join(vrts_dir, f'{str(interval)}.vrt')
         p = Pool(processes=num_procs)
-        p.map(self.process_file, processing_list)
+        p.map(self.process_file, vrt_files_list)
         p.close()
         p.join()
 
-    def process_file(self, processing_dict):
-
-        tile_id = processing_dict['tile_id']
-        vrt_filename = processing_dict['vrt_id']
-        logging.info(f'Processing {tile_id} for {vrt_filename}')
+    def process_file(self, vrt_filename):
 
         vrt_id = Path(vrt_filename).stem
 
@@ -150,83 +171,64 @@ class GladReproject:
         translated_date = \
             f'{self.time_metadata[vrt_id]["year"]}' + \
             f'{self.time_metadata[vrt_id]["interval"]}'
-        logging.info(f'Processing {vrt_id} with date {translated_date}')
 
-        # set tile metadata for processing
-        hh, vv = tile_id[1:4], tile_id[5:]
-        tile_id = f'B{tile_id}'
+        for full_tile in self.tiles_list:
 
-        # set default output directory
-        full_output_dir = os.path.join(
-            self.output_dir, tile_id
-        )
+            hh, vv = full_tile[1:4], full_tile[5:]
+            full_tile = f'B{full_tile}'
 
-        # set default output filename
-        output_filename = os.path.join(
-            full_output_dir,
-            f"ABoVE.GladARD.{translated_date}." +
-            f"{tile_id}.{self.version}.{self.run_date}.tif"
-        )
+            x_max = str(-3400020 + ((int(hh) + 1) * (180 * 1000)))
+            x_min = str(-3400020 + (int(hh) * (180 * 1000)))
+            y_max = str(4640000 - (int(vv) * (180 * 1000)))
+            y_min = str(4640000 - ((int(vv) + 1) * (180 * 1000)))
 
-        # check if the file exists
-        if os.path.exists(output_filename):
-            return
-
-        # set temporary output if defined
-        if self.temporary_output_dir is not None:
-
-            # set default output directory
             full_output_dir = os.path.join(
-                self.temporary_output_dir, tile_id
+                self.output_dir, full_tile
             )
+            os.makedirs(full_output_dir, exist_ok=True)
 
-            # set default output filename
             output_filename = os.path.join(
                 full_output_dir,
                 f"ABoVE.GladARD.{translated_date}." +
-                f"{tile_id}.{self.version}.{self.run_date}.tif"
+                f"{full_tile}.{self.version}.{self.run_date}.tif"
             )
 
-            if os.path.exists(output_filename):
-                return
+            args = [
+                'gdalwarp', '-co',
+                'COMPRESS=LZW', '-co',
+                'BIGTIFF=YES', '-q',
+                '--config', 'GDAL_CACHEMAX', '512',
+                '-wm', '512',
+                '-dstnodata', '0',
+                '-t_srs', 'ESRI:102001',
+                '-tr', '30', '30',
+                '-te', x_min, y_min, x_max, y_max,
+                vrt_filename,
+                output_filename
+            ]
+            print(' '.join(args))
 
-        # if the directory does not exist, create dir
-        os.makedirs(full_output_dir, exist_ok=True)
+            t0 = time.time()
+            rv = subprocess.call(args)
 
-        # set math for tile extent
-        x_max = str(-3400020 + ((int(hh) + 1) * (180 * 1000)))
-        x_min = str(-3400020 + (int(hh) * (180 * 1000)))
-        y_max = str(4640000 - (int(vv) * (180 * 1000)))
-        y_min = str(4640000 - ((int(vv) + 1) * (180 * 1000)))
-
-        # set gdal arguments
-        args = [
-            'gdalwarp', '-co',
-            'COMPRESS=LZW', '-co',
-            'BIGTIFF=YES', '-q',
-            '--config', 'GDAL_CACHEMAX', '512',
-            '-wm', '512',
-            '-dstnodata', '0',
-            '-t_srs', 'ESRI:102001',
-            '-tr', '30', '30',
-            '-te', x_min, y_min, x_max, y_max,
-            vrt_filename,
-            output_filename
-        ]
-        logging.info(' '.join(args))
-
-        # get time, call subprocess
-        t0 = time.time()
-        rv = subprocess.call(args)
-
-        # check the success of the subprocess
-        if rv == 0:
-            logging.info(
-                f'{output_filename} took {(time.time()-t0)/60.0:.2f} min')
-        else:
-            logging.info(f'Error when processing file {vrt_filename}')
-
+            if rv == 0:
+                logging.info(
+                    f'{output_filename} took {(time.time()-t0)/60.0:.2f} min')
+            else:
+                logging.info(f'Error when processing file {vrt_filename}')
         return
+
+    def needs_processing(self, output_file) -> bool:
+        """
+        Validate if file needs processing and is correctly formatted.
+        """
+        try:
+            rxr.open_rasterio(output_file)
+        except Exception:
+            if os.path.isfile(output_file):
+                os.remove(output_file)
+            return True
+        return False
 
 
 def getParser():
@@ -243,11 +245,6 @@ def getParser():
                         required=True,
                         dest='vrts_dir',
                         help='Dir where vrts are stored')
-
-    parser.add_argument(
-        '-if', '--interval-filename', type=str,
-        default=None, dest='interval_filename',
-        help='Filename of intervals, used only when distributed across nodes')
 
     parser.add_argument(
                         '-st',
@@ -337,33 +334,10 @@ def main():
     # Process command-line args.
     args = getParser()
 
-    # Arguments
-    int_start = args.interval_start
-    int_end = args.interval_end
-    interval_filename = args.interval_filename
-
     # Set logging
     logging.basicConfig(format='%(asctime)s %(message)s', level='INFO')
     timer = time.time()
 
-    # Get list of intervals
-    # only calculate intervals if filename is not given
-    if interval_filename is not None:
-        # Read intervals from filename
-        intervals = open(interval_filename, 'r').read().splitlines()
-        logging.info(
-            f'Downloading intervals: {intervals[0]} to {intervals[-1]}' +
-            f' ({len(intervals)} total)')
-    else:
-        # Get files required for download
-        num = int(int_end - int_start)
-        intervals = np.linspace(
-            int_start, int_end, num=num, endpoint=True, dtype=int)
-
-        logging.info(
-            f'Downloading intervals: {int_start} to {int_end} ({num} total)')
-
-    # Initialize GladReproject Object
     awarp = GladReproject(
         args.output_dir,
         args.temporary_output_dir,
@@ -371,10 +345,11 @@ def main():
         args.h_end_tile,
         args.v_start_tile,
         args.v_end_tile,
-        intervals
+        args.start_interval,
+        args.end_interval
     )
 
-    awarp.process_files(args.vrts_dir)
+    # awarp.process_files(args.vrts_dir)  # args.files_glob.replace('"', '')
     logging.info(
         f'Took {(time.time()-timer)/60.0:.2f} min, output: {args.output_dir}.')
 

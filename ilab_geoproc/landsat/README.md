@@ -63,7 +63,17 @@ pdsh -w ilab[201-212] 'bash /explore/nobackup/people/jacaraba/development/ilab-g
 
 Once the data has been downloaded, go ahead and transfer the data to CSS:
 
+fpsync method (preferred)
+
 ```bash
+ssh ilabx201
+fpsync -f 1000 -n 32 /explore/nobackup/projects/ilab/data/LandsatABoVE_GLAD_ARD_Native_All /css/landsat/Collection2/GLAD_ARD/Native_Grid_Update/LandsatABoVE_GLAD_ARD_Native_All
+```
+
+shiftc method
+
+```bash
+ssh ilabx201
 shiftc -r -d --wait --monitor=color /explore/nobackup/projects/ilab/data/LandsatABoVE_GLAD_ARD_Native_All /css/landsat/Collection2/GLAD_ARD/Native_Grid_Update
 ```
 
@@ -92,6 +102,8 @@ pdsh -w forest[201-210] 'bash /explore/nobackup/projects/ilab/software/ilab-geop
 ```
 
 ### 3. Glad ARD Regridder
+
+The last step is to regrid the imagery.
 
 ```bash
 singularity exec -B /adapt/nobackup/people/jacaraba,/adapt/nobackup/projects/ilab,/css/above /adapt/nobackup/projects/ilab/containers/ilab-base_gdal-3.3.3.sif python /adapt/nobackup/people/jacaraba/development/geoProc/geoproc/aviris/regridder.py -f '/css/above/daac.ornl.gov/daacdata/above/ABoVE_Airborne_AVIRIS_NG/data/*rfl/*_rfl_*/*_*_img' -o /css/above/AVIRIS_Analysis_Ready -to /adapt/nobackup/projects/ilab/data/Aviris/AvirisAnalysisReady
