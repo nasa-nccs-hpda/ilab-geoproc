@@ -237,97 +237,53 @@ def getParser():
     desc = 'Use this application to regrid Landsat ARD data.'
     parser = argparse.ArgumentParser(description=desc)
 
-    parser.add_argument('-vd',
-                        '--vrts-dir',
-                        type=str,
-                        required=True,
-                        dest='vrts_dir',
-                        help='Dir where vrts are stored')
+    parser.add_argument(
+        '-vd', '--vrts-dir', type=str, required=True,
+        dest='vrts_dir', help='Dir where vrts are stored')
 
     parser.add_argument(
-        '-if', '--interval-filename', type=str,
-        default=None, dest='interval_filename',
+        '-if', '--interval-filename', type=str, default=None,
+        dest='interval_filename',
         help='Filename of intervals, used only when distributed across nodes')
 
     parser.add_argument(
-                        '-st',
-                        '--start-interval',
-                        type=int,
-                        required=False,
-                        default=392,
-                        dest='start_interval',
-                        help='GLAD ARD time interval to start from.')
+        '-st', '--start-interval', type=int, required=False,
+        default=392, dest='interval_start',
+        help='GLAD ARD time interval to start from.')
 
     parser.add_argument(
-                        '-et',
-                        '--end-interval',
-                        type=int,
-                        required=False,
-                        default=1012,
-                        dest='end_interval',
-                        help='GLAD ARD time interval to end at.')
+        '-et', '--end-interval', type=int, required=False, default=1012,
+        dest='interval_end', help='GLAD ARD time interval to end at.')
 
     parser.add_argument(
-                        '-o',
-                        '--output-dir',
-                        type=str,
-                        required=True,
-                        dest='output_dir',
-                        help='Output directory to store analysis ready data.')
+        '-o', '--output-dir', type=str, required=True, dest='output_dir',
+        help='Output directory to store analysis ready data.')
 
     parser.add_argument(
-                        '-to',
-                        '--temporary-output-dir',
-                        type=str,
-                        required=False,
-                        default=None,
-                        dest='temporary_output_dir',
-                        help='Temporary output directory to store ARD.')
+        '-to', '--temporary-output-dir', type=str, required=False,
+        default=None, dest='temporary_output_dir',
+        help='Temporary output directory to store ARD.')
 
     parser.add_argument(
-                        '-n',
-                        '--num-procs',
-                        type=str,
-                        required=False,
-                        dest='num_procs',
-                        default=cpu_count(),
-                        help='Number of cores to use. Defaults to CPU count.')
+        '-n', '--num-procs', type=str, required=False,
+        dest='num_procs', default=cpu_count(),
+        help='Number of cores to use. Defaults to CPU count.')
 
     parser.add_argument(
-                        '-hs',
-                        '--horizontal-start-tile',
-                        type=int,
-                        required=False,
-                        default=0,
-                        dest='h_start_tile',
-                        help='Starting ABoVE tile.')
+        '-hs', '--horizontal-start-tile', type=int, required=False,
+        default=0, dest='h_start_tile', help='Starting ABoVE tile.')
 
     parser.add_argument(
-                        '-he',
-                        '--horizontal-end-tile',
-                        type=int,
-                        required=False,
-                        default=17,
-                        dest='h_end_tile',
-                        help='Horizontal ending ABoVE tile.')
+        '-he', '--horizontal-end-tile', type=int, required=False,
+        default=17, dest='h_end_tile', help='Horizontal ending ABoVE tile.')
 
     parser.add_argument(
-                        '-vs',
-                        '--vertical-start-tile',
-                        type=int,
-                        required=False,
-                        default=0,
-                        dest='v_start_tile',
-                        help='Vertical starting ABoVE tile.')
+        '-vs', '--vertical-start-tile', type=int, required=False, default=0,
+        dest='v_start_tile', help='Vertical starting ABoVE tile.')
 
     parser.add_argument(
-                        '-ve',
-                        '--vertical-end-tile',
-                        type=int,
-                        required=False,
-                        default=17,
-                        dest='v_end_tile',
-                        help='Vertical ending ABoVE tile.')
+        '-ve', '--vertical-end-tile', type=int, required=False,
+        default=17, dest='v_end_tile', help='Vertical ending ABoVE tile.')
 
     return parser.parse_args()
 
