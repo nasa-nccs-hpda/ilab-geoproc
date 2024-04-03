@@ -135,6 +135,12 @@ pdsh -w forest[201-210] 'bash /explore/nobackup/projects/ilab/software/ilab-geop
 ```
 
 5. Monitoring the performance and run time using `htop` from one of the ilab nodes
+6. Transfer the data to CSS, once this is confirmed, you can delete the data from Explore and repeat the process with other tiles.
+
+```bash
+ssh ilabx201
+fpsync -f 1000 -n 32 /explore/nobackup/projects/ilab/data/ABoVE_Grid_Update /css/landsat/Collection2/GLAD_ARD/ABoVE_Grid_Update
+```
 
 ## Tips and Tricks
 
