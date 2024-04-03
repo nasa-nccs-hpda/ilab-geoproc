@@ -23,7 +23,7 @@ echo "${all_hosts[@]}"
 # the script in question, same with the output path
 # Processing in chuncks because of disk space
 # Full 2023 interval is 392 to 1012
-start_interval=703
+start_interval=392
 end_interval=1012
 number_of_intervals=$(( end_interval - start_interval))
 split_value=$(( ( number_of_intervals / ${#all_hosts[@]} ) + ( number_of_intervals % ${#all_hosts[@]} > 0 ) ))

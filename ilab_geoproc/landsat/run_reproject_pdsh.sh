@@ -12,7 +12,7 @@ echo $HOSTNAME
 
 # /explore/nobackup/projects/ilab/data/LandsatABoVE_GLAD_ARD_Native_All
 # /explore/nobackup/people/jacaraba/development/ilab-geoproc/ilab_geoproc/landsat/Collection2_requests/GLAD_ARD_Tiles_ABoVE_forest210
-echo /explore/nobackup/people/jacaraba/development/ilab-geoproc/ilab_geoproc/landsat/Collection2_reproject_requests/GLAD_ARD_Tiles_ABoVE_${HOSTNAME}
+echo /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/Collection2_reproject_requests/GLAD_ARD_Tiles_ABoVE_${HOSTNAME}
 
 python /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/glad_reproject.py \
     --vrts-dir /explore/nobackup/projects/ilab/data/ABoVE_Grid_Update/ABoVE_Grid_Landsat_VRTs \
@@ -21,7 +21,7 @@ python /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsa
     --end-interval 393 \
     --output-dir /css/landsat/Collection2/GLAD_ARD/ABoVE_Grid_Update \
     --temporary-output-dir /explore/nobackup/projects/ilab/data/ABoVE_Grid_Update \
-    --horizontal-start-tile 0 \
-    --horizontal-end-tile 17 \
-     --vertical-start-tile 0 \
-     --vertical-end-tile 17
+    --horizontal-start-tile 18 \
+    --horizontal-end-tile 23 \
+     --vertical-start-tile 18 \
+     --vertical-end-tile 23

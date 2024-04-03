@@ -8,11 +8,13 @@ The main customer of the GLAD ARD data is the ABoVE group. The download process 
 main steps:
 
 - download
+- generating VRTs
 - regridding
 - moving data to CSS
 
 We do it this way because transfer nodes to CSS (abovex201) only have 2 CPU cores, which makes the 
-data transfer process extremely slow.
+data transfer process extremely slow. We have a temporary transfer node to accelerate the process
+for this rounds of upgrades (2024-04-03).
 
 ![GLAD ARD ABoVE Download](glad-ard.png)
 
@@ -22,7 +24,7 @@ The data has two paths at the NCCS:
 
 An additional symlink to the data is under /css/above/glad.umd.edu/Collection2/GLAD_ARD.
 
-## Quick Start
+## Quick Start during Development
 
 Go to working directory:
 
@@ -40,7 +42,7 @@ conda activate ilab-pytorch
 This will load all the needed dependencies to start working on the data.
 Below we have documented the different steps needed for the complete download.
 
-## Methods
+## Operation Methods
 
 ### 1. GLAD ARD Downloader
 
@@ -103,19 +105,36 @@ pdsh -w forest[201-210] 'bash /explore/nobackup/projects/ilab/software/ilab-geop
 
 ### 3. Glad ARD Regridder
 
-The last step is to regrid the imagery.
+The last step is to regrid the imagery. For the operational workflow we are working on 2024-04-03, the following paths
+are what we need:
+
+- Original Data: /css/landsat/Collection2/GLAD_ARD/Native_Grid
+- VRTs: /explore/nobackup/projects/ilab/data/ABoVE_Grid_Update/ABoVE_Grid_Landsat_VRTs
+- Intermediate Output Data Explore: /explore/nobackup/projects/ilab/data/ABoVE_Grid_Update
+- Final Output Data CSS: /css/landsat/Collection2/GLAD_ARD/ABoVE_Grid_Update
+
+Given this information, the following script is used for reprojection purposes. This assumes we already have the
+VRTs in place, and the files per node with the individual time intervals per node.
+
+The best way to run this is to:
+
+1. Create a screen session on adaptlogin
+2. Modify the horizontal and vertical tiles from the run_reproject_pdsh.sh file
+3. Run setup of pdsh files to run in parallel (already done, no need to repeat)
 
 ```bash
-singularity exec -B /adapt/nobackup/people/jacaraba,/adapt/nobackup/projects/ilab,/css/above /adapt/nobackup/projects/ilab/containers/ilab-base_gdal-3.3.3.sif python /adapt/nobackup/people/jacaraba/development/geoProc/geoproc/aviris/regridder.py -f '/css/above/daac.ornl.gov/daacdata/above/ABoVE_Airborne_AVIRIS_NG/data/*rfl/*_rfl_*/*_*_img' -o /css/above/AVIRIS_Analysis_Ready -to /adapt/nobackup/projects/ilab/data/Aviris/AvirisAnalysisReady
+cd /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat
+bash setup_reproject.sh
 ```
 
-```bash
-python /adapt/nobackup/people/jacaraba/development/geoProc/geoproc/landsat/GladRegridder.py -f '/css/above/daac.ornl.gov/daacdata/above/ABoVE_Airborne_AVIRIS_NG/data/*rfl/*_rfl_*/*_*_img'
-```
+4. Run the following command through the different nodes
 
 ```bash
-python /explore/nobackup/people/jacaraba/development/geoProc/geoproc/landsat/GladRegridder.py -f '/adapt/nobackup/projects/ilab/data/LandSatABoVE/54N/*/*.tif' -o /adapt/nobackup/projects/ilab/data/LandSatABoVE/test
+pdsh -w ilab[201-212] 'bash /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/run_reproject_pdsh.sh'
+pdsh -w forest[201-210] 'bash /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/run_reproject_pdsh.sh'
 ```
+
+5. Monitoring the performance and run time using `htop` from one of the ilab nodes
 
 ## Tips and Tricks
 
