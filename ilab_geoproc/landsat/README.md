@@ -50,7 +50,14 @@ The following script allows us to download the GLAD imagery in parallel and acro
 We need to be careful to not run out of quota on the intermediate ILAB space. The following is an
 example of how to test the GLAD Downloader. You would do the same that is described here, but with
 the formal ABoVE_Tiles_All.csv file (which we will fix at some point). The starting interval is 392
-for the beginning of the archive. The 1012 interval is the end of 2023.
+for the beginning of the archive. The 1012 interval is the end of 2023. The current intervals can be 
+found here: https://glad.umd.edu/dataset/glad_ard2/. As of 8/20/2024 interval is 1026. Unless the 
+processing changes, can just process the new interval.
+
+If directory does not exist:
+```bash
+/explore/nobackup/projects/ilab/data/Landsat/ABoVE_GLAD_ARD_Native
+```
 
 ```bash
 python /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/glad_download.py -i /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/Collection2_requests/ABoVE_Tiles_Test.csv -o /explore/nobackup/projects/ilab/data/LandsatABoVE_GLAD_ARD_Native -s 392 -e 1012
@@ -135,6 +142,12 @@ pdsh -w forest[201-210] 'bash /explore/nobackup/projects/ilab/software/ilab-geop
 ```
 
 5. Monitoring the performance and run time using `htop` from one of the ilab nodes
+6. Transfer the data to CSS, once this is confirmed, you can delete the data from Explore and repeat the process with other tiles.
+
+```bash
+ssh ilabx201
+fpsync -f 1000 -n 32 /explore/nobackup/projects/ilab/data/ABoVE_Grid_Update /css/landsat/Collection2/GLAD_ARD/ABoVE_Grid_Update
+```
 
 ## Tips and Tricks
 
