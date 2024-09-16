@@ -29,6 +29,7 @@ An additional symlink to the data is under /css/above/glad.umd.edu/Collection2/G
 Go to working directory:
 
 ```bash
+ssh ilabx201
 cd /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat
 ```
 
