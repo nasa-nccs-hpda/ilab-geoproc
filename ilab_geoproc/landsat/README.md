@@ -54,6 +54,11 @@ for the beginning of the archive. The 1012 interval is the end of 2023. The curr
 found here: https://glad.umd.edu/dataset/glad_ard2/. As of 8/20/2024 interval is 1026. Unless the 
 processing changes, can just process the new interval.
 
+If directory does not exist:
+```bash
+/explore/nobackup/projects/ilab/data/Landsat/ABoVE_GLAD_ARD_Native
+```
+
 ```bash
 python /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/glad_download.py -i /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/Collection2_requests/ABoVE_Tiles_Test.csv -o /explore/nobackup/projects/ilab/data/LandsatABoVE_GLAD_ARD_Native -s 392 -e 1012
 ```
