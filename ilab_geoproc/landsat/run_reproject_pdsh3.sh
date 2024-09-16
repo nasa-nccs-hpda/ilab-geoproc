@@ -21,7 +21,7 @@ python /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsa
     --end-interval 393 \
     --output-dir /css/landsat/Collection2/GLAD_ARD/ABoVE_Grid_Update \
     --temporary-output-dir /explore/nobackup/projects/ilab/data/ABoVE_Grid_Update \
-    --horizontal-start-tile 16 \
-    --horizontal-end-tile 17 \
-     --vertical-start-tile 01 \
-     --vertical-end-tile 04
+    --horizontal-start-tile 18 \
+    --horizontal-end-tile 23 \
+     --vertical-start-tile 18 \
+     --vertical-end-tile 23
