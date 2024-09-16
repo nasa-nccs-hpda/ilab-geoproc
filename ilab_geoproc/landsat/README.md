@@ -10,11 +10,11 @@ main steps:
 - download
 - generating VRTs
 - regridding
-- moving data to CSS
 
 We do it this way because transfer nodes to CSS (abovex201) only have 2 CPU cores, which makes the 
 data transfer process extremely slow. We have a temporary transfer node to accelerate the process
-for this rounds of upgrades (2024-04-03).
+for this rounds of upgrades (2024-04-03). As of 9/16/2024, we have more transfer nodes so can download 
+directly to CSS.
 
 ![GLAD ARD ABoVE Download](glad-ard.png)
 
@@ -54,16 +54,13 @@ for the beginning of the archive. The 1012 interval is the end of 2023. The curr
 found here: https://glad.umd.edu/dataset/glad_ard2/. As of 8/20/2024 interval is 1026. Unless the 
 processing changes, can just process the new interval.
 
-If directory does not exist:
 ```bash
-/explore/nobackup/projects/ilab/data/Landsat/ABoVE_GLAD_ARD_Native
+python /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/1_glad_download.py
+-i /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/GLAD_ARD_Collection2_Download_Tiles/GLAD_ARD_Tiles_ABoVE_ALL.csv
+-s 392 -e 1026
 ```
 
-```bash
-python /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/glad_download.py -i /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/Collection2_requests/ABoVE_Tiles_Test.csv -o /explore/nobackup/projects/ilab/data/LandsatABoVE_GLAD_ARD_Native -s 392 -e 1012
-```
-
-For an operations command example, we performed the following command from the ADAPT login nodes:
+If needing to process in parallel, an example operations command for the ADAPT login nodes is: 
 
 ```bash
 pdsh -w forest[201-210] 'bash /explore/nobackup/people/jacaraba/development/ilab-geoproc/ilab_geoproc/landsat/run_download_pdsh.sh'
