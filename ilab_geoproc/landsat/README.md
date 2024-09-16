@@ -51,7 +51,8 @@ We need to be careful to not run out of quota on the intermediate ILAB space. Th
 example of how to test the GLAD Downloader. You would do the same that is described here, but with
 the formal ABoVE_Tiles_All.csv file (which we will fix at some point). The starting interval is 392
 for the beginning of the archive. The 1012 interval is the end of 2023. The current intervals can be 
-found here: https://glad.umd.edu/dataset/glad_ard2/. As of 8/20/2024 interval is 1026.
+found here: https://glad.umd.edu/dataset/glad_ard2/. As of 8/20/2024 interval is 1026. Unless the 
+processing changes, can just process the new interval.
 
 ```bash
 python /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/glad_download.py -i /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/Collection2_requests/ABoVE_Tiles_Test.csv -o /explore/nobackup/projects/ilab/data/LandsatABoVE_GLAD_ARD_Native -s 392 -e 1012
