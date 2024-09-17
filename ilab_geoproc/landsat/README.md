@@ -26,10 +26,16 @@ An additional symlink to the data is under /css/above/glad.umd.edu/Collection2/G
 
 ## Quick Start during Development
 
-Go to working directory:
+SSH into ilabx201 and start a screen session:
 
 ```bash
 ssh ilabx201
+screen -S landsat_download
+```
+
+Go to working directory:
+
+```bash
 cd /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat
 ```
 
