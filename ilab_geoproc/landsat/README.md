@@ -56,9 +56,7 @@ found here: https://glad.umd.edu/dataset/glad_ard2/. As of 8/20/2024 interval is
 processing changes, can just process the new interval.
 
 ```bash
-python /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/1_glad_download.py
--i /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/GLAD_ARD_Collection2_Download_Tiles/GLAD_ARD_Tiles_ABoVE_ALL.csv
--s 392 -e 1026
+python /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/1_glad_download.py -i /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/GLAD_ARD_Collection2_Download_Tiles/GLAD_ARD_Tiles_ABoVE_ALL.csv -s 392 -e 1026
 ```
 
 If needing to process in parallel, an example operations command for the ADAPT login nodes is: 
