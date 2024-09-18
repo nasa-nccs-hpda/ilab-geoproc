@@ -72,7 +72,7 @@ pdsh -w forest[201-210] 'bash /explore/nobackup/people/jacaraba/development/ilab
 pdsh -w ilab[201-212] 'bash /explore/nobackup/people/jacaraba/development/ilab-geoproc/ilab_geoproc/landsat/run_download_pdsh.sh'
 ```
 
-Once the data has been downloaded, go ahead and transfer the data to CSS:
+(As of 9/16/2024 Only needed if downloading to ilab instead of into css) Once the data has been downloaded, go ahead and transfer the data to CSS:
 
 fpsync method (preferred)
 
@@ -96,10 +96,16 @@ available nodes. For this we need to create some filenames that will allow us to
 multiple nodes. The steps are as follow:
 
 - we create the filename with the intervals
-- we split these into the nodes we have available
+- we split these into the nodes we have available 
 - we generate the final interval filenames with the node appended to the end of the filename
 
-The following script takes care of the entire setup process:
+If only running on one node:
+
+```bash
+python /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/2_gen_vrt.py -i /css/landsat/Collection2/GLAD_ARD/Native_Grid -o /explore/nobackup/projects/ilab/data/ABoVE_Grid_Update/ABoVE_Grid_Landsat_VRTs -s 392 -e 1026
+```
+
+If parallelizing, the following script takes care of the entire setup process:
 
 ```bash
 bash setup_gen_vrt.sh
