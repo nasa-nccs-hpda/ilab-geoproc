@@ -14,7 +14,7 @@ echo $HOSTNAME
 # /explore/nobackup/people/jacaraba/development/ilab-geoproc/ilab_geoproc/landsat/Collection2_requests/GLAD_ARD_Tiles_ABoVE_forest210
 echo /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/Collection2_vrt_requests/GLAD_ARD_Tiles_ABoVE_${HOSTNAME}
 
-python /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/gen_vrt.py \
+python /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/2_gen_vrt.py \
     -if /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/Collection2_vrt_requests/GLAD_ARD_Tiles_ABoVE_${HOSTNAME} \
     -i /css/landsat/Collection2/GLAD_ARD/Native_Grid \
     -o /explore/nobackup/projects/ilab/data/ABoVE_Grid_Update/ABoVE_Grid_Landsat_VRTs \

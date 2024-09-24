@@ -14,7 +14,7 @@ echo $HOSTNAME
 # /explore/nobackup/people/jacaraba/development/ilab-geoproc/ilab_geoproc/landsat/Collection2_requests/GLAD_ARD_Tiles_ABoVE_forest210
 echo /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/Collection2_reproject_requests/GLAD_ARD_Tiles_ABoVE_${HOSTNAME}
 
-python /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/glad_reproject.py \
+python /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/3_glad_reproject.py \
     --vrts-dir /css/landsat/Collection2/GLAD_ARD/ABoVE_Grid_Update/ABoVE_Grid_Landsat_VRTs \
     --interval-filename /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/Collection2_reproject_requests/GLAD_ARD_Tiles_ABoVE_${HOSTNAME} \
     --start-interval 392 \

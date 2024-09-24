@@ -16,10 +16,6 @@ from multiprocessing import Pool, Lock, cpu_count
 
 globallock = Lock()
 
-# python glad_reproject_zach.py 
-# -f '/explore/nobackup/projects/ilab/data/LandSatABoVE_Regrid_C2/above_landsat_vrt/*.vrt'
-# -o '/explore/nobackup/projects/ilab/data/LandSatABoVE_Regrid_C2_Extended' 
-# -hs 18 -he 23 -vs 18 -ve 23
 
 class GladReproject:
 

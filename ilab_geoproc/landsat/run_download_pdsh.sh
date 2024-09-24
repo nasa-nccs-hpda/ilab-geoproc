@@ -14,7 +14,7 @@ echo $HOSTNAME
 # /explore/nobackup/people/jacaraba/development/ilab-geoproc/ilab_geoproc/landsat/Collection2_requests/GLAD_ARD_Tiles_ABoVE_forest210
 echo /explore/nobackup/people/jacaraba/development/ilab-geoproc/ilab_geoproc/landsat/Collection2_requests/GLAD_ARD_Tiles_ABoVE_${HOSTNAME}
 
-python /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/glad_download.py \
+python /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/1_glad_download.py \
     -i /explore/nobackup/people/jacaraba/development/ilab-geoproc/ilab_geoproc/landsat/Collection2_requests/GLAD_ARD_Tiles_ABoVE_${HOSTNAME} \
     -o /explore/nobackup/projects/ilab/data/LandsatABoVE_GLAD_ARD_Native_All \
     -s 392 \
