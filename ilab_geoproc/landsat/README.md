@@ -11,10 +11,10 @@ main steps:
 - generating VRTs
 - regridding
 
-We do it this way because transfer nodes to CSS (abovex201) only have 2 CPU cores, which makes the 
-data transfer process extremely slow. We have a temporary transfer node to accelerate the process
-for this rounds of upgrades (2024-04-03). As of 9/16/2024, we have more transfer nodes so can download 
-directly to CSS.
+If using transfer nodes to CSS (abovex201), they only have only have 2 CPU cores, which makes the 
+data transfer process extremely slow and another step is added to download to adapt, then to css. 
+We have a temporary transfer node to accelerate the process for this rounds of upgrades (2024-04-03). 
+As of 9/16/2024, we have more transfer nodes so can download directly to CSS.
 
 ![GLAD ARD ABoVE Download](glad-ard.png)
 
@@ -131,8 +131,9 @@ The last step is to regrid the imagery. For the operational workflow we are work
 are what we need:
 
 - Original Data: /css/landsat/Collection2/GLAD_ARD/Native_Grid
-- VRTs: /explore/nobackup/projects/ilab/data/ABoVE_Grid_Update/ABoVE_Grid_Landsat_VRTs
-- Intermediate Output Data Explore: /explore/nobackup/projects/ilab/data/ABoVE_Grid_Update (if running on parallel)
+- VRTs: /explore/nobackup/projects/ilab/data/ABoVE_Grid_Update/ABoVE_Grid_Landsat_VRTs (if transfer is needed)
+- VRTs: /css/landsat/Collection2/GLAD_ARD/ABoVE_Grid_Update/ABoVE_Grid_Landsat_VRT (if data was downloaded to css)
+- Intermediate Output Data Explore: /explore/nobackup/projects/ilab/data/ABoVE_Grid_Update (if transfer is needed)
 - Final Output Data CSS: /css/landsat/Collection2/GLAD_ARD/ABoVE_Grid_Update
 
 Given this information, the following script is used for reprojection purposes. This assumes we already have the
