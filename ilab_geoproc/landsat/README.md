@@ -102,7 +102,8 @@ multiple nodes. The steps are as follow:
 If only running on one node:
 
 ```bash
-python /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/2_gen_vrt.py -i /css/landsat/Collection2/GLAD_ARD/Native_Grid -o /explore/nobackup/projects/ilab/data/ABoVE_Grid_Update/ABoVE_Grid_Landsat_VRTs -s 392 -e 1026
+python /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/2_gen_vrt.py -i /css/landsat/Collection2/GLAD_ARD/Native_Grid -o 
+/css/landsat/Collection2/GLAD_ARD/ABoVE_Grid_Update/ABoVE_Grid_Landsat_VRTs -s 392 -e 1026
 ```
 
 If parallelizing, the following script takes care of the entire setup process:
@@ -118,6 +119,12 @@ pdsh -w ilab[201-212] 'bash /explore/nobackup/projects/ilab/software/ilab-geopro
 pdsh -w forest[201-210] 'bash /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/run_gen_vrt_pdsh.sh'
 ```
 
+To verify that VRT was successful, can run gdal info and see if files are referenced:
+```bash
+conda activate tensorflow 
+gdalinfo /explore/nobackup/projects/ilab/data/ABoVE_Grid_Update/ABoVE_Grid_Landsat_VRTs/546.vrt
+```
+
 ### 3. Glad ARD Regridder
 
 The last step is to regrid the imagery. For the operational workflow we are working on 2024-04-03, the following paths
@@ -125,13 +132,24 @@ are what we need:
 
 - Original Data: /css/landsat/Collection2/GLAD_ARD/Native_Grid
 - VRTs: /explore/nobackup/projects/ilab/data/ABoVE_Grid_Update/ABoVE_Grid_Landsat_VRTs
-- Intermediate Output Data Explore: /explore/nobackup/projects/ilab/data/ABoVE_Grid_Update
+- Intermediate Output Data Explore: /explore/nobackup/projects/ilab/data/ABoVE_Grid_Update (if running on parallel)
 - Final Output Data CSS: /css/landsat/Collection2/GLAD_ARD/ABoVE_Grid_Update
 
 Given this information, the following script is used for reprojection purposes. This assumes we already have the
 VRTs in place, and the files per node with the individual time intervals per node.
 
-The best way to run this is to:
+To run this on one node:
+1. Login to adapt, ssh into gpulogin1, then create a screen session
+2. Modify the start and end intervals and horizontal and vertical tiles in the options
+3. Run in blocks using the following code as an example
+
+```bash
+python /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/3_glad_reproject.py     --vrts-dir /css/landsat/Collection2/GLAD_ARD/ABoVE_Grid_Update/ABoVE_Grid_Landsat_VRTs     --start-interval 1013     --end-interval 1026     --output-dir /css/landsat/Collection2/GLAD_ARD/ABoVE_Grid_Update     --horizontal-start-tile 30     --horizontal-end-tile 35      --vertical-start-tile 09      --vertical-end-tile 23
+```
+
+4. Monitor the performance and run time using `htop` from one of the ilab nodes
+
+To run this in parallel, these are the following steps:
 
 1. Create a screen session on adaptlogin
 2. Modify the horizontal and vertical tiles from the run_reproject_pdsh.sh file
