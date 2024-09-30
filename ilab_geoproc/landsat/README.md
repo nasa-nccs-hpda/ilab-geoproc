@@ -45,6 +45,7 @@ Activate anaconda environment:
 module load anaconda
 conda activate ilab-pytorch
 ```
+*Note, may have to activate ilab-tensorflow instead
 
 This will load all the needed dependencies to start working on the data.
 Below we have documented the different steps needed for the complete download.
