@@ -103,8 +103,7 @@ multiple nodes. The steps are as follow:
 If only running on one node:
 
 ```bash
-python /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/2_gen_vrt.py -i /css/landsat/Collection2/GLAD_ARD/Native_Grid -o 
-/css/landsat/Collection2/GLAD_ARD/ABoVE_Grid_Update/ABoVE_Grid_Landsat_VRTs -s 392 -e 1026
+python /explore/nobackup/projects/ilab/software/ilab-geoproc/ilab_geoproc/landsat/2_gen_vrt.py -i /css/landsat/Collection2/GLAD_ARD/Native_Grid -o /css/landsat/Collection2/GLAD_ARD/ABoVE_Grid_Update/ABoVE_Grid_Landsat_VRTs -s 392 -e 1026
 ```
 
 If parallelizing, the following script takes care of the entire setup process:
